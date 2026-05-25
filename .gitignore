@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Env / secrets
+.env
+*.local
+
+# Playwright login sessions (contain auth cookies — never commit)
+data/sessions/*.json
+
+# Crawl output
+data/screenshots/*
+!data/screenshots/.gitkeep
+data/output/
+
+# OS
+.DS_Store

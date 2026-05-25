@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>크롤링 결과 · {{ job.platform.label if job.platform else "" }}</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="/">← 새 크롤링</a>
+    <h1>{{ job.platform.label if job.platform else "결과" }}</h1>
+    <p class="sub">{{ job.message }}</p>
+
+    <div class="counts">
+      <span class="chip total">전체 {{ job.reviews|length }}</span>
+      <span class="chip pos">긍정 {{ job.positive|length }}</span>
+      <span class="chip neg">부정 {{ job.negative|length }}</span>
+      <span class="chip neu">중립/미분류 {{ job.other|length }}</span>
+    </div>
+
+    {% macro review_card(r) %}
+      <article class="card {{ r.sentiment.value }}">
+        <header>
+          <span class="badge {{ r.sentiment.value }}">{{ r.sentiment.label }}</span>
+          {% if r.rating %}<span class="rating">★ {{ r.rating }}</span>{% endif %}
+          <span class="author">{{ r.author or "익명" }}</span>
+          <span class="date">{{ r.date or "" }}</span>
+        </header>
+        <p class="text">{{ r.text }}</p>
+        {% if r.sentiment_reason %}<p class="reason">· {{ r.sentiment_reason }}</p>{% endif %}
+        {% if r.screenshot %}
+          <a href="/shots/{{ r.screenshot }}" target="_blank">
+            <img class="shot" src="/shots/{{ r.screenshot }}" alt="리뷰 캡쳐" loading="lazy" />
+          </a>
+        {% endif %}
+      </article>
+    {% endmacro %}
+
+    <div class="columns">
+      <section class="col">
+        <h2 class="pos">긍정 리뷰 ({{ job.positive|length }})</h2>
+        {% for r in job.positive %}{{ review_card(r) }}{% else %}
+          <p class="empty">없음</p>{% endfor %}
+      </section>
+      <section class="col">
+        <h2 class="neg">부정 리뷰 ({{ job.negative|length }})</h2>
+        {% for r in job.negative %}{{ review_card(r) }}{% else %}
+          <p class="empty">없음</p>{% endfor %}
+      </section>
+    </div>
+
+    {% if job.other %}
+      <section class="col">
+        <h2 class="neu">중립 / 미분류 ({{ job.other|length }})</h2>
+        {% for r in job.other %}{{ review_card(r) }}{% endfor %}
+      </section>
+    {% endif %}
+  </main>
+</body>
+</html>
