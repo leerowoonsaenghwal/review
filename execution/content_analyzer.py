@@ -77,9 +77,9 @@ def normalize(items: list[dict]) -> tuple[dict, list[dict]]:
                 "alt": (it.get("alt") or "").strip(),
                 "hashtags": it.get("hashtags") or [],
                 "mentions": it.get("mentions") or [],
-                "likes": _as_int(it.get("likesCount")),
-                "comments": _as_int(it.get("commentsCount")),
-                "video_views": _as_int(it.get("videoViewCount")),
+                "likes": _count(it.get("likesCount")),
+                "comments": _count(it.get("commentsCount")),
+                "video_views": _count(it.get("videoViewCount")),
                 "timestamp": it.get("timestamp"),
                 "top_comments": [
                     c.get("text", "")
@@ -160,6 +160,12 @@ def _as_int(value) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _count(value) -> int | None:
+    """Engagement count, or None when hidden (Instagram returns -1)."""
+    n = _as_int(value)
+    return n if n is not None and n >= 0 else None
 
 
 def _gemini_available() -> bool:
