@@ -18,5 +18,11 @@ data/screenshots/*
 !data/screenshots/.gitkeep
 data/output/
 
+# Instagram analysis pipeline (intermediate + generated artifacts)
+.tmp/*
+!.tmp/.gitkeep
+Output/*
+!Output/.gitkeep
+
 # OS
 .DS_Store
