@@ -9,6 +9,7 @@ pydantic==2.10.4
 # Instagram analysis pipeline (execution/)
 apify-client==1.12.2
 google-generativeai==0.8.6
+openpyxl==3.1.5
 pydantic-settings==2.7.1
 
 # dev
