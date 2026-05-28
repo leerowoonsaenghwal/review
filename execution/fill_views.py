@@ -47,7 +47,7 @@ def extract_url(value) -> str | None:
     return m.group(0).rstrip(".,);]") if m else None
 
 
-def fill_sheet(ws, *, limit: int, n_videos: int) -> tuple[int, int]:
+def fill_sheet(ws, *, limit: int, n_videos: int, only_empty: bool = False) -> tuple[int, int]:
     from openpyxl.comments import Comment
 
     link_col, views_col, _ = find_columns(ws)
@@ -55,16 +55,19 @@ def fill_sheet(ws, *, limit: int, n_videos: int) -> tuple[int, int]:
         logger.info("시트 '%s' 건너뜀(필요 컬럼 없음)", ws.title)
         return 0, 0
     logger.info(
-        "시트 '%s' 처리 시작 (링크열=%d, 평균 조회수열=%d)",
+        "시트 '%s' 처리 시작 (링크열=%d, 평균 조회수열=%d, only_empty=%s)",
         ws.title,
         link_col,
         views_col,
+        only_empty,
     )
 
     success = miss = 0
     for r in range(HEADER_ROW + 1, ws.max_row + 1):
         url = extract_url(ws.cell(row=r, column=link_col).value)
         if not url:
+            continue
+        if only_empty and ws.cell(row=r, column=views_col).value not in (None, "", 0):
             continue
         try:
             target = instagram_scraper.parse_instagram_url(url)
@@ -131,6 +134,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="처리할 시트 이름들 (미지정 시 적용 가능한 모든 시트)",
     )
+    parser.add_argument(
+        "--only-empty",
+        action="store_true",
+        help="이미 값이 들어있는 행은 건너뛰고 비어있는 행만 채움",
+    )
     args = parser.parse_args(argv)
 
     from openpyxl import load_workbook
@@ -150,7 +158,9 @@ def main(argv: list[str] | None = None) -> int:
     for ws in wb.worksheets:
         if args.sheets and ws.title not in args.sheets:
             continue
-        s, m = fill_sheet(ws, limit=args.limit, n_videos=args.videos)
+        s, m = fill_sheet(
+            ws, limit=args.limit, n_videos=args.videos, only_empty=args.only_empty
+        )
         total_s += s
         total_m += m
 
