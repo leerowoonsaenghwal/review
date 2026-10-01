@@ -23,7 +23,7 @@ for (let row = 0; row < 2; row++) for (let i = 0; i < N; i++) {
   const g = new THREE.Mesh(new THREE.CircleGeometry(1.6, 48), new THREE.MeshStandardMaterial({ color: '#a8db84' })); g.rotation.x = -Math.PI / 2; g.receiveShadow = true; scene.add(g);
   const cat = buildCat(b.shape, b.coat); setPose(cat, 'walk', i / N); scene.add(cat);
   const cam = new THREE.PerspectiveCamera(24, 1, .1, 50);
-  if (row === 0) { cam.position.set(7.2, 1.3, .25); cam.lookAt(0, .72, .25); } else { cam.position.set(4.8, 2.9, 4.0); cam.lookAt(0, .72, .1); }
+  if (row === 0) { cam.position.set(7.2, 1.3, .25); cam.lookAt(0, .8, .3); } else { cam.position.set(4.8, 2.6, 4.4); cam.lookAt(0, .78, .15); }
   r.setViewport(i * CW, (1 - row) * CH, CW, CH); r.setScissor(i * CW, (1 - row) * CH, CW, CH); r.render(scene, cam);
 }
 window.__done = true;

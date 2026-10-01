@@ -56,9 +56,9 @@ items.forEach((it, i) => {
   scene.add(sun);
   const ground = new THREE.Mesh(new THREE.CircleGeometry(1.7, 48), new THREE.MeshStandardMaterial({ color: '#a8db84', roughness: 1 }));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-  const cat = buildCat(it.shape, it.coat); setPose(cat, 'walk', .12); cat.rotation.y = .55; scene.add(cat);
+  const cat = buildCat(it.shape, it.coat); setPose(cat, 'walk', .12); cat.rotation.y = .42; scene.add(cat);
   const cam = new THREE.PerspectiveCamera(24, CW / (CH - 40), .1, 50);
-  cam.position.set(6.4, 2.7, 1.6); cam.lookAt(0, .74, .05);
+  cam.position.set(7.0, 2.7, 2.2); cam.lookAt(0, .86, .05);
   const col = i % COLS, row = Math.floor(i / COLS);
   const x = 12 + col * CW, y = H - (row + 1) * CH;
   renderer.setViewport(x, y + 40, CW, CH - 40); renderer.setScissor(x, y + 40, CW, CH - 40);

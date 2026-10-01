@@ -139,7 +139,7 @@ function furify(geo, fur, k = 0) {
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i); n.fromBufferAttribute(nor, i);
     let off = 0;
-    if (fur.type === 'long') off = fur.amount * .09 * (fbm(v.x * 5 + k, v.y * 5, v.z * 5) - .3);
+    if (fur.type === 'long') off = fur.amount * .06 * (fbm(v.x * 3.5 + k, v.y * 3.5, v.z * 3.5) - .3);
     else if (fur.type === 'curly') off = fur.amount * (.035 + .05 * Math.pow(vnoise(v.x * 16 + k, v.y * 16, v.z * 16), 2) + .02 * Math.sin(v.x * 40) * Math.sin(v.z * 40));
     else if (fur.type === 'rex') off = fur.amount * .012 * Math.sin(v.z * 46 + v.y * 20);
     v.addScaledVector(n, off);
@@ -171,7 +171,7 @@ function mk(geo, part, info, mat = MAT) {
 
 // ------------------------------------------------------------------ shape
 export const SHAPE_DEFAULT = {
-  size: 1, headSize: 1, headW: 1.08, faceFlat: 0, cheek: 0, muzzleLen: 1,
+  size: 1, headSize: 1.5, headW: 1.08, faceFlat: 0, cheek: 0, muzzleLen: 1,
   ear: 'upright', earSize: 1, earTuft: 0,
   eyeSize: 1, eyeShape: 'round',
   bodyLen: 1, bodyBulk: 1, legLen: 1, legBulk: 1,
@@ -187,7 +187,7 @@ export function buildCat(shapeIn, coatSpec) {
   const fur = { type: s.fur, amount: s.furAmount };
   const hairless = s.fur === 'none';
   const bodyMat = hairless ? MAT_SKIN : MAT;
-  const L = s.legLen, B = s.bodyBulk, BL = s.bodyLen;
+  const L = s.legLen * .8, B = s.bodyBulk, BL = s.bodyLen * .82;
 
   const root = new THREE.Group();
   const rig = { root, legs: {}, tail: [] };
@@ -269,11 +269,11 @@ export function buildCat(shapeIn, coatSpec) {
   // neck + head
   const neck = new THREE.Group(); neck.position.set(0, .2, .62 * BL); body.add(neck); rig.neck = neck;
   {
-    const g = capsuleY(.17 * B * fluffy, .2 * B * fluffy, .26, 32); g.rotateX(Math.PI * .78);
+    const g = capsuleY(.17 * B * fluffy, .2 * B * fluffy, .14, 32); g.rotateX(Math.PI * .78);
     if (!hairless) furify(g, fur, 5);
     neck.add(mk(g, 'body', 'bodyNorm', bodyMat));
   }
-  const head = new THREE.Group(); head.position.set(0, .2, .2); neck.add(head); rig.head = head;
+  const head = new THREE.Group(); head.position.set(0, .26 * s.headSize, .16 * s.headSize); neck.add(head); rig.head = head;
   const HS = .42 * s.headSize;
   {
     const g = ellipsoid(HS, s.headW, .9, .92 - s.faceFlat * .1, 96);
@@ -316,18 +316,25 @@ export function buildCat(shapeIn, coatSpec) {
     head.add(mk(mz, 'muzzle', 'headDir', bodyMat));
     const ng = ellipsoid(HS * .1, 1.25, .8, .8, 20); ng.translate(0, -HS * .14 + flat * HS * .1, HS * (.97 - flat * .2) * Math.min(1, s.muzzleLen * .1 + .9));
     head.add(mk(ng, 'nose', null, MAT_GLOSS));
+    // mouth: a tiny 'w' under the nose
     for (const x of [-1, 1]) {
-      const er = HS * .17 * s.eyeSize;
-      const almond = s.eyeShape === 'almond';
-      const ig = ellipsoid(er, almond ? 1.2 : .92, almond ? .78 : 1.08, .5, 32);
-      ig.translate(x * HS * .4, HS * .05, HS * .82 - flat * HS * .06);
-      head.add(mk(ig, 'eye', null, MAT_GLOSS));
-      const pg = ellipsoid(er * .58, almond ? .7 : .85, 1.18, .5, 24); pg.translate(x * HS * .4, HS * .05, HS * .85 - flat * HS * .06);
-      const pupil = new THREE.Mesh(pg, new THREE.MeshStandardMaterial({ color: '#1d1714', roughness: .3 })); head.add(pupil);
-      const hl = new THREE.Mesh(new THREE.SphereGeometry(er * .28, 12, 10), new THREE.MeshBasicMaterial({ color: '#fff' }));
-      hl.position.set(x * HS * .4 - er * .3, HS * .05 + er * .35, HS * .9 - flat * HS * .06); head.add(hl);
-      const bl = new THREE.Mesh(new THREE.SphereGeometry(HS * .14, 16, 12), new THREE.MeshStandardMaterial({ color: '#f5a3b5', roughness: 1, transparent: true, opacity: .55 }));
-      bl.scale.set(1.3, .55, .3); bl.position.set(x * HS * .62, -HS * .22, HS * .7); head.add(bl);
+      const m = new THREE.TorusGeometry(HS * .055, HS * .014, 8, 20, Math.PI);
+      m.rotateZ(Math.PI); m.translate(x * HS * .055, -HS * .2 + flat * HS * .1, HS * (.93 - flat * .2));
+      head.add(mk(m, 'mouth', null, MAT_GLOSS));
+    }
+    for (const x of [-1, 1]) {
+      // big, round, glossy dark eyes; the breed's eye colour only glows softly at the bottom
+      const er = HS * .2 * s.eyeSize;
+      const ex = x * HS * .37, ey = HS * .02, ez = HS * (.84 - flat * .05);
+      const ig = ellipsoid(er, s.eyeShape === 'almond' ? .9 : .82, 1.04, .42, 40);
+      ig.translate(ex, ey, ez);
+      head.add(mk(ig, 'eye', { cy: ey, er }, MAT_GLOSS));
+      const big = new THREE.Mesh(new THREE.SphereGeometry(er * .34, 16, 12), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
+      big.scale.set(1, 1, .4); big.position.set(ex - x * er * .1 - er * .2, ey + er * .4, ez + er * .4); head.add(big);
+      const small = new THREE.Mesh(new THREE.SphereGeometry(er * .14, 12, 10), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
+      small.scale.set(1, 1, .4); small.position.set(ex + er * .28, ey - er * .38, ez + er * .38); head.add(small);
+      const bl = new THREE.Mesh(new THREE.SphereGeometry(HS * .13, 16, 12), new THREE.MeshStandardMaterial({ color: '#f7a3b6', roughness: 1, transparent: true, opacity: .6 }));
+      bl.scale.set(1.35, .55, .3); bl.position.set(x * HS * .62, -HS * .2, HS * .72); head.add(bl);
     }
   }
 
@@ -347,7 +354,11 @@ export function buildCat(shapeIn, coatSpec) {
       const p = w.copy(v).applyMatrix4(m).clone();
       let info = o.userData.info, c;
       if (o.userData.part === 'tuft') c = C('#3a302a');
-      else {
+      else if (o.userData.part === 'mouth') c = C('#3a2a24');
+      else if (o.userData.part === 'eye') {
+        const t = (v.y - info.cy) / info.er;
+        c = C('#271c18').lerp(colorAt('eye'), .5 * sstep(-.15, -.95, t));
+      } else {
         if (info === 'bodyNorm') info = bodyNorm(p);
         else if (info === 'headDir') info = { dir: v.clone().applyMatrix4(mh).normalize() };
         else if (info && info.len !== undefined) {

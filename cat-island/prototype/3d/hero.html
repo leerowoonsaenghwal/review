@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><style>body{margin:0;background:#f6f1e3}</style></head><body><div id="w"></div>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildCat, setPose, BREEDS } from './catgen.js';
+const q = new URLSearchParams(location.search);
+const ids = (q.get('ids') || 'scottish_fold').split(',');
+const CW = 420, CH = 420, W = CW * ids.length;
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setPixelRatio(2); r.setSize(W, CH); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.setScissorTest(true);
+w.appendChild(r.domElement);
+ids.forEach((id, i) => {
+  const b = BREEDS.find(x => x.id === id);
+  const scene = new THREE.Scene();
+  scene.add(new THREE.HemisphereLight('#f2fbff', '#c9b892', 1.35));
+  const sun = new THREE.DirectionalLight('#fff4dc', 2); sun.position.set(-3, 6, 5); sun.castShadow = true; sun.shadow.radius = 4; scene.add(sun);
+  const g = new THREE.Mesh(new THREE.CircleGeometry(2, 48), new THREE.MeshStandardMaterial({ color: '#a8db84' })); g.rotation.x = -Math.PI / 2; g.receiveShadow = true; scene.add(g);
+  const cat = buildCat(b.shape, b.coat); setPose(cat, 'walk', .1); cat.rotation.y = .6; scene.add(cat);
+  const cam = new THREE.PerspectiveCamera(22, 1, .1, 50); cam.position.set(4.4, 2.3, 3.4); cam.lookAt(0, .85, .2);
+  r.setViewport(i * CW, 0, CW, CH); r.setScissor(i * CW, 0, CW, CH); r.render(scene, cam);
+});
+window.__done = true;
+</script></body></html>
