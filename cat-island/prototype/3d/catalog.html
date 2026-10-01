@@ -11,7 +11,7 @@
   #wrap { position: relative; }
   canvas { position: absolute; left: 0; top: 0; }
   .grid { position: relative; display: grid; gap: 0; padding: 0 12px 16px; }
-  .cell { height: 300px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 12px; box-sizing: border-box; }
+  .cell { height: 250px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 12px; box-sizing: border-box; }
   .cell b { font-weight: normal; font-size: 20px; background: #fbf6e6; border-radius: 999px; padding: 4px 16px; box-shadow: 0 2px 0 rgba(0,0,0,.06); }
   .cell small { font-size: 12px; color: #a08a6a; margin-top: 4px; }
 </style>
@@ -22,15 +22,15 @@
 <script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js" } }</script>
 <script type="module">
 import * as THREE from 'three';
-import { buildCat, BREEDS, KOREAN_COATS } from './catgen.js';
+import { buildCat, setPose, BREEDS, KOREAN_COATS } from './catgen.js';
 
 const q = new URLSearchParams(location.search);
 const mode = q.get('mode') || 'breeds';
-const COLS = 6, CW = 220, CH = 300;
+const COLS = mode === 'breeds' ? 8 : 6, CW = 210, CH = 250;
 let items;
 if (mode === 'breeds') {
   items = BREEDS.map(b => ({ label: b.ko, sub: b.id.replace(/_/g, ' '), shape: b.shape, coat: b.coat }));
-  title.textContent = '품종별 기본 외형 (체형 프리셋)'; sub.textContent = '귀 · 얼굴 · 체형 · 털 길이 · 대표 털색';
+  title.textContent = `품종별 기본 외형 · ${items.length}종 (걷는 자세)`; sub.textContent = '귀 · 얼굴 · 체형 · 다리 길이 · 털 길이(단모/장모/곱슬/렉스/무모) · 꼬리';
 } else {
   items = KOREAN_COATS.map(c => ({ label: c.ko, sub: c.coat.pattern, shape: {}, coat: { eye: '#c9a227', ...c.coat } }));
   title.textContent = '털 무늬 프리셋 (코리안 숏헤어 체형)'; sub.textContent = '사진에서 뽑은 색과 무늬를 이 프리셋에 입힙니다';
@@ -54,11 +54,11 @@ items.forEach((it, i) => {
   const sun = new THREE.DirectionalLight('#fff4dc', 2.0); sun.position.set(-3, 6, 5); sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024); sun.shadow.radius = 5; Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3 });
   scene.add(sun);
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(1.5, 48), new THREE.MeshStandardMaterial({ color: '#a8db84', roughness: 1 }));
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(1.7, 48), new THREE.MeshStandardMaterial({ color: '#a8db84', roughness: 1 }));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-  const cat = buildCat(it.shape, it.coat); cat.rotation.y = -0.38; scene.add(cat);
-  const cam = new THREE.PerspectiveCamera(26, CW / CH, .1, 50);
-  cam.position.set(1.2, 2.5, 7.0); cam.lookAt(0, 1.05, 0);
+  const cat = buildCat(it.shape, it.coat); setPose(cat, 'walk', .12); cat.rotation.y = .55; scene.add(cat);
+  const cam = new THREE.PerspectiveCamera(24, CW / (CH - 40), .1, 50);
+  cam.position.set(6.4, 2.7, 1.6); cam.lookAt(0, .74, .05);
   const col = i % COLS, row = Math.floor(i / COLS);
   const x = 12 + col * CW, y = H - (row + 1) * CH;
   renderer.setViewport(x, y + 40, CW, CH - 40); renderer.setScissor(x, y + 40, CW, CH - 40);
