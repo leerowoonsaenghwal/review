@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+<style>
+
+  html, body { margin: 0; width: 390px; height: 844px; overflow: hidden; background: #a9e2f2; font-family: Jua, sans-serif; }
+  canvas { display: block; }
+  .ui { position: absolute; color: #6f5a40; }
+  .pill { background: rgba(251,246,230,.95); border-radius: 999px; box-shadow: 0 3px 0 rgba(0,0,0,.08); }
+  #time { left: 16px; top: 54px; padding: 8px 22px 10px; }
+  #time b { font-size: 32px; font-weight: normal; } #time i { font-style: normal; font-size: 14px; margin-left: 4px; color:#a08a6a }
+  #time div { font-size: 13px; color: #a08a6a; margin-top: -2px; }
+  #fish { right: 16px; top: 62px; padding: 7px 18px 7px 12px; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+  .fishicon { width: 26px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #b5d6f6, #6aa3da); position: relative; }
+  .fishicon:after { content: ""; position: absolute; right: -8px; top: 2px; border-left: 9px solid #6aa3da; border-top: 6px solid transparent; border-bottom: 6px solid transparent; }
+  #bubble { left: 120px; top: 360px; padding: 10px 18px; font-size: 17px; border-radius: 22px; background: #fbf6e6; }
+  #bubble:after { content: ""; position: absolute; left: 50px; bottom: -12px; border-top: 14px solid #fbf6e6; border-left: 10px solid transparent; border-right: 10px solid transparent; }
+  #reward { left: 16px; bottom: 34px; padding: 10px 18px 10px 10px; border-radius: 26px; display: flex; gap: 10px; align-items: center; }
+  #reward .play { width: 40px; height: 40px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ffe9a3, #f6c33f); display:flex; align-items:center; justify-content:center; font-size: 15px; }
+  #reward small { display:block; font-size: 13px; color:#a08a6a } #reward span { font-size: 17px; }
+  #phone { right: 16px; bottom: 30px; width: 66px; height: 66px; border-radius: 50%; display:flex; align-items:center; justify-content:center; flex-direction: column; }
+  #phone .ph { width: 26px; height: 36px; border-radius: 8px; background: radial-gradient(circle at 35% 30%, #ffc98e, #f0954a); display:flex; align-items:center; justify-content:center; }
+  #phone .ph div { width: 18px; height: 24px; border-radius: 4px; background:#fbf6e6; }
+  #phone small { font-size: 11px; margin-top: 2px; }
+  #heart { left: 196px; top: 410px; font-size: 22px; color: #ff8fa3; }
+  #status { left: 30px; top: 16px; font-size: 15px; color:#3d4a55; font-family: sans-serif; font-weight: 600 }
+</style>
+</head>
+<body>
+<div class="ui" id="status">9:41</div>
+<div class="ui pill" id="time"><b>9:41</b><i>AM</i><div>10월 1일 수요일</div></div>
+<div class="ui pill" id="fish"><span class="fishicon"></span>1,240</div>
+<div class="ui pill" id="bubble">자는 동안 생선 320개 모았어!</div>
+<div class="ui" id="heart">♥</div>
+<div class="ui pill" id="reward"><div class="play">▶</div><div><small>광고 보고 받기</small><span>생선 2배 보너스!</span></div></div>
+<div class="ui pill" id="phone"><div class="ph"><div></div></div><small>냥폰</small></div>
+
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+
+const W = 390, H = 844;
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(2);
+renderer.setSize(W, H);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#a9e2f2');
+scene.fog = new THREE.Fog('#bfe9f4', 44, 78);
+
+// Long-ish lens + high tilt, like the toy-diorama camera
+const camera = new THREE.PerspectiveCamera(26, W / H, 0.1, 200);
+camera.position.set(0, 19, 34);
+camera.lookAt(0, -0.6, 0.5);
+
+scene.add(new THREE.HemisphereLight('#e8f7ff', '#7cc35e', 1.25));
+const sun = new THREE.DirectionalLight('#fff4dc', 2.1);
+sun.position.set(-8, 16, 10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 1, far: 50 });
+sun.shadow.radius = 6;
+sun.shadow.bias = -0.0005;
+scene.add(sun);
+
+const mat = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, metalness: 0, ...o });
+const add = (m, x = 0, y = 0, z = 0, parent = scene) => { m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m; };
+const sphere = (r, c, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 40, 28), mat(c)); m.scale.set(sx, sy, sz); return m; };
+
+// ---------- rolling-log world: the ground is a giant cylinder whose axis runs left-right
+const R = 60;
+const ground = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 80, 160, 1), mat('#8fd16a'));
+ground.rotation.z = Math.PI / 2;
+ground.position.set(0, -R, 0);
+ground.receiveShadow = true;
+scene.add(ground);
+// place an object on the curved ground at (x, z)
+function onGround(obj, x, z, lift = 0) {
+  const a = z / R;                                   // angle along the curve
+  obj.position.set(x, -R + (R + lift) * Math.cos(a), (R + lift) * Math.sin(a));
+  obj.rotation.x = a;
+  return obj;
+}
+const world = new THREE.Group(); scene.add(world);
+
+// sand path: one smooth ribbon laid on the curved ground
+{
+  const pos = [], idx = [];
+  const N = 120, z0 = -16, z1 = 14;
+  for (let i = 0; i <= N; i++) {
+    const z = z0 + (z1 - z0) * i / N;
+    const cx = Math.sin(z * 0.25) * 0.6, w = 0.75 + (z - z0) * 0.022 + 0.08 * Math.sin(z * 1.7);
+    for (const side of [-1, 1]) {
+      const x = cx + side * w, a = z / R, r = R + 0.025;
+      pos.push(x, -R + r * Math.cos(a), r * Math.sin(a));
+    }
+    if (i < N) { const k = i * 2; idx.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx); geo.computeVertexNormals();
+  const path = new THREE.Mesh(geo, mat('#f1dfae', { side: THREE.DoubleSide }));
+  path.receiveShadow = true; scene.add(path);
+}
+
+// grass tufts + flowers
+const rnd = (() => { let s = 7; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
+const tuft = mat('#a8de85');
+for (let i = 0; i < 260; i++) {
+  const x = (rnd() - .5) * 26, z = (rnd() - .5) * 30;
+  if (Math.abs(x - Math.sin(z * .25) * .6) < 1.8) continue;
+  const c = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.28, 5), tuft);
+  world.add(onGround(c, x, z, 0.12));
+}
+const petal = ['#ff8fa3', '#ffffff', '#ffd863', '#c7a5f0'];
+for (let i = 0; i < 40; i++) {
+  const x = (rnd() - .5) * 20, z = (rnd() - .5) * 22;
+  if (Math.abs(x) < 2.2) continue;
+  const g = new THREE.Group();
+  const pc = petal[i % 4];
+  for (let k = 0; k < 5; k++) { const a = k * Math.PI * 2 / 5; add(sphere(0.09, pc), Math.cos(a) * 0.12, 0.12, Math.sin(a) * 0.12, g); }
+  add(sphere(0.07, '#ffe27a'), 0, 0.14, 0, g);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(.02, .02, .12), mat('#5fae4f')), 0, 0.06, 0, g);
+  world.add(onGround(g, x, z));
+}
+
+// ---------- trees (round fruit trees)
+function tree(x, z, fruit) {
+  const g = new THREE.Group();
+  add(new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 1.4, 12), mat('#a8774d')), 0, 0.7, 0, g);
+  add(sphere(1.15, '#5cbd68'), 0, 2.1, 0, g);
+  add(sphere(0.8, '#62c46c'), -0.75, 1.75, 0.2, g);
+  add(sphere(0.8, '#56b462'), 0.75, 1.8, -0.1, g);
+  add(sphere(0.75, '#66c870'), 0.1, 2.75, 0.1, g);
+  if (fruit) for (const [fx, fy, fz] of [[-.6, 2.3, .85], [.5, 2.6, .85], [.9, 1.9, .55], [-.2, 1.7, 1.0]]) add(sphere(0.16, fruit), fx, fy, fz, g);
+  return world.add(onGround(g, x, z)), g;
+}
+tree(-4.6, -2.5, '#f08a5d'); tree(4.4, 3.5, '#ff8fa3'); tree(-4.9, 5.8); tree(3.2, -7.5, '#f08a5d'); tree(-1.8, -11);
+
+// ---------- houses
+function house(x, z, wall, roof, door, rotY) {
+  const g = new THREE.Group();
+  const body = add(new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.9, 2.2), mat(wall)), 0, 0.95, 0, g);
+  const r = add(new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.45, 3.0, 32, 1, false, 0, Math.PI), mat(roof)), 0, 1.9, 0, g);
+  r.rotation.z = Math.PI / 2; r.rotation.y = 0; r.scale.set(1, 1, 0.9);
+  add(new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.5, 6, 16), mat(door)), 0.35, 0.62, 1.11, g).scale.set(1, 1, .25);
+  add(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.55, 0.06), mat('#cfeefa', { roughness: .3 })), -0.7, 1.1, 1.11, g);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, .9), mat('#a8774d')), 1.6, .45, .9, g);
+  add(new THREE.Mesh(new THREE.BoxGeometry(.4, .3, .5), mat(door)), 1.6, .95, .9, g);
+  g.rotation.y = rotY;
+  world.add(onGround(g, x, z));
+  g.rotation.y = rotY;
+  return g;
+}
+house(-3.4, -7.0, '#f6e3c4', '#e87c63', '#5f9ad8', 0.35).scale.setScalar(0.85);
+house(3.8, -5.6, '#fff1d6', '#6fb3e6', '#f0a24a', -0.4).scale.setScalar(0.85);
+
+// ---------- cats (rounded-primitive 'toy' cats)
+function tube(points, r, c) {
+  const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)));
+  const m = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, r, 12, false), mat(c));
+  const cap = sphere(r, c); cap.position.copy(curve.getPoint(1));
+  const g = new THREE.Group(); add(m, 0, 0, 0, g); add(cap, cap.position.x, cap.position.y, cap.position.z, g);
+  return g;
+}
+function cat({ coat, belly = '#fbf7ef', fold = false, eye = 1, tailC, stripes = true, patch = null, sleep = false }) {
+  const g = new THREE.Group();
+  add(sphere(0.62, coat, 1, 0.92, 1), 0, 0.6, 0, g);                         // body
+  add(sphere(0.36, belly, 1, 1.05, 0.6), 0, 0.6, 0.42, g);                    // chest
+  for (const s of [-1, 1]) add(sphere(0.2, belly, 1, 0.7, 1.15), s * 0.24, 0.12, 0.45, g);  // front paws
+  g.add(tube([[0.1, .35, -.5], [0.6, .4, -.8], [0.85, .9, -.6], [0.75, 1.25, -.35]], 0.11, tailC || coat));
+  const head = new THREE.Group(); head.position.set(0, 1.42, 0.08); g.add(head);
+  add(sphere(0.72, coat, 1.12, 0.92, 0.95), 0, 0, 0, head);
+  if (patch) add(sphere(0.42, patch, 1, .8, .8), -0.42, 0.25, 0.22, head);
+  // ears
+  for (const s of [-1, 1]) {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.42, 20), mat(coat));
+    if (fold) { ear.scale.set(1.05, 0.55, 0.9); ear.rotation.set(1.05, 0, s * 0.35); add(ear, s * 0.46, 0.55, 0.12, head); }
+    else { ear.rotation.z = -s * 0.32; add(ear, s * 0.5, 0.62, 0, head);
+           const inner = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.26, 16), mat('#f7a8bb')); inner.rotation.z = -s * 0.32; add(inner, s * 0.5, 0.6, 0.1, head); }
+  }
+  // tabby: forehead M + cheek stripes as soft darker capsules
+  if (stripes) {
+    const sc = new THREE.Color(coat).multiplyScalar(0.72);
+    for (const x of [-0.16, 0, 0.16]) { const s = add(new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.16, 4, 8), mat(sc)), x, 0.5, 0.5, head); s.rotation.x = -0.75; }
+    for (const s of [-1, 1]) for (const y of [0.0, -0.13]) { const st = add(new THREE.Mesh(new THREE.CapsuleGeometry(0.03, 0.14, 4, 8), mat(sc)), s * 0.74, y, 0.18, head); st.rotation.z = Math.PI / 2; st.rotation.y = s * 0.55; }
+  }
+  add(sphere(0.3, belly, 1.15, 0.72, 0.6), 0, -0.25, 0.5, head);             // muzzle
+  add(sphere(0.07, '#e9837a', 1.2, .8, 1), 0, -0.12, 0.68, head);              // nose
+  for (const s of [-1, 1]) {
+    if (sleep) { const lid = add(new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.022, 8, 16, Math.PI), mat('#2b231d')), s * 0.3, 0.02, 0.62, head); lid.rotation.z = Math.PI; }
+    else {
+      add(sphere(0.12 * eye, '#2b231d', 0.85, 1.12, 0.5), s * 0.3, 0.04, 0.62, head);
+      add(sphere(0.04 * eye, '#ffffff'), s * 0.3 - 0.04, 0.1, 0.67, head);
+    }
+    add(sphere(0.12, '#f7a8bb', 1.3, 0.6, 0.3), s * 0.5, -0.18, 0.5, head);   // blush
+  }
+  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
+function placeCat(c, x, z, rotY = 0, s = 1) { c.scale.setScalar(s); world.add(onGround(c, x, z)); c.rotation.y = rotY; return c; }
+
+const rocco = placeCat(cat({ coat: '#a9adb6', fold: true, eye: 1.3, tailC: '#9ca0a9' }), 0.2, 4.0, 0.05, 1.0);
+placeCat(cat({ coat: '#f2b366' , sleep: true}), 3.6, -1.4, -0.6, 0.75);
+placeCat(cat({ coat: '#3b3a40', belly: '#4a4950', stripes: false }), 2.4, 1.4, -0.5, 0.8);
+placeCat(cat({ coat: '#fbf4e8', stripes: false, patch: '#e69a4c', tailC: '#e69a4c' }), -2.6, 1.0, 0.5, 0.8);
+placeCat(cat({ coat: '#36353b', stripes: false }), -2.6, 6.8, 0.3, 0.8);
+
+// yarn ball + fish basket props
+add(sphere(0.32, '#ff8fa3'), 0, 0, 0, world); world.add(onGround(world.children[world.children.length - 1], 1.5, 5.2, 0.32));
+
+renderer.render(scene, camera);
+scene.updateMatrixWorld(true);
+const head = new THREE.Vector3(); rocco.getWorldPosition(head); head.y += 2.4;
+const p = head.clone().project(camera);
+const sx = (p.x + 1) / 2 * W, sy = (1 - p.y) / 2 * H;
+const b = document.getElementById('bubble');
+b.style.left = (sx - b.offsetWidth / 2) + 'px'; b.style.top = (sy - b.offsetHeight - 12) + 'px';
+const h = document.getElementById('heart'); h.style.left = (sx + 26) + 'px'; h.style.top = (sy + 2) + 'px';
+window.__done = true;
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "cat-island-3d-prototype",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Parametric toy-style 3D cat generator (shape x coat) and village look-dev",
+  "dependencies": { "three": "0.169.0" }
+}
