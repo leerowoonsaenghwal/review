@@ -23,6 +23,19 @@ function vnoise(x, y, z) {
     r += (a ? u : 1 - u) * (b ? v : 1 - v) * (c ? w : 1 - w) * hash(xi + a, yi + b, zi + c);
   return r;
 }
+// cellular noise: [F1, F2] = distances to the nearest and second-nearest jittered feature point.
+// F1 is 0 at a tuft centre; F2 - F1 is 0 on the crease between two tufts.
+function worley2(x, y, z) {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+  let d = 9, d2 = 9;
+  for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) {
+    const cx = xi + a, cy = yi + b, cz = zi + c;
+    const fx = cx + hash(cx, cy, cz), fy = cy + hash(cy + 7, cz, cx), fz = cz + hash(cz + 13, cx, cy);
+    const q = (x - fx) ** 2 + (y - fy) ** 2 + (z - fz) ** 2;
+    if (q < d) { d2 = d; d = q; } else if (q < d2) d2 = q;
+  }
+  return [Math.sqrt(d), Math.sqrt(d2)];
+}
 const fbm = (x, y, z, k = 0) => .6 * vnoise(x + k, y, z) + .4 * vnoise(2 * x, 2 * y + k, 2 * z);
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const C = h => new THREE.Color(h);
@@ -78,6 +91,16 @@ export function makeCoat(spec) {
       return base.clone().lerp(point, t);
     }
 
+    // shaded / chinchilla: white undercoat with dark tips, heaviest on the back, head top and tail
+    if (P === 'shaded') {
+      let t = 0;
+      if (part === 'body') t = .85 * sstep(-.3, .8, info.ny);
+      else if (part === 'head') t = .7 * sstep(-.2, .8, info.dir.y) * (1 - sstep(.4, .9, info.dir.z));
+      else if (part === 'tail') t = .45 + .2 * sstep(.6, 1, info.t);
+      else if (part === 'ear') t = .8;
+      else if (part === 'leg') t = .3 * (1 - info.t);
+      return white.clone().lerp(dark, t);
+    }
     if (isWhite(part, p, info)) return white.clone();
 
     if (P === 'cow') return fbm(p.x * 2.2 + 3, p.y * 2.2, p.z * 2.2, seed * 7) > .58 ? base.clone() : white.clone();
@@ -132,20 +155,41 @@ const MAT = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .9, 
 const MAT_SKIN = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .45, metalness: 0 });
 const MAT_GLOSS = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .35, metalness: 0 });
 
-function furify(geo, fur, k = 0) {
-  // fur: {type:'short'|'long'|'curly'|'rex'|'none', amount}
+// fur: {type:'short'|'long'|'curly'|'rex'|'none', amount}
+// opts.weight(v, n) -> 0..1   where long tufts / curls grow on this mesh (ruff, cheeks, belly, thigh backs ...)
+// opts.gravity               long tufts hang down a little (off for parts that rotate, like the tail)
+// Long and curly fur also store a per-vertex 'fluff' (0 gap .. 1 tuft tip) that the paint pass uses to
+// shade clumps: tips lighter, gaps darker, so the fur reads at toy scale.
+function furify(geo, fur, k = 0, opts = {}) {
   const pos = geo.attributes.position, v = new THREE.Vector3(), n = new THREE.Vector3();
+  const weight = opts.weight || (() => 1), gravity = opts.gravity ?? true;
+  const fq = opts.freq || 1, st = opts.stretch ?? 1.45;   // tuft size (higher = smaller) and vertical comb stretch
   geo.computeVertexNormals();
   const nor = geo.attributes.normal;
+  const tufted = fur.type === 'long' || fur.type === 'curly';
+  const fluff = tufted ? new Float32Array(pos.count) : null;
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i); n.fromBufferAttribute(nor, i);
     let off = 0;
-    if (fur.type === 'long') off = fur.amount * .06 * (fbm(v.x * 3.5 + k, v.y * 3.5, v.z * 3.5) - .3);
-    else if (fur.type === 'curly') off = fur.amount * (.035 + .05 * Math.pow(vnoise(v.x * 16 + k, v.y * 16, v.z * 16), 2) + .02 * Math.sin(v.x * 40) * Math.sin(v.z * 40));
+    if (fur.type === 'long') {
+      // pointed clumps; cells are stretched vertically so tufts look combed downwards
+      const [d, d2] = worley2(v.x * 4.6 * fq + k, v.y * 4.6 * fq / st, v.z * 4.6 * fq);
+      const t = sstep(.85, .05, d) * sstep(0, .22, d2 - d), wgt = weight(v, n);   // soft cone, parted between clumps
+      off = fur.amount * wgt * (.03 + .08 * t);
+      fluff[i] = .25 + .75 * t * Math.min(1, wgt * 1.4);
+      if (gravity) v.y -= fur.amount * wgt * .04 * t * sstep(.4, -.6, n.y);
+    } else if (fur.type === 'curly') {
+      // round puffs (AC sheep wool): sqrt profile gives a cauliflower outline
+      const [d, d2] = worley2(v.x * 7 + k, v.y * 7, v.z * 7);
+      const t = Math.sqrt(Math.max(0, 1 - d * d / .75)) * sstep(0, .3, d2 - d), wgt = weight(v, n);
+      off = fur.amount * wgt * (.035 + .085 * t);
+      fluff[i] = .35 + .65 * t;
+    }
     else if (fur.type === 'rex') off = fur.amount * .008 * Math.sin(v.z * 30 + v.y * 14 + 6 * vnoise(v.x * 5 + k, v.y * 5, v.z * 5)) * (.4 + .6 * vnoise(v.x * 9, v.y * 9 + k, v.z * 9));   // soft broken waves, not rings
     v.addScaledVector(n, off);
     pos.setXYZ(i, v.x, v.y, v.z);
   }
+  if (fluff) geo.setAttribute('fluff', new THREE.BufferAttribute(fluff, 1));
   geo.computeVertexNormals();
   return geo;
 }
@@ -177,6 +221,7 @@ export const SHAPE_DEFAULT = {
   eyeSize: 1, eyeShape: 'round',
   bodyLen: 1, bodyBulk: 1, legLen: 1, legBulk: 1,
   fur: 'short', furAmount: 1, ruff: 0,
+  faceFluff: .55,    // long fur on the cheeks/chin: Persian types 1.2, semi-longhairs (Maine Coon ...) keep a short face
   tail: 'normal', tailLen: 1, tailFluff: 0, tailThick: 1,
   wrinkles: 0,
   // silhouette shaping
@@ -216,7 +261,7 @@ export function buildCat(shapeIn, coatSpec) {
 
   const body = new THREE.Group(); body.position.y = bodyY; root.add(body); rig.body = body;
   rig.pitch = Math.atan2(hindExtra, .96 * BL);           // rump-high breeds lean forward
-  const fluffy = s.fur === 'long' ? 1.08 : s.fur === 'curly' ? 1.05 : 1;
+  const fluffy = s.fur === 'long' ? 1.06 + .08 * s.furAmount : s.fur === 'curly' ? 1.08 : 1;
   const bodyNorm = p => ({ nx: p.x / (.32 * B), ny: (p.y - bodyY) / (.34 * B), nz: p.z / (.9 * BL) });
 
   // torso: one smooth lofted shape - deep chest, slight waist, round hips (no segment seams)
@@ -237,12 +282,14 @@ export function buildCat(shapeIn, coatSpec) {
       pos.setXYZ(i, xx, yy, z * .9 * BL);
     }
     g.computeVertexNormals();
-    if (!hairless) furify(g, fur, 1);
+    // long fur: light on the back, heavy on the chest and belly fringe
+    const wBody = (v, n) => .45 + .55 * sstep(.1, -.7, n.y) + .35 * sstep(.2, .8, v.z / (.9 * BL));
+    if (!hairless) furify(g, fur, 1, { weight: wBody });
     body.add(mk(g, 'body', 'bodyNorm', bodyMat));
   }
   if (s.ruff) {
-    const g = ellipsoid(1, .38 * B, .34, .3, 64); g.translate(0, .12, .58 * BL);
-    furify(g, { type: 'long', amount: 1.6 * s.ruff }, 9);
+    const g = ellipsoid(1, .4 * B * fluffy, .36, .3, 96); g.translate(0, .1, .6 * BL);
+    furify(g, { type: 'long', amount: 1.5 * s.ruff }, 9, { weight: (v, n) => .55 + .45 * sstep(-.2, .8, n.z) });
     body.add(mk(g, 'body', 'bodyNorm'));
   }
 
@@ -263,7 +310,9 @@ export function buildCat(shapeIn, coatSpec) {
       const j = new THREE.Group(); parent.add(j);
       const g = capsuleY(r0 * thick, r1 * thick, len);
       const t0 = acc / total, t1 = (acc + len) / total;
-      if (!hairless) furify(g, { ...fur, amount: fur.amount * .5 }, side + acc);
+      const pants = kind === 'hind' && acc === 0;
+      if (!hairless) furify(g, { ...fur, amount: fur.amount * (s.fur === 'curly' ? .7 : .5) }, side + acc,
+        { weight: pants ? (v, n) => .4 + 1.2 * sstep(.1, -.8, n.z) * sstep(-len, -len * .2, v.y) : () => .55 });
       j.add(mk(g, 'leg', { kind, t0, t1, len }, bodyMat));
       chain.push(j);
       const next = new THREE.Group(); next.position.y = -len; j.add(next);
@@ -288,7 +337,8 @@ export function buildCat(shapeIn, coatSpec) {
       const r0 = rad(i / tailN) * s.tailThick, r1 = rad((i + 1) / tailN) * s.tailThick;
       const g = capsuleY(r0, r1, segLen, 24);
       g.rotateX(Math.PI);                    // grow backwards/upwards along +y of the joint
-      if (s.fur === 'curly') furify(g, { type: 'curly', amount: 1 }, 0);
+      if (s.fur === 'curly') furify(g, { type: 'curly', amount: .9 }, i * 3);
+      else if (s.fur === 'long') furify(g, { type: 'long', amount: .45 * s.furAmount }, i * 3, { gravity: false, freq: 1.3 });
       j.add(mk(g, 'tail', { t0: i / tailN, t1: (i + 1) / tailN, len: segLen }, bodyMat));
       const next = new THREE.Group(); next.position.y = segLen; j.add(next);
       rig.tail.push(j); parent = next;
@@ -303,7 +353,7 @@ export function buildCat(shapeIn, coatSpec) {
   const neck = new THREE.Group(); neck.position.set(0, .2, .62 * BL); body.add(neck); rig.neck = neck;
   {
     const g = ellipsoid(1, .25 * B * fluffy * (1 - (s.neckLen - 1) * .3), .27 * B * fluffy * s.neckLen, .28, 64); g.translate(0, .1 * s.neckLen, .06);
-    if (!hairless) furify(g, fur, 5);
+    if (!hairless) furify(g, fur, 5, { weight: (v, n) => .5 + .5 * sstep(0, .8, n.z) });
     neck.add(mk(g, 'body', 'bodyNorm', bodyMat));
   }
   const head = new THREE.Group(); head.position.set(0, .26 * s.headSize + (s.neckLen - 1) * .3, .16 * s.headSize + (s.neckLen - 1) * .12); neck.add(head); rig.head = head;
@@ -327,7 +377,13 @@ export function buildCat(shapeIn, coatSpec) {
       }
       g.computeVertexNormals();
     }
-    if (!hairless) furify(g, { ...fur, amount: fur.amount * .7 }, 11);
+    // long: lion-like cheek and chin fluff, the face itself stays clean (AC faces are smooth)
+    // curly: puffs everywhere except the front of the face
+    const wHead = s.fur === 'curly'
+      ? (v, n) => 1 - .8 * sstep(.25, .8, n.z)
+      : (v, n) => .15 + 1.5 * sstep(.25, .8, Math.abs(n.x)) * sstep(.6, -.3, n.y) * (1 - .75 * sstep(.45, .9, n.z)) + .6 * sstep(-.3, -.9, n.y);
+    // head tufts point sideways (no drop, no vertical comb), otherwise they hang like mop strands
+    if (!hairless) furify(g, { ...fur, amount: fur.amount * (s.fur === 'long' ? s.faceFluff * .8 : .8) }, 11, { weight: wHead, gravity: false, stretch: 1, freq: 1.25 });
     head.add(mk(g, 'head', 'headDir', bodyMat));
     if (s.cheek) for (const x of [-1, 1]) {
       const c = ellipsoid(HS * .38, 1, .8, .85, 48); c.translate(x * HS * .5 * s.headW, -HS * .3, HS * (.36 - .06 * s.faceFlat));   // cheeks follow the flattened face
@@ -410,6 +466,7 @@ export function buildCat(shapeIn, coatSpec) {
     if (!o.isMesh || !o.userData.part) return;
     const part = o.userData.part === 'tuft' ? 'ear' : o.userData.part;
     const pos = o.geometry.attributes.position, col = new Float32Array(pos.count * 3);
+    const fl = o.geometry.attributes.fluff;
     const m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
     const mh = new THREE.Matrix4().multiplyMatrices(headInv, o.matrixWorld);
     for (let i = 0; i < pos.count; i++) {
@@ -436,6 +493,7 @@ export function buildCat(shapeIn, coatSpec) {
         }
         c = colorAt(part, p, info);
       }
+      if (fl) c.multiplyScalar(.8 + .3 * fl.getX(i));   // tuft tips lighter, gaps between clumps darker
       col.set([c.r, c.g, c.b], i * 3);
     }
     o.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -495,8 +553,9 @@ const SH = (o) => o;
 export const BREEDS = [
   { id: 'korean_shorthair', ko: '코리안 숏헤어', shape: { earSet: 'mid' }, coat: { pattern: 'mackerel', base: '#a39d93', dark: '#57514a' } },
   { id: 'russian_blue', ko: '러시안 블루', shape: { eyeShape: 'almond', earSize: 1.12, bodyBulk: .92, legLen: 1.08, wedge: .35, earSet: 'high', neckLen: 1.1, tailThick: .85 }, coat: { pattern: 'solid', base: '#8794a3', eye: '#5fae6a', lightMuzzle: false, nose: '#7d8794' } },
-  { id: 'persian', ko: '페르시안', shape: { faceFlat: 1, ear: 'small', fur: 'long', ruff: 1, tailFluff: 1, cheek: 1, eyeSize: 1.15, legLen: .78, bodyBulk: 1.15, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85 }, coat: { pattern: 'solid', base: '#f4efe6', eye: '#d7902f' } },
-  { id: 'himalayan', ko: '히말라얀', shape: { faceFlat: 1, ear: 'small', fur: 'long', ruff: 1, tailFluff: 1, cheek: 1, legLen: .78, bodyBulk: 1.15, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85 }, coat: { pattern: 'point', base: '#f2e8d8', point: '#6b4f40', eye: '#4f8fd8' } },
+  { id: 'persian', ko: '페르시안', shape: { faceFlat: 1, ear: 'small', fur: 'long', ruff: 1, tailFluff: 1, cheek: 1, eyeSize: 1.15, legLen: .78, bodyBulk: 1.15, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85 , faceFluff: 1.2 }, coat: { pattern: 'solid', base: '#f4efe6', eye: '#d7902f' } },
+  { id: 'himalayan', ko: '히말라얀', shape: { faceFlat: 1, ear: 'small', fur: 'long', ruff: 1, tailFluff: 1, cheek: 1, legLen: .78, bodyBulk: 1.15, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85 , faceFluff: 1.2 }, coat: { pattern: 'point', base: '#f2e8d8', point: '#6b4f40', eye: '#4f8fd8' } },
+  { id: 'chinchilla_persian', ko: '친칠라 페르시안', shape: { faceFlat: 1, ear: 'small', fur: 'long', ruff: 1.1, tailFluff: 1.1, cheek: 1, eyeSize: 1.18, legLen: .78, bodyBulk: 1.12, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85, faceFluff: 1.2 }, coat: { pattern: 'shaded', base: '#f7f5f0', white: '#f8f6f2', dark: '#55565e', eye: '#3fae6a', nose: '#e0857f' } },
   { id: 'siamese', ko: '샴', shape: { ear: 'large', earSize: 1.2, eyeShape: 'almond', bodyBulk: .78, legLen: 1.25, headW: .95, muzzleLen: 1.2, tailLen: 1.35, wedge: 1, earSet: 'low', earWide: 1.05, bodyLen: 1.2, tailThick: .65, neckLen: 1.2, tuck: .4 }, coat: { pattern: 'point', base: '#f1e6d2', point: '#4f3a30', eye: '#5aa6e0' } },
   { id: 'scottish_fold', ko: '스코티시 폴드', shape: { ear: 'fold', eyeSize: 1.2, cheek: .6, bodyBulk: 1.05, earRound: .5, bodyLen: .92, tailThick: 1.1 }, coat: { pattern: 'mackerel', base: '#a9adb6', dark: '#686c74' } },
   { id: 'british_shorthair', ko: '브리티시 숏헤어', shape: { cheek: 1, ear: 'small', bodyBulk: 1.15, headW: 1.18, eyeSize: 1.12, legBulk: 1.15, earRound: 1, earSet: 'low', bodyLen: .85, legLen: .9, neckLen: .8, tailThick: 1.3, tailLen: .9, chest: 1.15 }, coat: { pattern: 'solid', base: '#8a92a0', eye: '#e19a2b', lightMuzzle: false } },
