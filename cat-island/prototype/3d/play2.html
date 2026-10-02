@@ -78,6 +78,7 @@ window.frame = i => {
   const follow = new THREE.Vector3(c.x, (hp.y + hd.y) / 2 + .02, c.z + .1);   // frames body and head   // camera rides along with the cat, like a game camera
   if (q.has('fixed')) follow.set(0, .3, jump ? jump.D / 2 : 0);
   if (drink && q.has('mouth')) follow.copy(drink.touch).add(new THREE.Vector3(0, .035, 0));   // steady shot of the mouth and bowl
+  if (q.has('mouthcam')) { const t1 = cat.getObjectByName('Tongue1'); if (t1) follow.copy(t1.getWorldPosition(new THREE.Vector3())).add(new THREE.Vector3(0, -.01, .05)); }   // close-up on the mouth
   smooth.copy(follow);
   cam.position.copy(smooth).addScaledVector(camDir, dist); cam.lookAt(smooth);
   sun.position.copy(smooth).add(new THREE.Vector3(-1, 2.2, 1.6)); sun.target.position.copy(smooth);

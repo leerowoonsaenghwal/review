@@ -1,7 +1,7 @@
 {
  "id": "scottish_fold",
  "ko": "스코티시 폴드",
- "bones": 41,
+ "bones": 43,
  "clips": [
   {
    "name": "Idle",
@@ -134,8 +134,17 @@
   },
   {
    "name": "Drink",
-   "dur": 2.8,
+   "dur": 3.233,
    "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null
+  },
+  {
+   "name": "LickLips",
+   "dur": 1.4,
+   "loop": false,
    "rootMotion": false,
    "speed": null,
    "stride": null,
@@ -169,10 +178,10 @@
    "jump": null
   }
  ],
- "sculpt_tris": 102288,
+ "sculpt_tris": 103208,
  "game_tris": {
   "Body": 14000,
-  "Face": "~9000 (eyes, nose, mouth, tongue, whiskers, toe beans)"
+  "Face": "~10500 (eyes, nose, mouth, tongue, whiskers, toe beans)"
  },
  "units": "metres, +Z forward, Y up (glTF); clips sampled at 30 fps",
  "blendshapes": [
@@ -182,6 +191,8 @@
  "tongue_bones": [
   "Tongue1",
   "Tongue2",
-  "Tongue3"
+  "Tongue3",
+  "Tongue4",
+  "Tongue5"
  ]
 }

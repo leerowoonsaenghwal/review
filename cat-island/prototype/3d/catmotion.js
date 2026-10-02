@@ -72,7 +72,7 @@ export function stand(rig) {
     scapL: 0, scapR: 0, scapLy: 0, scapRy: 0,
     tailBase: 0, tailYaw: 0, tailBend: .04, tailCurl: 0, tailTip: 0, tailWave: 0, tailWph: 0,
     earLp: 0, earLy: 0, earLr: 0, earRp: 0, earRy: 0, earRr: 0,
-    blink: 0, mouth: 0, tongue: 0, tongueCurl: 0, tongueLift: 0, breath: 0,
+    blink: 0, mouth: 0, tongue: 0, tongueBend: 0, tongueCurl: 0, tongueSpread: 0, tongueYaw: 0, breath: 0,
   };
   for (const f of FOOT_KEYS) {
     const r = rig.restFoot[f];
@@ -111,13 +111,20 @@ export function applyPose(rig, P, lag = {}) {
   B.Scapula_L.quaternion.setFromAxisAngle(V(1, 0, 0), P.scapL); B.Scapula_L.position.y += P.scapLy;
   B.Scapula_R.quaternion.setFromAxisAngle(V(1, 0, 0), P.scapR); B.Scapula_R.position.y += P.scapRy;
   B.Belly.scale.set(1 + .05 * P.breath, 1 + .09 * P.breath, 1 + .03 * P.breath);
-  // tongue: slides out of the mouth (tongue 0..1), tilts down (tongueLift), and curls: + = tip folded under
-  // into the J-shape cats lap with, - = tip curled up (yawning, scooping)
-  const ext = clamp(P.tongue, 0, 1.2), HS = rig.d.HS;
-  B.Tongue1.position.add(V(0, -.05 * HS * ext, .5 * HS * ext));
-  // the root stays level inside the mouth; the tongue bends down just past the lips (Tongue2), the tip curls (Tongue3)
-  qe(.15 * P.tongueLift, 0, 0, B.Tongue1.quaternion);
-  qe(.75 * P.tongueLift + .35 * P.tongueCurl, 0, 0, B.Tongue2.quaternion); qe(.1 * P.tongueLift + .95 * P.tongueCurl, 0, 0, B.Tongue3.quaternion);
+  // tongue (5 bones). tongue 0..1 = how far it slides out; tongueBend bends the whole length down (+) / up (-);
+  // tongueCurl rolls mostly the tip: + folds it under (the J cats lap with), - scoops it up (licking, yawning);
+  // tongueSpread flattens and widens the front when it presses on fur; tongueYaw swings it sideways (lip lick)
+  // it can only bend where it is already out past the lips, so each joint's share of the bend is weighted by
+  // how far that joint has slid out of the mouth (otherwise it would poke down through the chin)
+  const ext = clamp(P.tongue, 0, 1.2), HS = rig.d.HS, slide = .38 * HS * ext;
+  B.Tongue1.position.add(V(0, -.02 * HS * ext, slide));
+  const WB = [.1, .3, .28, .2, .12], WC = [0, .05, .15, .32, .48], WY = [.3, .3, .2, .12, .08];
+  const out = rig.d.tongueU.map(u => { const z = u * rig.d.tongueLen + slide - rig.d.tongueIn; return clamp((z + .04 * HS) / (.14 * HS), 0, 1); });
+  const ob = WB.reduce((a, w, i) => a + w * out[i], 0) || 1, oy = WY.reduce((a, w, i) => a + w * out[i], 0) || 1;
+  for (let i = 0; i < 5; i++) {
+    const kb = WB[i] * out[i] / Math.max(ob, .35), ky = WY[i] * out[i] / Math.max(oy, .35);
+    qe(1.5 * P.tongueBend * kb + 2.3 * P.tongueCurl * WC[i] * out[i], 1.1 * P.tongueYaw * ky, 0, B['Tongue' + (i + 1)].quaternion);
+  }
   // tail (each joint may come from a slightly earlier pose: overlapping action / follow-through)
   for (let i = 1; i <= 10; i++) {
     const T = lag.tail ? lag.tail[i - 1] : P, k = (i - 1) / 9;
@@ -283,6 +290,46 @@ function sleepPose(rig) {
   return P;
 }
 
+// ------------------------------------------------------------------ tongue cycles
+// One grooming lick (u 0..1, ~0.45 s): the jaw opens first, the tongue reaches out and down with the tip
+// curled slightly under, lands on the fur and spreads flat, then drags UP and back over the fur while the head
+// lifts (the stroke) and the tip turns up; it snaps back in and the jaw closes a beat later.
+export function lickCycle(u) {
+  return {
+    mouth: K([[0, .06], [.1, .42], [.62, .42], [.8, .1], [1, .06]], u),
+    tongue: K([[0, 0], [.08, .12], [.3, .95], [.6, .82], [.76, .08], [1, 0]], u),
+    tongueBend: K([[0, .2], [.3, .95], [.42, .75], [.62, -.15], [.78, .1], [1, .2]], u),
+    tongueCurl: K([[0, .15], [.24, .45], [.34, .2], [.6, -.45], [.72, -.55], [.88, -.1], [1, .15]], u),
+    tongueSpread: K([[0, 0], [.3, 0], [.38, 1], [.58, .75], [.7, 0], [1, 0]], u),
+    hdPitch: K([[0, 0], [.3, .07], [.4, .09], [.66, -.11], [.86, -.03], [1, 0]], u),
+  };
+}
+// One lap when drinking (u 0..1 at ~3.5 Hz; Reis et al. 2010): the tongue reaches down with its tip folded
+// back under (J), touches the surface with the top of the tip only, then is pulled up much faster than it went
+// down; the jaw closes on the liquid column just after the tongue is in.
+export function lapCycle(u) {
+  return {
+    mouth: K([[0, .12], [.14, .55], [.56, .55], [.7, .04], [1, .12]], u),
+    tongue: K([[0, .05], [.34, 1], [.42, 1], [.6, .05], [1, .05]], u),
+    tongueBend: K([[0, .45], [.34, 1.35], [.42, 1.35], [.6, .45], [1, .45]], u),
+    tongueCurl: K([[0, .15], [.3, 1.15], [.44, 1.2], [.6, .3], [1, .15]], u),
+    tongueSpread: K([[0, 0], [.33, 0], [.38, .6], [.45, .3], [.52, 0], [1, 0]], u),
+    hdPitch: K([[0, 0], [.36, .025], [.5, -.02], [.7, -.03], [1, 0]], u),
+  };
+}
+// A lip lick (u 0..1, ~0.8 s): tip scooped up, the tongue sweeps across the upper lip and nose from one side
+// to the other and back in - what cats do after eating or drinking.
+export function lipLick(u) {
+  return {
+    mouth: K([[0, 0], [.12, .3], [.78, .3], [.92, .02], [1, 0]], u),
+    tongue: K([[0, 0], [.15, .68], [.72, .68], [.86, 0], [1, 0]], u),
+    tongueBend: -.25, tongueCurl: K([[0, -.2], [.2, -.75], [.7, -.75], [1, -.2]], u), tongueSpread: .35,
+    tongueYaw: K([[0, .7], [.2, .7], [.5, -.75], [.62, -.75], [.72, 0], [1, 0]], u),
+    hdPitch: K([[0, 0], [.3, -.05], [.7, -.05], [1, 0]], u),
+  };
+}
+const addTongue = (P, c, k = 1) => { for (const key in c) P[key] = key === 'hdPitch' ? P[key] + c[key] * k : lerp(P[key], c[key], k); return P; };
+
 // ------------------------------------------------------------------ clips
 export function makeClips(rig) {
   const h = rig.hipH, P0 = stand(rig), clips = [];
@@ -385,17 +432,21 @@ export function makeClips(rig) {
   // grooming: lick the paw three times, then wipe it over the face and ear twice
   add('Groom', 4.8, true, t => {
     const P = { ...SIT }, h2 = rig.hipH;
-    const lick = t < 2.2, k = lick ? .5 + .5 * Math.sin(TAU * t / .55 - Math.PI / 2) : 0;
+    // 4 licks up the paw (0.4-2.2 s), then the paw wipes the face and ear
+    const lick = t < 2.2, lu = seg(t, .4, 2.2) * 4, li = Math.floor(lu), lph = lu - li, k = lick && t > .4 ? 1 : 0;
     const up = ss(seg(t, 0, .35)) * (1 - ss(seg(t, 4.45, 4.8)));
     P.breath = Math.sin(TAU * t / 2);
     P.hdPitch = lick ? .45 + .1 * k : .15; P.hdYaw = lick ? -.25 : -.45; P.hdRoll = lick ? -.15 : -.35;
-    P.blink = .85; P.mouth = lick ? .4 * k : 0; P.tongue = lick ? .75 * k : 0; P.tongueLift = -.1; P.tongueCurl = -.45;   // flat tongue sweeps up the paw
+    P.blink = .85;
+    if (k) addTongue(P, lickCycle(lph));
     // paw target: in front of the mouth for licking, then circling over the cheek and ear
     const Hc = rig.d.Hc, HS = rig.d.HS;
     const ang = TAU * (t - 2.2) / 1.3;
-    const lickPos = V(.25 * HS, Hc.y - .55 * HS + rig.hipY * -.25, Hc.z + .6 * HS);
+    // paw held just in front of and below the mouth: the tongue lands on its top and drags up over it
+    const lickPos = V(.12 * HS, Hc.y - .95 * HS + rig.hipY * -.25, Hc.z + 1.0 * HS);
     const wipePos = V(.55 * HS + .15 * HS * Math.cos(ang), Hc.y - .25 * HS + .35 * HS * Math.sin(ang) + rig.hipY * -.25, Hc.z + .35 * HS - .1 * HS * Math.cos(ang));
-    const tp = lick ? lickPos.clone().add(V(0, -.04 * k * HS, .03 * k * HS)) : wipePos;
+    // the paw also rises a little into each stroke, meeting the tongue (a lick is the two moving together)
+    const tp = lick ? lickPos.clone().add(V(0, .04 * HS * Math.sin(Math.PI * clamp((lph - .3) / .4, 0, 1)) * k, 0)) : wipePos;
     const ground = V(P.FLx, P.FLy, P.FLz);
     const tgt = ground.lerp(tp, up);
     P.FLx = tgt.x; P.FLy = tgt.y; P.FLz = tgt.z; P.FLa = lerp(P.FLa, -1.5, up); P.FLt = lerp(0, 1.2, up);
@@ -413,7 +464,7 @@ export function makeClips(rig) {
     for (const f of ['FL', 'FR']) { P[f + 'z'] += .55 * h * bow; P[f + 'a'] = lerp(.3, 1.25, bow); P[f + 't'] = -.25 * bow; }
     for (const f of ['HL', 'HR']) { P[f + 'a'] = lerp(.2, .45, bow); }
     const yawn = bump(t, 1.35, .32);
-    P.mouth = yawn; P.tongue = .32 * yawn; P.tongueLift = .25; P.tongueCurl = -.9; P.blink = .2 + .75 * yawn; P.hdPitch -= .25 * yawn;   // tongue curls up in the yawn
+    P.mouth = yawn; P.tongue = .38 * yawn; P.tongueBend = .15 * yawn; P.tongueCurl = -1.1 * yawn; P.tongueSpread = .5 * yawn; P.blink = .2 + .75 * yawn; P.hdPitch -= .25 * yawn;   // tongue curls up in the yawn
     P.earLp = P.earRp = -.35 * yawn;
     P.tailBase = lerp(-.3, 1.0, bow); P.tailBend = .06; P.tailTip = .15 * bow; P.tailWave = .1; P.tailWph = t / 2;
     // hind-leg stretches: body shifts forward, one leg extends back and up, toes spread
@@ -429,7 +480,7 @@ export function makeClips(rig) {
   // the tongue tip curls under into a J so only its top touches the surface, then whips back up, pulling a
   // column of liquid that the jaw snaps shut on. Every 8 laps a short pause to swallow.
   {
-    const f = 3.5, laps = 8, lapT = 1 / f, dur = laps * lapT + .5;
+    const f = 3.5, laps = 8, lapT = 1 / f, dur = laps * lapT + .95;
     add('Drink', dur, true, t => {
       const P = { ...P0 };
       P.hipY = -.07 * h; P.hipPitch = .06; P.spPitch = .18; P.nkPitch = .4; P.hdPitch = .5;
@@ -440,18 +491,19 @@ export function makeClips(rig) {
       P.earLp = P.earRp = .1;
       if (t < laps * lapT) {
         const u = frac(t * f);
-        P.tongue = K([[0, .3], [.3, .92], [.44, .92], [.72, .3], [1, .3]], u);
-        P.tongueCurl = K([[0, .2], [.28, 1.1], [.5, 1.05], [.78, .4], [1, .2]], u);
-        P.tongueLift = K([[0, .3], [.3, 1.0], [.44, 1.0], [.72, .3], [1, .3]], u);
-        P.mouth = K([[0, .2], [.22, .62], [.6, .62], [.8, .08], [1, .2]], u);
-        P.hdPitch += .035 * Math.sin(TAU * u - .6);
-      } else {                                                     // swallow: mouth shut, head lifts a little
+        addTongue(P, lapCycle(u));
+      } else {                                                     // swallow, lift the head a little, lick the lips
         const v = seg(t, laps * lapT, dur), lift = Math.sin(Math.PI * v);
-        P.hdPitch -= .12 * lift; P.nkPitch -= .05 * lift; P.mouth = .2 * (1 - lift);
+        P.hdPitch -= .2 * lift; P.nkPitch -= .08 * lift;
+        addTongue(P, lipLick(seg(t, laps * lapT + .05, dur - .02)));
       }
       return P;
     }, { drink: { laps, rate: f } });
   }
+  add('LickLips', 1.4, false, t => {
+    const P = over(SIT, { breath: Math.sin(TAU * t / 2), blink: .3 + .5 * Math.sin(Math.PI * seg(t, .1, 1.2)) });
+    return addTongue(P, lipLick(seg(t, .15, 1.15)));
+  });
   // flop: rolls onto its side and relaxes (Ragdoll); then breathing with lazy tail flicks
   {
     const FLOP = over(LOAF, { hipRoll: 1.38, hipY: -.62 * rig.hipY, spRoll: .1, hdRoll: .9, hdPitch: .05, nkPitch: .05, blink: .55, tailBase: -1.2, tailBend: .03, tailCurl: 0, tailYaw: 0, earLp: -.2, earRp: -.2 });
@@ -511,8 +563,10 @@ export function bakeClip(rig, clip) {
   for (const k of names) {
     const v = q[k];
     // drop bones that never move (keeps the files small)
-    let moves = false; for (let i = 4; i < v.length && !moves; i++) if (Math.abs(v[i] - v[i % 4]) > 1e-5) moves = true;
-    if (moves || k === 'Hips') tracks.push(new THREE.QuaternionKeyframeTrack(`${k}.quaternion`, times, v));
+    // keep every bone that leaves its rest rotation (identity) at any time - a bone HELD in a pose (the bent spine
+    // while sitting) does not move but still needs its track, or a game engine snaps it back to the rest pose
+    let posed = false; for (let i = 0; i < v.length && !posed; i += 4) if (Math.abs(v[i]) + Math.abs(v[i + 1]) + Math.abs(v[i + 2]) > 1e-5) posed = true;
+    if (posed || k === 'Hips') tracks.push(new THREE.QuaternionKeyframeTrack(`${k}.quaternion`, times, v));
   }
   for (const k in pos) tracks.push(new THREE.VectorKeyframeTrack(`${k}.position`, times, pos[k]));
   tracks.push(new THREE.VectorKeyframeTrack('Belly.scale', times, belly));

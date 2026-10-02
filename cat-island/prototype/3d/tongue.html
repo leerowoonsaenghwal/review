@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#f6f1e3;font-family:Jua,sans-serif;color:#6f5a40}h1{margin:14px 20px 2px;font-size:24px;font-weight:normal}
+#g{display:grid;gap:6px;padding:8px 10px 12px}.c{background:#fbf6e6;border-radius:14px;overflow:hidden}.c canvas{display:block}.c b{display:block;font-weight:normal;font-size:13px;margin:2px 8px 5px}</style></head>
+<body><h1 id="ttl"></h1><div id="g"></div>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js" } }</script>
+<script type="module">
+// tongue close-up: ?cycle=lick|lap|lip&n=8&view=side|34|front&id=breed
+import * as THREE from 'three';
+import { BREEDS } from './catgen.js';
+import { buildCatModel } from './catmodel.js';
+import { makeRig, stand, applyPose, lickCycle, lapCycle, lipLick } from './catmotion.js';
+const q = new URLSearchParams(location.search);
+const b = BREEDS.find(x => x.id === (q.get('id') || 'scottish_fold'));
+const cyc = q.get('cycle') || 'lick', n = +(q.get('n') || 8), views = (q.get('view') || 'side,34').split(',');
+const CW = +(q.get('cw') || 220), CH = +(q.get('ch') || 190);
+const F = { lick: lickCycle, lap: lapCycle, lip: lipLick }[cyc];
+ttl.textContent = `${b.ko} · 혀 ${({ lick: '핥기 (그루밍)', lap: '물·우유 핥아 마시기', lip: '입술 핥기' })[cyc]}`;
+g.style.gridTemplateColumns = `repeat(${n}, ${CW}px)`;
+const cat = buildCatModel(b.shape, b.coat, { res: .02 }), rig = makeRig(cat);
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setPixelRatio(2); r.setSize(CW, CH); r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1;
+const sc = new THREE.Scene(); sc.background = new THREE.Color('#fbf6e6');
+sc.add(new THREE.HemisphereLight('#f2fbff', '#c9b892', 1.5)); const sun = new THREE.DirectionalLight('#fff4dc', 1.8); sun.position.set(-1, 2, 2); sc.add(sun);
+sc.add(cat);
+for (const view of views) for (let i = 0; i < n; i++) {
+  const u = i / n, P = stand(rig);
+  P.hdPitch = cyc === 'lap' ? .55 : cyc === 'lick' ? .25 : 0;
+  Object.assign(P, (({ hdPitch, ...rest }) => rest)(F(u))); P.hdPitch += F(u).hdPitch;
+  applyPose(rig, P);
+  const m = rig.B.Head.localToWorld(rig.d.mouth.clone().sub(rig.d.joints.Head));
+  const dir = { side: [1, -.05, .02], '34': [.7, .1, .75], front: [.08, .05, 1], low: [.35, -.25, 1] }[view];
+  const cam = new THREE.PerspectiveCamera(24, CW / CH, .005, 5);
+  cam.position.copy(m).add(new THREE.Vector3(...dir).normalize().multiplyScalar(+(q.get('dist') || .3))); cam.lookAt(m.x, m.y - .02, m.z + .015);
+  r.render(sc, cam);
+  const cell = document.createElement('div'); cell.className = 'c';
+  const cv = document.createElement('canvas'); cv.width = CW * 2; cv.height = CH * 2; cv.style.width = CW + 'px'; cv.style.height = CH + 'px';
+  cv.getContext('2d').drawImage(r.domElement, 0, 0); cell.append(cv); cell.insertAdjacentHTML('beforeend', `<b>${view} · ${(u * 100).toFixed(0)}%</b>`); g.append(cell);
+}
+window.__done = true;
+</script></body></html>
