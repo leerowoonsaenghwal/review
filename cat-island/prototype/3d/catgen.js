@@ -156,14 +156,12 @@ const MAT_SKIN = new THREE.MeshStandardMaterial({ vertexColors: true, roughness:
 const MAT_GLOSS = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .35, metalness: 0 });
 
 // fur: {type:'short'|'long'|'curly'|'rex'|'none', amount}
-// opts.weight(v, n) -> 0..1   where long tufts / curls grow on this mesh (ruff, cheeks, belly, thigh backs ...)
-// opts.gravity               long tufts hang down a little (off for parts that rotate, like the tail)
-// Long and curly fur also store a per-vertex 'fluff' (0 gap .. 1 tuft tip) that the paint pass uses to
-// shade clumps: tips lighter, gaps darker, so the fur reads at toy scale.
+// opts.weight(v, n) -> 0..1   how much fur texture this area gets
+// Long and curly fur also store a per-vertex 'fluff' (0 dark .. 1 light) that the paint pass uses to
+// shade strands and curls so the coat has a fur feel without lumps.
 function furify(geo, fur, k = 0, opts = {}) {
   const pos = geo.attributes.position, v = new THREE.Vector3(), n = new THREE.Vector3();
-  const weight = opts.weight || (() => 1), gravity = opts.gravity ?? true;
-  const fq = opts.freq || 1, st = opts.stretch ?? 1.45;   // tuft size (higher = smaller) and vertical comb stretch
+  const weight = opts.weight || (() => 1);
   geo.computeVertexNormals();
   const nor = geo.attributes.normal;
   const tufted = fur.type === 'long' || fur.type === 'curly';
@@ -172,18 +170,17 @@ function furify(geo, fur, k = 0, opts = {}) {
     v.fromBufferAttribute(pos, i); n.fromBufferAttribute(nor, i);
     let off = 0;
     if (fur.type === 'long') {
-      // pointed clumps; cells are stretched vertically so tufts look combed downwards
-      const [d, d2] = worley2(v.x * 4.6 * fq + k, v.y * 4.6 * fq / st, v.z * 4.6 * fq);
-      const t = sstep(.85, .05, d) * sstep(0, .22, d2 - d), wgt = weight(v, n);   // soft cone, parted between clumps
-      off = fur.amount * wgt * (.03 + .08 * t);
-      fluff[i] = .25 + .75 * t * Math.min(1, wgt * 1.4);
-      if (gravity) v.y -= fur.amount * wgt * .04 * t * sstep(.4, -.6, n.y);
+      // fine combed strands: a smooth silhouette (cats read as cats by their outline), streaks for texture.
+      // The long-hair *shape* comes from the tuft pieces added in addTufts().
+      const t = vnoise(v.x * 9 + k, v.y * 26, v.z * 9), wgt = weight(v, n);
+      off = fur.amount * wgt * (.008 + .012 * t);
+      fluff[i] = .55 + .45 * t;
     } else if (fur.type === 'curly') {
-      // round puffs (AC sheep wool): sqrt profile gives a cauliflower outline
-      const [d, d2] = worley2(v.x * 7 + k, v.y * 7, v.z * 7);
-      const t = Math.sqrt(Math.max(0, 1 - d * d / .75)) * sstep(0, .3, d2 - d), wgt = weight(v, n);
-      off = fur.amount * wgt * (.035 + .085 * t);
-      fluff[i] = .35 + .65 * t;
+      // small tight curls as surface texture; the visible ringlets are hooked tufts (addTufts)
+      const [d, d2] = worley2(v.x * 17 + k, v.y * 17, v.z * 17);
+      const t = Math.sqrt(Math.max(0, 1 - d * d / .75)) * sstep(0, .25, d2 - d), wgt = weight(v, n);
+      off = fur.amount * wgt * (.01 + .02 * t);
+      fluff[i] = .5 + .5 * t;
     }
     else if (fur.type === 'rex') off = fur.amount * .008 * Math.sin(v.z * 30 + v.y * 14 + 6 * vnoise(v.x * 5 + k, v.y * 5, v.z * 5)) * (.4 + .6 * vnoise(v.x * 9, v.y * 9 + k, v.z * 9));   // soft broken waves, not rings
     v.addScaledVector(n, off);
@@ -207,6 +204,40 @@ function capsuleY(r0, r1, len, seg = 28) {
   for (let i = 0; i <= N; i++) { const a = Math.PI / 2 * i / N; pts.push(new THREE.Vector2(r0 * Math.cos(a), r0 * Math.sin(a))); }
   return new THREE.LatheGeometry(pts, seg);
 }
+// A single stylised fur tuft: a soft cone along +y that bends towards +z (bend) and, for curly coats,
+// hooks over into a ringlet (curl). 'fluff' runs 0 at the root to 1 at the tip (tip painted lighter).
+function tuftGeo(len, r0, bend = .3, curl = 0) {
+  const prof = [];
+  for (let i = 0; i <= 12; i++) {
+    const t = i / 12, r = r0 * Math.pow(1 - t, .55) * (1 + .3 * Math.sin(Math.PI * t * .8)) * Math.sqrt(Math.min(1, (1 - t) * 6));   // plump, soft tip
+    prof.push(new THREE.Vector2(Math.max(1e-4, r), t * len));
+  }
+  const g = new THREE.LatheGeometry(prof, 14);
+  const pos = g.attributes.position, fl = new Float32Array(pos.count);
+  for (let i = 0; i < pos.count; i++) {
+    let x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const t = y / len;
+    z += bend * len * t * t;                                  // gentle sweep
+    if (curl) {                                               // ringlet: roll the outer half around x
+      const a = curl * sstep(.35, 1, t), cy = len * .45, cz = bend * len * .2 + len * .18;
+      const yy = y - cy, zz = z - cz;
+      y = cy + yy * Math.cos(a) - zz * Math.sin(a); z = cz + yy * Math.sin(a) + zz * Math.cos(a);
+    }
+    pos.setXYZ(i, x, y, z); fl[i] = .5 + .5 * t;
+  }
+  g.setAttribute('fluff', new THREE.BufferAttribute(fl, 1));
+  g.computeVertexNormals();
+  return g;
+}
+// put a tuft at `at` (parent space) growing along `dir`, sweeping towards `toward`
+function placeTuft(parent, geo, at, dir, toward, part, info, mat) {
+  const Y = dir.clone().normalize(), Z = toward.clone().addScaledVector(Y, -toward.dot(Y)).normalize(), X = new THREE.Vector3().crossVectors(Y, Z);
+  const m = mk(geo, part, info, mat);
+  m.matrix.makeBasis(X, Y, Z).setPosition(at); m.matrixAutoUpdate = false;
+  parent.add(m);
+  return m;
+}
+
 function mk(geo, part, info, mat = MAT) {
   const m = new THREE.Mesh(geo, mat);
   m.castShadow = m.receiveShadow = true;
@@ -218,7 +249,7 @@ function mk(geo, part, info, mat = MAT) {
 export const SHAPE_DEFAULT = {
   size: 1, headSize: 1.5, headW: 1.08, faceFlat: 0, cheek: 0, muzzleLen: 1,
   ear: 'upright', earSize: 1, earTuft: 0,
-  eyeSize: 1, eyeShape: 'round',
+  eyeSize: 1, eyeShape: 'round', eyeTilt: 0, eyeLid: 0, eyeLiner: 0, eyeSpace: 1,
   bodyLen: 1, bodyBulk: 1, legLen: 1, legBulk: 1,
   fur: 'short', furAmount: 1, ruff: 0,
   faceFluff: .55,    // long fur on the cheeks/chin: Persian types 1.2, semi-longhairs (Maine Coon ...) keep a short face
@@ -282,14 +313,12 @@ export function buildCat(shapeIn, coatSpec) {
       pos.setXYZ(i, xx, yy, z * .9 * BL);
     }
     g.computeVertexNormals();
-    // long fur: light on the back, heavy on the chest and belly fringe
-    const wBody = (v, n) => .45 + .55 * sstep(.1, -.7, n.y) + .35 * sstep(.2, .8, v.z / (.9 * BL));
-    if (!hairless) furify(g, fur, 1, { weight: wBody });
+    if (!hairless) furify(g, fur, 1);
     body.add(mk(g, 'body', 'bodyNorm', bodyMat));
   }
   if (s.ruff) {
     const g = ellipsoid(1, .4 * B * fluffy, .36, .3, 96); g.translate(0, .1, .6 * BL);
-    furify(g, { type: 'long', amount: 1.5 * s.ruff }, 9, { weight: (v, n) => .55 + .45 * sstep(-.2, .8, n.z) });
+    furify(g, { type: s.fur === 'curly' ? 'curly' : 'long', amount: s.ruff }, 9);
     body.add(mk(g, 'body', 'bodyNorm'));
   }
 
@@ -310,9 +339,7 @@ export function buildCat(shapeIn, coatSpec) {
       const j = new THREE.Group(); parent.add(j);
       const g = capsuleY(r0 * thick, r1 * thick, len);
       const t0 = acc / total, t1 = (acc + len) / total;
-      const pants = kind === 'hind' && acc === 0;
-      if (!hairless) furify(g, { ...fur, amount: fur.amount * (s.fur === 'curly' ? .7 : .5) }, side + acc,
-        { weight: pants ? (v, n) => .4 + 1.2 * sstep(.1, -.8, n.z) * sstep(-len, -len * .2, v.y) : () => .55 });
+      if (!hairless) furify(g, { ...fur, amount: fur.amount * .6 }, side + acc);
       j.add(mk(g, 'leg', { kind, t0, t1, len }, bodyMat));
       chain.push(j);
       const next = new THREE.Group(); next.position.y = -len; j.add(next);
@@ -330,7 +357,7 @@ export function buildCat(shapeIn, coatSpec) {
   if (tailN) {
     let parent = new THREE.Group(); parent.position.set(0, .16, -.78 * BL); body.add(parent);
     const segLen = (s.tail === 'bob' ? .06 : .1) * s.tailLen;
-    const plume = s.tailFluff ? 1 + s.tailFluff * .9 : 1;
+    const plume = s.tailFluff ? 1 + s.tailFluff * (s.fur === 'long' ? 1.2 : .9) : 1;
     for (let i = 0; i < tailN; i++) {
       const j = new THREE.Group(); parent.add(j);
       const rad = k => (plume > 1 ? .068 * plume * (1 - .22 * k) * (k > .85 ? Math.sqrt(Math.max(.15, 1 - ((k - .85) / .2) ** 2)) : 1) : .068 - .026 * k) * (s.fur === 'curly' ? 1.2 : 1);
@@ -338,7 +365,7 @@ export function buildCat(shapeIn, coatSpec) {
       const g = capsuleY(r0, r1, segLen, 24);
       g.rotateX(Math.PI);                    // grow backwards/upwards along +y of the joint
       if (s.fur === 'curly') furify(g, { type: 'curly', amount: .9 }, i * 3);
-      else if (s.fur === 'long') furify(g, { type: 'long', amount: .45 * s.furAmount }, i * 3, { gravity: false, freq: 1.3 });
+      else if (s.fur === 'long') furify(g, { type: 'long', amount: s.furAmount }, i * 3);
       j.add(mk(g, 'tail', { t0: i / tailN, t1: (i + 1) / tailN, len: segLen }, bodyMat));
       const next = new THREE.Group(); next.position.y = segLen; j.add(next);
       rig.tail.push(j); parent = next;
@@ -353,7 +380,7 @@ export function buildCat(shapeIn, coatSpec) {
   const neck = new THREE.Group(); neck.position.set(0, .2, .62 * BL); body.add(neck); rig.neck = neck;
   {
     const g = ellipsoid(1, .25 * B * fluffy * (1 - (s.neckLen - 1) * .3), .27 * B * fluffy * s.neckLen, .28, 64); g.translate(0, .1 * s.neckLen, .06);
-    if (!hairless) furify(g, fur, 5, { weight: (v, n) => .5 + .5 * sstep(0, .8, n.z) });
+    if (!hairless) furify(g, fur, 5);
     neck.add(mk(g, 'body', 'bodyNorm', bodyMat));
   }
   const head = new THREE.Group(); head.position.set(0, .26 * s.headSize + (s.neckLen - 1) * .3, .16 * s.headSize + (s.neckLen - 1) * .12); neck.add(head); rig.head = head;
@@ -377,13 +404,9 @@ export function buildCat(shapeIn, coatSpec) {
       }
       g.computeVertexNormals();
     }
-    // long: lion-like cheek and chin fluff, the face itself stays clean (AC faces are smooth)
-    // curly: puffs everywhere except the front of the face
-    const wHead = s.fur === 'curly'
-      ? (v, n) => 1 - .8 * sstep(.25, .8, n.z)
-      : (v, n) => .15 + 1.5 * sstep(.25, .8, Math.abs(n.x)) * sstep(.6, -.3, n.y) * (1 - .75 * sstep(.45, .9, n.z)) + .6 * sstep(-.3, -.9, n.y);
-    // head tufts point sideways (no drop, no vertical comb), otherwise they hang like mop strands
-    if (!hairless) furify(g, { ...fur, amount: fur.amount * (s.fur === 'long' ? s.faceFluff * .8 : .8) }, 11, { weight: wHead, gravity: false, stretch: 1, freq: 1.25 });
+    // fur texture stays off the front of the face (AC faces are smooth); cheek tufts come from addTufts()
+    const wHead = (v, n) => 1 - .85 * sstep(.25, .8, n.z);
+    if (!hairless) furify(g, { ...fur, amount: fur.amount * .8 }, 11, { weight: wHead });
     head.add(mk(g, 'head', 'headDir', bodyMat));
     if (s.cheek) for (const x of [-1, 1]) {
       const c = ellipsoid(HS * .38, 1, .8, .85, 48); c.translate(x * HS * .5 * s.headW, -HS * .3, HS * (.36 - .06 * s.faceFlat));   // cheeks follow the flattened face
@@ -391,6 +414,7 @@ export function buildCat(shapeIn, coatSpec) {
     }
   }
   // ears
+  const earGroups = [];
   for (const x of [-1, 1]) {
     const es = Math.pow(s.earSize, .65) * HS / .42 * .82 * (s.ear === 'large' ? 1.15 : 1);
     // one cone per ear (base sunk into the skull); the pink inner ear is painted on its front face
@@ -417,6 +441,7 @@ export function buildCat(shapeIn, coatSpec) {
       const t = new THREE.ConeGeometry(.022 * es, .09 * es, 8); t.translate(0, .3 * es, 0);
       ear.add(mk(t, 'tuft', null));
     }
+    ear.userData.x = x; ear.userData.es = es; earGroups.push(ear);
     head.add(ear);
   }
   // muzzle, nose, eyes, blush, whisker pads
@@ -433,28 +458,90 @@ export function buildCat(shapeIn, coatSpec) {
       m.rotateZ(Math.PI); m.translate(x * HS * .055, -HS * .2 + flat * HS * .1, HS * (.93 - flat * .14));
       head.add(mk(m, 'mouth', null, MAT_GLOSS));
     }
+    // eyes: the same glossy AC eye everywhere, but each breed sets its shape and expression
+    //   eyeShape  round (Persian, British) | oval (Maine Coon, Ragdoll) | almond (Siamese, Abyssinian) | lemon (Sphynx)
+    //   eyeTilt   outer corner raised (radians)        eyeLid   upper lid in coat colour -> hooded / calm look
+    //   eyeLiner  dark rim (chinchilla, Mau, Abyssinian) eyeSpace wide-set (Persian) .. close-set (Siamese)
+    const [sx, sy, sharp] = { round: [.84, 1.04, 0], oval: [.9, .86, .08], almond: [1, .72, .32], lemon: [1.04, .76, .48] }[s.eyeShape] || [.84, 1.04, 0];
+    const sz = .42;
     for (const x of [-1, 1]) {
-      // big, round, glossy dark eyes; the breed's eye colour only glows softly at the bottom
-      const er = HS * .2 * s.eyeSize;
-      const furPush = s.fur === 'curly' ? .07 : s.fur === 'long' ? .045 : 0;      // keep eyes in front of fluffy fur
-      const ex = x * HS * .37, ey = HS * .02, ez = HS * (.84 - flat * .05 + furPush);
-      const sx = s.eyeShape === 'almond' ? .9 : .82, sy = 1.04, sz = .42;
-      const ig = ellipsoid(er, sx, sy, sz, 48);
-      ig.translate(ex, ey, ez);
-      head.add(mk(ig, 'eye', { cy: ey, er }, MAT_GLOSS));
-      // highlights: flat discs lying on the eye surface, same light direction (upper-left) for both eyes
-      for (const [dx, dy, rr] of [[-.3, .36, .3], [.3, -.36, .12]]) {
-        const hx = dx * er, hy = dy * er;
-        const k = 1 - (hx / (er * sx)) ** 2 - (hy / (er * sy)) ** 2;
-        const hz = ez + er * sz * Math.sqrt(Math.max(0, k)) + er * .015;
-        const disc = new THREE.Mesh(new THREE.CircleGeometry(er * rr, 24), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
-        disc.position.set(ex + hx, ey + hy, hz);
-        disc.lookAt(ex + hx * 1.6, ey + hy * 1.6, hz + er);                    // follow the eye's curvature
-        head.add(disc);
+      const er = HS * .2 * s.eyeSize * (1 + .55 * (1.04 - sy));   // narrow eyes get wider/taller overall: same cuteness, different shape
+      const furPush = s.fur === 'curly' ? .03 : s.fur === 'long' ? .02 : 0;      // keep eyes in front of the fur texture
+      const ex = x * HS * .37 * s.eyeSpace, ey = HS * .02, ez = HS * (.84 - flat * .05 + furPush);
+      const eye = new THREE.Group(); eye.position.set(ex, ey, ez); eye.rotation.z = x * s.eyeTilt; head.add(eye);
+      const pinch = g => {                    // almond / lemon: pinch the inner and outer corners
+        const q = g.attributes.position;
+        for (let i = 0; i < q.count; i++) { const u = q.getX(i) / (er * sx * 1.1); q.setY(i, q.getY(i) * (1 - sharp * u * u)); }
+        g.computeVertexNormals(); return g;
+      };
+      eye.add(mk(pinch(ellipsoid(er, sx, sy, sz, 48)), 'eye', { cy: 0, er: er * sy }, MAT_GLOSS));
+      // upper lid: a cap of the eye shape in coat colour, cut by a straight lid line
+      const lidY = 1 - 2 * s.eyeLid;
+      if (s.eyeLid > 0) {
+        const lg = new THREE.SphereGeometry(er * 1.06, 40, 18, 0, Math.PI * 2, 0, Math.acos(lidY));
+        lg.scale(sx, sy, sz * 1.3); pinch(lg);
+        // keep the lid line level (inner end a touch higher) even on a slanted eye; a lid that follows the
+        // slant drops at the inner corner and reads as a frown
+        lg.rotateZ(-x * s.eyeTilt * 1.3);
+        eye.add(mk(lg, 'head', 'headDir', bodyMat));
+      }
+      if (s.eyeLiner) {
+        const lr = new THREE.TorusGeometry(er, er * .085, 8, 64); lr.scale(sx * 1.03, sy * 1.03, .6);
+        eye.add(mk(pinch(lr), 'liner', null, MAT_GLOSS));
+      }
+      // highlights: flat discs on the eye surface; same light direction (upper-left) for both eyes,
+      // so the offsets are given in head space and rotated into the tilted eye; kept below the lid
+      const cs = Math.cos(-x * s.eyeTilt), sn = Math.sin(-x * s.eyeTilt), hsz = Math.min(1, sy + .1);
+      for (const [dx, dy, rr] of [[-.3, .34, .3], [.3, -.34, .12]]) {
+        let hx = (dx * cs - dy * sn) * er * sx, hy = (dx * sn + dy * cs) * er * sy;
+        hy = Math.min(hy, (lidY * sy - .26) * er);
+        const y0 = hy / (1 - sharp * (hx / (er * sx * 1.1)) ** 2);
+        const k = 1 - (hx / (er * sx)) ** 2 - (y0 / (er * sy)) ** 2;
+        const hz = er * sz * Math.sqrt(Math.max(0, k)) + er * .015;
+        const disc = new THREE.Mesh(new THREE.CircleGeometry(er * rr * hsz, 24), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
+        disc.position.set(hx, hy, hz);
+        disc.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(hx / sx ** 2, y0 / sy ** 2, hz / sz ** 2).normalize());
+        eye.add(disc);
       }
       const bl = new THREE.Mesh(new THREE.SphereGeometry(HS * .13, 16, 12), new THREE.MeshStandardMaterial({ color: '#f7a3b6', roughness: 1, transparent: true, opacity: .6 }));
       bl.scale.set(1.35, .55, .3); bl.position.set(x * HS * .62, -HS * .2, HS * .72); head.add(bl);
     }
+  }
+
+  // ---------- long / curly fur: tufts where cats actually carry long hair
+  // (cartoon cats are drawn the same way: a zigzag chest bib, cheek flicks, trousers, a plumed tail)
+  if (s.fur === 'long' || s.fur === 'curly') {
+    const curly = s.fur === 'curly', amt = curly ? .8 : s.furAmount;
+    const ruff = Math.max(s.ruff, curly ? .7 : .4) * amt;
+    const curl = curly ? 2.6 : 0, V = (x, y, z) => new THREE.Vector3(x, y, z);
+    const T = (len, r, bend = .3) => tuftGeo(len, r, bend, curl);
+    // chest bib: a row of tufts hanging from the front of the collar, longest in the middle
+    // (wide, overlapping, lying on the collar: a scalloped bib, not a row of spikes)
+    for (let j = -2; j <= 2; j++) {
+      const f = j / 2, len = (.22 - .06 * Math.abs(f)) * ruff;
+      placeTuft(body, T(len, .12, .6), V(f * .19 * B * fluffy, .02 - .04 * Math.abs(f), .78 * BL + .04 * (1 - Math.abs(f))),
+        V(f * .45, -1, .55), V(0, 0, 1), 'body', 'bodyNorm', bodyMat);
+    }
+    // belly fringe and 'trousers' on the back of the thighs
+    for (const x of [-1, 1]) {
+      for (const z of [-.25, .02, .28]) placeTuft(body, T(.14 * amt, .07, .3), V(x * .15 * B * fluffy, -.2 * B * fluffy, z * BL), V(x * .25, -1, -.2), V(0, 0, -1), 'body', 'bodyNorm', bodyMat);
+      const thigh = rig.legs[x < 0 ? 'hindL' : 'hindR'].chain[0];
+      for (const [y, k] of [[-.35, 1], [-.65, .8]]) placeTuft(thigh, T(.17 * amt * k, .075, .35), V(x * .03, hTh * y, -.09), V(x * .2, -.5, -1), V(0, -1, 0), 'body', 'bodyNorm', bodyMat);
+    }
+    // cheek flicks: three per side from the lower cheek, pointing out and down
+    const ff = (curly ? .9 : s.faceFluff) * amt;
+    for (const x of [-1, 1]) for (const [dy, dz, k] of [[-.18, .42, 1], [-.42, .32, .85], [-.64, .2, .65]]) {
+      const d = V(x * .88, dy, dz).normalize();
+      const at = V(d.x * HS * s.headW, d.y * HS * .9, d.z * HS * .9).multiplyScalar(.93);
+      placeTuft(head, T(HS * .4 * ff * k, HS * .17, .25), at, V(x, -.35 - .5 * (1 - k), .15), V(0, -1, 0), 'head', 'headDir', bodyMat);
+    }
+    // feathered tail: tufts on both sides of the outer tail segments
+    for (let i = 3; i < rig.tail.length; i++) for (const x of [-1, 1]) {
+      const k = (i - 2) / (rig.tail.length - 2);
+      placeTuft(rig.tail[i], T((.1 + .1 * k) * Math.max(.6, s.tailFluff), .075, .5), V(x * .04, .05, 0), V(x, .7, .1), V(0, 1, 0), 'tail', { t0: (i + .5) / rig.tail.length, t1: (i + .5) / rig.tail.length, len: 0 }, bodyMat);
+    }
+    // ear furnishings: pale wisps from the inner ear
+    if (!curly && s.ear !== 'fold') for (const ear of earGroups) placeTuft(ear, tuftGeo(.13 * ear.userData.es, .025 * ear.userData.es, .4, 0), V(0, .02, .03), V(-ear.userData.x * .25, 1, .55), V(0, 0, 1), 'furnish', null);
   }
 
   // ---------- paint every mesh in rest pose, using root-space positions
@@ -464,7 +551,7 @@ export function buildCat(shapeIn, coatSpec) {
   const v = new THREE.Vector3(), w = new THREE.Vector3();
   root.traverse(o => {
     if (!o.isMesh || !o.userData.part) return;
-    const part = o.userData.part === 'tuft' ? 'ear' : o.userData.part;
+    const part = ['tuft', 'furnish', 'liner'].includes(o.userData.part) ? 'ear' : o.userData.part;
     const pos = o.geometry.attributes.position, col = new Float32Array(pos.count * 3);
     const fl = o.geometry.attributes.fluff;
     const m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
@@ -474,6 +561,8 @@ export function buildCat(shapeIn, coatSpec) {
       const p = w.copy(v).applyMatrix4(m).clone();
       let info = o.userData.info, c;
       if (o.userData.part === 'tuft') c = colorAt('ear', p, { dir: new THREE.Vector3(0, 1, 0) }).multiplyScalar(.55);
+      else if (o.userData.part === 'furnish') c = C('#f5efe4');
+      else if (o.userData.part === 'liner') c = C('#2b2220');
       else if (o.userData.part === 'mouth') c = C('#3a2a24');
       else if (info && info.ear) {
         const y = (v.y - info.y0) / info.h, rr = Math.max(1e-4, info.r * (1 - y));
@@ -483,7 +572,7 @@ export function buildCat(shapeIn, coatSpec) {
       }
       else if (o.userData.part === 'eye') {
         const t = (v.y - info.cy) / info.er;
-        c = C('#271c18').lerp(colorAt('eye'), .5 * sstep(-.15, -.95, t));
+        c = C('#271c18').lerp(colorAt('eye'), .72 * sstep(.1, -.85, t));   // breed eye colour fills the lower half
       } else {
         if (info === 'bodyNorm') info = bodyNorm(p);
         else if (info === 'headDir') info = { dir: v.clone().applyMatrix4(mh).normalize() };
@@ -551,39 +640,39 @@ export function setPose(cat, mode = 'walk', phase = 0) {
 // ------------------------------------------------------------------ catalogue
 const SH = (o) => o;
 export const BREEDS = [
-  { id: 'korean_shorthair', ko: '코리안 숏헤어', shape: { earSet: 'mid' }, coat: { pattern: 'mackerel', base: '#a39d93', dark: '#57514a' } },
-  { id: 'russian_blue', ko: '러시안 블루', shape: { eyeShape: 'almond', earSize: 1.12, bodyBulk: .92, legLen: 1.08, wedge: .35, earSet: 'high', neckLen: 1.1, tailThick: .85 }, coat: { pattern: 'solid', base: '#8794a3', eye: '#5fae6a', lightMuzzle: false, nose: '#7d8794' } },
-  { id: 'persian', ko: '페르시안', shape: { faceFlat: 1, ear: 'small', fur: 'long', ruff: 1, tailFluff: 1, cheek: 1, eyeSize: 1.15, legLen: .78, bodyBulk: 1.15, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85 , faceFluff: 1.2 }, coat: { pattern: 'solid', base: '#f4efe6', eye: '#d7902f' } },
-  { id: 'himalayan', ko: '히말라얀', shape: { faceFlat: 1, ear: 'small', fur: 'long', ruff: 1, tailFluff: 1, cheek: 1, legLen: .78, bodyBulk: 1.15, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85 , faceFluff: 1.2 }, coat: { pattern: 'point', base: '#f2e8d8', point: '#6b4f40', eye: '#4f8fd8' } },
-  { id: 'chinchilla_persian', ko: '친칠라 페르시안', shape: { faceFlat: 1, ear: 'small', fur: 'long', ruff: 1.1, tailFluff: 1.1, cheek: 1, eyeSize: 1.18, legLen: .78, bodyBulk: 1.12, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85, faceFluff: 1.2 }, coat: { pattern: 'shaded', base: '#f7f5f0', white: '#f8f6f2', dark: '#55565e', eye: '#3fae6a', nose: '#e0857f' } },
-  { id: 'siamese', ko: '샴', shape: { ear: 'large', earSize: 1.2, eyeShape: 'almond', bodyBulk: .78, legLen: 1.25, headW: .95, muzzleLen: 1.2, tailLen: 1.35, wedge: 1, earSet: 'low', earWide: 1.05, bodyLen: 1.2, tailThick: .65, neckLen: 1.2, tuck: .4 }, coat: { pattern: 'point', base: '#f1e6d2', point: '#4f3a30', eye: '#5aa6e0' } },
-  { id: 'scottish_fold', ko: '스코티시 폴드', shape: { ear: 'fold', eyeSize: 1.2, cheek: .6, bodyBulk: 1.05, earRound: .5, bodyLen: .92, tailThick: 1.1 }, coat: { pattern: 'mackerel', base: '#a9adb6', dark: '#686c74' } },
-  { id: 'british_shorthair', ko: '브리티시 숏헤어', shape: { cheek: 1, ear: 'small', bodyBulk: 1.15, headW: 1.18, eyeSize: 1.12, legBulk: 1.15, earRound: 1, earSet: 'low', bodyLen: .85, legLen: .9, neckLen: .8, tailThick: 1.3, tailLen: .9, chest: 1.15 }, coat: { pattern: 'solid', base: '#8a92a0', eye: '#e19a2b', lightMuzzle: false } },
-  { id: 'munchkin', ko: '먼치킨', shape: { legLen: .5 }, coat: { pattern: 'classic', base: '#e8b878', dark: '#b4703a' } },
-  { id: 'ragdoll', ko: '랙돌', shape: { fur: 'long', furAmount: .8, ruff: .8, tailFluff: 1, eyeSize: 1.1, bodyBulk: 1.1, size: 1.1, bodyLen: 1.12, tailThick: 1.1 }, coat: { pattern: 'mitted', base: '#f3ece2', point: '#6b5a52', eye: '#4f8fd8' } },
-  { id: 'birman', ko: '버먼', shape: { fur: 'long', furAmount: .7, ruff: .6, tailFluff: .8, bodyLen: 1.05 }, coat: { pattern: 'mitted', base: '#efe3cc', point: '#4e3a2f', eye: '#4f8fd8' } },
-  { id: 'american_shorthair', ko: '아메리칸 숏헤어', shape: { cheek: .5, bodyBulk: 1.05, legBulk: 1.1, muzzleW: 1.2, chest: 1.1, tailThick: 1.1 }, coat: { pattern: 'classic', base: '#c9c9c4', dark: '#3d3d3d' } },
-  { id: 'norwegian_forest', ko: '노르웨이 숲', shape: { fur: 'long', ruff: 1, tailFluff: 1.2, earTuft: 1, earSize: 1.1, size: 1.12, headTri: 1, earSet: 'high', rumpHigh: .12 }, coat: { pattern: 'mackerel', base: '#b8a68e', dark: '#6e5b45', eye: '#9db24a', whiteLevel: .25 } },
-  { id: 'maine_coon', ko: '메인쿤', shape: { fur: 'long', ruff: 1.2, tailFluff: 1.2, earTuft: 1, earSize: 1.25, bodyLen: 1.2, size: 1.22, muzzleLen: 1.2, muzzleW: 1.35, earSet: 'high', chest: 1.1 }, coat: { pattern: 'classic', base: '#8a6a4f', dark: '#3e2d22', whiteLevel: .2 } },
-  { id: 'siberian', ko: '시베리안', shape: { fur: 'long', ruff: 1, tailFluff: 1, cheek: .5, size: 1.1, earRound: .3, chest: 1.1 }, coat: { pattern: 'mackerel', base: '#c9c4bb', dark: '#5d5850', eye: '#9db24a' } },
-  { id: 'bengal', ko: '벵갈', shape: { bodyBulk: .95, eyeShape: 'almond', legLen: 1.08, pouch: .5, bodyLen: 1.1, chest: 1.1, tailThick: 1.1 }, coat: { pattern: 'spotted', base: '#d9a95c', dark: '#4a3322', eye: '#7cae3d' } },
-  { id: 'egyptian_mau', ko: '이집션 마우', shape: { bodyBulk: .9, legLen: 1.1, eyeSize: 1.15, pouch: 1, rumpHigh: .2, wedge: .25, earSet: 'high' }, coat: { pattern: 'spotted', base: '#d4d1c8', dark: '#3c3a36', eye: '#9cc04a', seed: 4 } },
-  { id: 'abyssinian', ko: '아비시니안', shape: { earSize: 1.3, eyeShape: 'almond', bodyBulk: .86, legLen: 1.1, wedge: .4, earSet: 'high', earWide: 1.1, tailLen: 1.1, tailThick: .85 }, coat: { pattern: 'ticked', base: '#c98a52', dark: '#7a4a28', eye: '#b8a03a' } },
-  { id: 'somali', ko: '소말리', shape: { earSize: 1.25, fur: 'long', furAmount: .6, tailFluff: 1.2, bodyBulk: .9, wedge: .35, earSet: 'high', earWide: 1.1 }, coat: { pattern: 'ticked', base: '#c47a45', dark: '#7a4a28', eye: '#b8a03a' } },
-  { id: 'savannah', ko: '사바나', shape: { ear: 'large', earSize: 1.45, legLen: 1.35, bodyBulk: .85, bodyLen: 1.1, size: 1.15, tailLen: .9, neckLen: 1.3, earSet: 'high', wedge: .3, tailThick: .9 }, coat: { pattern: 'spotted', base: '#d8b46f', dark: '#2c241c', eye: '#c9a227', seed: 7 } },
-  { id: 'oriental', ko: '오리엔탈', shape: { ear: 'large', earSize: 1.35, bodyBulk: .78, legLen: 1.25, headW: .9, muzzleLen: 1.3, eyeShape: 'almond', tailLen: 1.4, wedge: 1, earSet: 'low', earWide: 1.05, bodyLen: 1.2, tailThick: .6, neckLen: 1.2, tuck: .45 }, coat: { pattern: 'solid', base: '#3a3432', eye: '#7cae3d', lightMuzzle: false } },
-  { id: 'sphynx', ko: '스핑크스', shape: { ear: 'large', earSize: 1.55, fur: 'none', wrinkles: 1, bodyBulk: .9, eyeShape: 'almond', tailLen: 1.1, potBelly: 1, earSet: 'low', earWide: 1.15, wedge: .3, tailThick: .6, chest: 1.1 }, coat: { pattern: 'calico', base: '#efc4b6', second: '#b5a2a4', white: '#f6d6cc', whiteLevel: 0, eye: '#9cb84a', innerEar: '#eba8a0', seed: 3 } },
-  { id: 'turkish_angora', ko: '터키시 앙고라', shape: { fur: 'long', furAmount: .6, tailFluff: 1.2, earSize: 1.15, bodyBulk: .88, legLen: 1.08, wedge: .35, earSet: 'high', neckLen: 1.15, tailThick: .9 }, coat: { pattern: 'solid', base: '#fbf8f2', eye: '#7fb6ea' } },
-  { id: 'turkish_van', ko: '터키시 반', shape: { fur: 'long', furAmount: .4, tailFluff: .8, size: 1.08, bodyLen: 1.1, chest: 1.1 }, coat: { pattern: 'van', base: '#d9853c' } },
-  { id: 'exotic_shorthair', ko: '엑조틱 숏헤어', shape: { faceFlat: 1, ear: 'small', cheek: 1, eyeSize: 1.2, bodyBulk: 1.12, legLen: .85, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85 }, coat: { pattern: 'classic', base: '#e2a35e', dark: '#b06a2d', eye: '#d7902f' } },
-  { id: 'american_curl', ko: '아메리칸 컬', shape: { ear: 'curl', earSize: 1.15 }, coat: { pattern: 'bicolor', base: '#55504c' } },
-  { id: 'devon_rex', ko: '데본 렉스', shape: { ear: 'large', earSize: 1.6, eyeSize: 1.25, headW: 1.0, bodyBulk: .82, fur: 'rex', legLen: 1.1, earSet: 'low', earWide: 1.2, wedge: .4, tailThick: .7 }, coat: { pattern: 'solid', base: '#cdbfae', eye: '#9cb84a' } },
-  { id: 'cornish_rex', ko: '코니시 렉스', shape: { ear: 'large', earSize: 1.45, bodyBulk: .78, legLen: 1.25, fur: 'rex', headW: .9, muzzleLen: 1.2, tailLen: 1.25, backArch: 1, tuck: 1, wedge: .5, tailThick: .55, earSet: 'high', chest: 1.15 }, coat: { pattern: 'bicolor', base: '#7d6a62', whiteLevel: .5 } },
-  { id: 'selkirk_rex', ko: '셀커크 렉스', shape: { fur: 'curly', furAmount: 1.1, cheek: .8, bodyBulk: 1.1, ear: 'small', eyeSize: 1.15, tailFluff: .6, earRound: .5, bodyLen: .9, tailThick: 1.2 }, coat: { pattern: 'calico', base: '#3b3735', second: '#d98a43', whiteLevel: .5, seed: 6 } },
-  { id: 'laperm', ko: '라팜', shape: { fur: 'curly', furAmount: .8, earSize: 1.15, bodyBulk: .9, tailFluff: .5, wedge: .3, earSet: 'high' }, coat: { pattern: 'tortie', base: '#3a2e29', second: '#c4773a', seed: 2 } },
-  { id: 'manx', ko: '맹크스 (꼬리 없음)', shape: { tail: 'none', bodyBulk: 1.08, bodyLen: .85, legLen: 1.0, rumpHigh: .3, earRound: .4 }, coat: { pattern: 'mackerel', base: '#bfa486', dark: '#6e5640' } },
-  { id: 'japanese_bobtail', ko: '재패니즈 밥테일', shape: { tail: 'bob', earSize: 1.15, bodyBulk: .9, legLen: 1.15, headTri: 1, earSet: 'high', rumpHigh: .1 }, coat: { pattern: 'calico', base: '#2f2c2c', second: '#df8d3d', whiteLevel: .6, seed: 9 } },
-  { id: 'bombay', ko: '봄베이', shape: { eyeSize: 1.2, bodyBulk: 1.0, bodyLen: .95, earRound: .3, chest: 1.1 }, coat: { pattern: 'solid', base: '#232125', eye: '#d9a52c', lightMuzzle: false, nose: '#2d2a2e' } },
+  { id: 'korean_shorthair', ko: '코리안 숏헤어', shape: { earSet: 'mid', eyeShape: 'round', eyeTilt: .06 }, coat: { pattern: 'mackerel', base: '#a39d93', dark: '#57514a' } },
+  { id: 'russian_blue', ko: '러시안 블루', shape: { eyeShape: 'oval', earSize: 1.12, bodyBulk: .92, legLen: 1.08, wedge: .35, earSet: 'high', neckLen: 1.1, tailThick: .85, eyeTilt: .12, eyeSpace: 1.06 }, coat: { pattern: 'solid', base: '#8794a3', eye: '#5fae6a', lightMuzzle: false, nose: '#7d8794' } },
+  { id: 'persian', ko: '페르시안', shape: { faceFlat: 1, ear: 'small', fur: 'long', ruff: 1, tailFluff: 1, cheek: 1, eyeSize: 1.15, legLen: .78, bodyBulk: 1.15, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85, faceFluff: 1.2, eyeShape: 'round', eyeSpace: 1.1 }, coat: { pattern: 'solid', base: '#f4efe6', eye: '#d7902f' } },
+  { id: 'himalayan', ko: '히말라얀', shape: { faceFlat: 1, ear: 'small', fur: 'long', ruff: 1, tailFluff: 1, cheek: 1, legLen: .78, bodyBulk: 1.15, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85, faceFluff: 1.2, eyeShape: 'round', eyeSpace: 1.1 }, coat: { pattern: 'point', base: '#f2e8d8', point: '#6b4f40', eye: '#4f8fd8' } },
+  { id: 'chinchilla_persian', ko: '친칠라 페르시안', shape: { faceFlat: 1, ear: 'small', fur: 'long', ruff: 1.1, tailFluff: 1.1, cheek: 1, eyeSize: 1.18, legLen: .78, bodyBulk: 1.12, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85, faceFluff: 1.2, eyeShape: 'round', eyeSpace: 1.1, eyeLiner: 1 }, coat: { pattern: 'shaded', base: '#f7f5f0', white: '#f8f6f2', dark: '#55565e', eye: '#3fae6a', nose: '#e0857f' } },
+  { id: 'siamese', ko: '샴', shape: { ear: 'large', earSize: 1.2, eyeShape: 'almond', bodyBulk: .78, legLen: 1.25, headW: .95, muzzleLen: 1.2, tailLen: 1.35, wedge: 1, earSet: 'low', earWide: 1.05, bodyLen: 1.2, tailThick: .65, neckLen: 1.2, tuck: .4, eyeTilt: .38, eyeSpace: .94, eyeLid: .08 }, coat: { pattern: 'point', base: '#f1e6d2', point: '#4f3a30', eye: '#5aa6e0' } },
+  { id: 'scottish_fold', ko: '스코티시 폴드', shape: { ear: 'fold', eyeSize: 1.2, cheek: .6, bodyBulk: 1.05, earRound: .5, bodyLen: .92, tailThick: 1.1, eyeShape: 'round' }, coat: { pattern: 'mackerel', base: '#a9adb6', dark: '#686c74' } },
+  { id: 'british_shorthair', ko: '브리티시 숏헤어', shape: { cheek: 1, ear: 'small', bodyBulk: 1.15, headW: 1.18, eyeSize: 1.12, legBulk: 1.15, earRound: 1, earSet: 'low', bodyLen: .85, legLen: .9, neckLen: .8, tailThick: 1.3, tailLen: .9, chest: 1.15, eyeShape: 'round', eyeSpace: 1.08 }, coat: { pattern: 'solid', base: '#8a92a0', eye: '#e19a2b', lightMuzzle: false } },
+  { id: 'munchkin', ko: '먼치킨', shape: { legLen: .5, eyeShape: 'oval', eyeTilt: .1 }, coat: { pattern: 'classic', base: '#e8b878', dark: '#b4703a' } },
+  { id: 'ragdoll', ko: '랙돌', shape: { fur: 'long', furAmount: .8, ruff: .8, tailFluff: 1, eyeSize: 1.1, bodyBulk: 1.1, size: 1.1, bodyLen: 1.12, tailThick: 1.1, eyeShape: 'oval', eyeTilt: .06 }, coat: { pattern: 'mitted', base: '#f3ece2', point: '#6b5a52', eye: '#4f8fd8' } },
+  { id: 'birman', ko: '버먼', shape: { fur: 'long', furAmount: .7, ruff: .6, tailFluff: .8, bodyLen: 1.05, eyeShape: 'round', eyeTilt: .04 }, coat: { pattern: 'mitted', base: '#efe3cc', point: '#4e3a2f', eye: '#4f8fd8' } },
+  { id: 'american_shorthair', ko: '아메리칸 숏헤어', shape: { cheek: .5, bodyBulk: 1.05, legBulk: 1.1, muzzleW: 1.2, chest: 1.1, tailThick: 1.1, eyeShape: 'oval', eyeTilt: .05, eyeLid: .1 }, coat: { pattern: 'classic', base: '#c9c9c4', dark: '#3d3d3d' } },
+  { id: 'norwegian_forest', ko: '노르웨이 숲', shape: { fur: 'long', ruff: 1, tailFluff: 1.2, earTuft: 1, earSize: 1.1, size: 1.12, headTri: 1, earSet: 'high', rumpHigh: .12, eyeShape: 'almond', eyeTilt: .22, eyeLid: .12 }, coat: { pattern: 'mackerel', base: '#b8a68e', dark: '#6e5b45', eye: '#9db24a', whiteLevel: .25 } },
+  { id: 'maine_coon', ko: '메인쿤', shape: { fur: 'long', ruff: 1.2, tailFluff: 1.2, earTuft: 1, earSize: 1.25, bodyLen: 1.2, size: 1.22, muzzleLen: 1.2, muzzleW: 1.35, earSet: 'high', chest: 1.1, eyeShape: 'oval', eyeTilt: .18, eyeLid: .12, eyeSpace: 1.06 }, coat: { pattern: 'classic', base: '#8a6a4f', dark: '#3e2d22', whiteLevel: .2 } },
+  { id: 'siberian', ko: '시베리안', shape: { fur: 'long', ruff: 1, tailFluff: 1, cheek: .5, size: 1.1, earRound: .3, chest: 1.1, eyeShape: 'oval', eyeTilt: .12 }, coat: { pattern: 'mackerel', base: '#c9c4bb', dark: '#5d5850', eye: '#9db24a' } },
+  { id: 'bengal', ko: '벵갈', shape: { bodyBulk: .95, eyeShape: 'oval', legLen: 1.08, pouch: .5, bodyLen: 1.1, chest: 1.1, tailThick: 1.1, eyeTilt: .1, eyeLid: .22, eyeLiner: 1 }, coat: { pattern: 'spotted', base: '#d9a95c', dark: '#4a3322', eye: '#7cae3d' } },
+  { id: 'egyptian_mau', ko: '이집션 마우', shape: { bodyBulk: .9, legLen: 1.1, eyeSize: 1.15, pouch: 1, rumpHigh: .2, wedge: .25, earSet: 'high', eyeShape: 'round', eyeTilt: .14, eyeLiner: 1 }, coat: { pattern: 'spotted', base: '#d4d1c8', dark: '#3c3a36', eye: '#9cc04a', seed: 4 } },
+  { id: 'abyssinian', ko: '아비시니안', shape: { earSize: 1.3, eyeShape: 'almond', bodyBulk: .86, legLen: 1.1, wedge: .4, earSet: 'high', earWide: 1.1, tailLen: 1.1, tailThick: .85, eyeTilt: .2, eyeLiner: 1 }, coat: { pattern: 'ticked', base: '#c98a52', dark: '#7a4a28', eye: '#b8a03a' } },
+  { id: 'somali', ko: '소말리', shape: { earSize: 1.25, fur: 'long', furAmount: .6, tailFluff: 1.2, bodyBulk: .9, wedge: .35, earSet: 'high', earWide: 1.1, eyeShape: 'almond', eyeTilt: .13, eyeLiner: 1 }, coat: { pattern: 'ticked', base: '#c47a45', dark: '#7a4a28', eye: '#b8a03a' } },
+  { id: 'savannah', ko: '사바나', shape: { ear: 'large', earSize: 1.45, legLen: 1.35, bodyBulk: .85, bodyLen: 1.1, size: 1.15, tailLen: .9, neckLen: 1.3, earSet: 'high', wedge: .3, tailThick: .9, eyeShape: 'oval', eyeTilt: .1, eyeLid: .25 }, coat: { pattern: 'spotted', base: '#d8b46f', dark: '#2c241c', eye: '#c9a227', seed: 7 } },
+  { id: 'oriental', ko: '오리엔탈', shape: { ear: 'large', earSize: 1.35, bodyBulk: .78, legLen: 1.25, headW: .9, muzzleLen: 1.3, eyeShape: 'almond', tailLen: 1.4, wedge: 1, earSet: 'low', earWide: 1.05, bodyLen: 1.2, tailThick: .6, neckLen: 1.2, tuck: .45, eyeTilt: .4, eyeSpace: .94, eyeLid: .08 }, coat: { pattern: 'solid', base: '#3a3432', eye: '#7cae3d', lightMuzzle: false } },
+  { id: 'sphynx', ko: '스핑크스', shape: { ear: 'large', earSize: 1.55, fur: 'none', wrinkles: 1, bodyBulk: .9, eyeShape: 'lemon', tailLen: 1.1, potBelly: 1, earSet: 'low', earWide: 1.15, wedge: .3, tailThick: .6, chest: 1.1, eyeTilt: .28 }, coat: { pattern: 'calico', base: '#efc4b6', second: '#b5a2a4', white: '#f6d6cc', whiteLevel: 0, eye: '#9cb84a', innerEar: '#eba8a0', seed: 3 } },
+  { id: 'turkish_angora', ko: '터키시 앙고라', shape: { fur: 'long', furAmount: .6, tailFluff: 1.2, earSize: 1.15, bodyBulk: .88, legLen: 1.08, wedge: .35, earSet: 'high', neckLen: 1.15, tailThick: .9, eyeShape: 'almond', eyeTilt: .18 }, coat: { pattern: 'solid', base: '#fbf8f2', eye: '#7fb6ea' } },
+  { id: 'turkish_van', ko: '터키시 반', shape: { fur: 'long', furAmount: .4, tailFluff: .8, size: 1.08, bodyLen: 1.1, chest: 1.1, eyeShape: 'oval', eyeTilt: .12 }, coat: { pattern: 'van', base: '#d9853c' } },
+  { id: 'exotic_shorthair', ko: '엑조틱 숏헤어', shape: { faceFlat: 1, ear: 'small', cheek: 1, eyeSize: 1.2, bodyBulk: 1.12, legLen: .85, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85, eyeShape: 'round', eyeSpace: 1.1 }, coat: { pattern: 'classic', base: '#e2a35e', dark: '#b06a2d', eye: '#d7902f' } },
+  { id: 'american_curl', ko: '아메리칸 컬', shape: { ear: 'curl', earSize: 1.15, eyeShape: 'oval', eyeTilt: .14 }, coat: { pattern: 'bicolor', base: '#55504c' } },
+  { id: 'devon_rex', ko: '데본 렉스', shape: { ear: 'large', earSize: 1.6, eyeSize: 1.25, headW: 1.0, bodyBulk: .82, fur: 'rex', legLen: 1.1, earSet: 'low', earWide: 1.2, wedge: .4, tailThick: .7, eyeShape: 'oval', eyeTilt: .12, eyeSpace: 1.08 }, coat: { pattern: 'solid', base: '#cdbfae', eye: '#9cb84a' } },
+  { id: 'cornish_rex', ko: '코니시 렉스', shape: { ear: 'large', earSize: 1.45, bodyBulk: .78, legLen: 1.25, fur: 'rex', headW: .9, muzzleLen: 1.2, tailLen: 1.25, backArch: 1, tuck: 1, wedge: .5, tailThick: .55, earSet: 'high', chest: 1.15, eyeShape: 'oval', eyeTilt: .16 }, coat: { pattern: 'bicolor', base: '#7d6a62', whiteLevel: .5 } },
+  { id: 'selkirk_rex', ko: '셀커크 렉스', shape: { fur: 'curly', furAmount: 1.1, cheek: .8, bodyBulk: 1.1, ear: 'small', eyeSize: 1.15, tailFluff: .6, earRound: .5, bodyLen: .9, tailThick: 1.2, eyeShape: 'round' }, coat: { pattern: 'calico', base: '#3b3735', second: '#d98a43', whiteLevel: .5, seed: 6 } },
+  { id: 'laperm', ko: '라팜', shape: { fur: 'curly', furAmount: .8, earSize: 1.15, bodyBulk: .9, tailFluff: .5, wedge: .3, earSet: 'high', eyeShape: 'almond', eyeTilt: .16 }, coat: { pattern: 'tortie', base: '#3a2e29', second: '#c4773a', seed: 2 } },
+  { id: 'manx', ko: '맹크스 (꼬리 없음)', shape: { tail: 'none', bodyBulk: 1.08, bodyLen: .85, legLen: 1.0, rumpHigh: .3, earRound: .4, eyeShape: 'round', eyeTilt: .04 }, coat: { pattern: 'mackerel', base: '#bfa486', dark: '#6e5640' } },
+  { id: 'japanese_bobtail', ko: '재패니즈 밥테일', shape: { tail: 'bob', earSize: 1.15, bodyBulk: .9, legLen: 1.15, headTri: 1, earSet: 'high', rumpHigh: .1, eyeShape: 'oval', eyeTilt: .3 }, coat: { pattern: 'calico', base: '#2f2c2c', second: '#df8d3d', whiteLevel: .6, seed: 9 } },
+  { id: 'bombay', ko: '봄베이', shape: { eyeSize: 1.2, bodyBulk: 1.0, bodyLen: .95, earRound: .3, chest: 1.1, eyeShape: 'round' }, coat: { pattern: 'solid', base: '#232125', eye: '#d9a52c', lightMuzzle: false, nose: '#2d2a2e' } },
 ];
 
 export const KOREAN_COATS = [
