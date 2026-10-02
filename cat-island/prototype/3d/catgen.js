@@ -70,8 +70,8 @@ export function makeCoat(spec) {
       let t = 0;
       if (part === 'ear' || part === 'tail') t = 1;
       else if (part === 'leg') t = P === 'mitted' && info.t > .7 ? -1 : sstep(.1, .7, info.t);
-      else if (part === 'muzzle') t = P === 'mitted' ? 0 : .95;
-      else if (part === 'head') t = sstep(-.1, .55, info.dir.z - Math.abs(info.dir.x) * .6 - Math.max(0, info.dir.y) * .5);
+      else if (part === 'muzzle') t = P === 'mitted' ? 0 : .6;
+      else if (part === 'head') t = .8 * sstep(0, .6, info.dir.z - Math.abs(info.dir.x) * .7 - Math.max(0, info.dir.y) * .6);
       else if (part === 'body') t = .12 * sstep(.2, 1, info.ny);
       if (t < 0) return white.clone();
       if (P === 'mitted' && part === 'body' && info.ny < -.3 && info.nz > .3) return white.clone();
@@ -101,7 +101,7 @@ export function makeCoat(spec) {
     if (part === 'head') {
       const d = info.dir;
       if (d.y > .3 && d.z > 0 && Math.abs(d.x) < .42) s = sstep(.35, .75, Math.sin(d.x * 24));      // forehead "M"
-      if (Math.abs(d.x) > .84 && d.y > -.28 && d.y < .12 && d.z < .45) s = Math.max(s, sstep(.4, .8, Math.sin(d.y * 22)) * .8);  // cheek lines
+      if (Math.abs(d.x) > .62 && Math.abs(d.x) < .86 && d.z > .42 && d.y > -.3 && d.y < .02) s = Math.max(s, sstep(.55, .85, Math.sin(d.y * 26 + 1.2)) * .75);  // whisker-cheek lines
       if (P === 'ticked' || P === 'spotted') s *= .8;
     } else if (part === 'tail') {
       s = P === 'ticked' ? sstep(.75, .95, info.t) : sstep(.1, .6, Math.sin(info.t * 34)) * .85;
@@ -109,14 +109,15 @@ export function makeCoat(spec) {
       s = P === 'ticked' ? 0 : sstep(.2, .7, Math.sin(info.t * 16)) * sstep(.15, .35, info.t) * .7;
     } else if (part === 'body') {
       const { nx, ny, nz } = info;
-      const spine = sstep(.75, .95, ny) * (1 - Math.abs(nx) * 2);
-      if (P === 'mackerel') s = Math.max(spine, sstep(.15, .6, Math.sin(nz * 17 + ny * 2.2)) * sstep(-.45, -.15, ny));
+      const spine = sstep(.75, .95, ny) * (1 - Math.abs(nx) * 2) * (1 - sstep(.75, .95, Math.abs(nz)));
+      const poleFade = 1 - sstep(.72, .92, Math.abs(nz));
+      if (P === 'mackerel') s = Math.max(spine, sstep(.15, .6, Math.sin(nz * 17 + ny * 2.2)) * sstep(-.45, -.15, ny) * poleFade);
       else if (P === 'classic') {
         const r = Math.hypot(nz + .15, (ny - .1) * 1.3);
-        s = Math.max(spine, sstep(.1, .5, Math.sin(r * 12)) * sstep(-.5, -.2, ny) * sstep(.2, .5, Math.abs(nx)));
+        s = Math.max(spine, sstep(.1, .5, Math.sin(r * 12)) * sstep(-.5, -.2, ny) * sstep(.2, .5, Math.abs(nx)) * poleFade);
       } else if (P === 'spotted') {
         const n = vnoise(p.x * 9 + 11, p.y * 9, p.z * 9 + seed);
-        s = Math.max(spine * .6, sstep(.62, .7, n) * sstep(-.5, -.2, ny));
+        s = Math.max(spine * .6, sstep(.62, .7, n) * sstep(-.5, -.2, ny) * poleFade);
       } else if (P === 'ticked') {
         s = spine * .7;
         c.lerp(dark, vnoise(p.x * 40, p.y * 40, p.z * 40) * .22);
@@ -201,11 +202,19 @@ export function buildCat(shapeIn, coatSpec) {
   const fluffy = s.fur === 'long' ? 1.08 : s.fur === 'curly' ? 1.05 : 1;
   const bodyNorm = p => ({ nx: p.x / (.32 * B), ny: (p.y - bodyY) / (.34 * B), nz: p.z / (.9 * BL) });
 
-  // torso: deep chest, narrower waist, round hips (cats are not balls)
-  for (const [z, ry, rz, rx, yo] of [[.42, .36, .44, .33, .02], [0, .3, .42, .28, .03], [-.42, .33, .4, .31, .05]]) {
-    const g = ellipsoid(1, rx * B * fluffy, ry * B * fluffy, rz * BL, 72);
-    g.translate(0, yo, z * BL);
-    if (!hairless) furify(g, fur, z * 3);
+  // torso: one smooth lofted shape - deep chest, slight waist, round hips (no segment seams)
+  {
+    const g = new THREE.SphereGeometry(1, 120, 80);
+    g.rotateX(Math.PI / 2);                         // poles on the z axis (tail <-> chest)
+    const pos = g.attributes.position;
+    const prof = t => .305 + .055 * Math.exp(-(((t - .45) / .32) ** 2)) + .035 * Math.exp(-(((t + .5) / .3) ** 2));
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      const r = prof(z) * B * fluffy;
+      pos.setXYZ(i, x * r * .93, y * r + .03 - .025 * Math.max(0, z), z * .9 * BL);
+    }
+    g.computeVertexNormals();
+    if (!hairless) furify(g, fur, 1);
     body.add(mk(g, 'body', 'bodyNorm', bodyMat));
   }
   if (s.ruff) {
@@ -252,10 +261,11 @@ export function buildCat(shapeIn, coatSpec) {
     const plume = s.tailFluff ? 1 + s.tailFluff * .9 : 1;
     for (let i = 0; i < tailN; i++) {
       const j = new THREE.Group(); parent.add(j);
-      const r = (.065 - .025 * i / tailN) * plume * (s.fur === 'curly' ? 1.2 : 1);
-      const g = capsuleY(r, r * .95, segLen, 18);
+      const rad = k => (plume > 1 ? .068 * plume * (1 - .22 * k) * (k > .85 ? Math.sqrt(Math.max(.15, 1 - ((k - .85) / .2) ** 2)) : 1) : .068 - .026 * k) * (s.fur === 'curly' ? 1.2 : 1);
+      const r0 = rad(i / tailN), r1 = rad((i + 1) / tailN);
+      const g = capsuleY(r0, r1, segLen, 24);
       g.rotateX(Math.PI);                    // grow backwards/upwards along +y of the joint
-      if (s.tailFluff || s.fur === 'curly') furify(g, { type: s.fur === 'curly' ? 'curly' : 'long', amount: 1.2 }, i);
+      if (s.fur === 'curly') furify(g, { type: 'curly', amount: 1 }, 0);
       j.add(mk(g, 'tail', { t0: i / tailN, t1: (i + 1) / tailN, len: segLen }, bodyMat));
       const next = new THREE.Group(); next.position.y = segLen; j.add(next);
       rig.tail.push(j); parent = next;
@@ -269,7 +279,7 @@ export function buildCat(shapeIn, coatSpec) {
   // neck + head
   const neck = new THREE.Group(); neck.position.set(0, .2, .62 * BL); body.add(neck); rig.neck = neck;
   {
-    const g = capsuleY(.17 * B * fluffy, .2 * B * fluffy, .14, 32); g.rotateX(Math.PI * .78);
+    const g = ellipsoid(1, .25 * B * fluffy, .27 * B * fluffy, .28, 64); g.translate(0, .1, .06);
     if (!hairless) furify(g, fur, 5);
     neck.add(mk(g, 'body', 'bodyNorm', bodyMat));
   }
@@ -280,30 +290,32 @@ export function buildCat(shapeIn, coatSpec) {
     if (!hairless) furify(g, { ...fur, amount: fur.amount * .7 }, 11);
     head.add(mk(g, 'head', 'headDir', bodyMat));
     if (s.cheek) for (const x of [-1, 1]) {
-      const c = ellipsoid(HS * .45, 1, .82, .8, 40); c.translate(x * HS * .62 * s.headW, -HS * .32, HS * .32);
+      const c = ellipsoid(HS * .38, 1, .8, .85, 48); c.translate(x * HS * .5 * s.headW, -HS * .3, HS * .36);
       head.add(mk(c, 'head', 'headDir', bodyMat));
-    }
-    if (s.wrinkles) for (const y of [.42, .52]) {
-      const w = new THREE.TorusGeometry(HS * .25, HS * .018, 6, 24, Math.PI * .7); w.rotateZ(Math.PI * .15); w.translate(0, HS * y, HS * .76);
-      head.add(mk(w, 'nose', null, MAT_SKIN));
     }
   }
   // ears
   for (const x of [-1, 1]) {
-    const es = s.earSize * HS / .42;
-    const eg = new THREE.ConeGeometry(.15 * es, .26 * es, 24, 1, false); eg.translate(0, .13 * es, 0);
-    const ig = new THREE.ConeGeometry(.09 * es, .17 * es, 18); ig.translate(0, .1 * es, .03 * es);
+    const es = Math.pow(s.earSize, .65) * HS / .42 * .82 * (s.ear === 'large' ? 1.15 : 1);
+    // one cone per ear (base sunk into the skull); the pink inner ear is painted on its front face
+    const eh = .36 * es, er0 = .16 * es;
+    // lathe cone (ConeGeometry with heightSegments > 1 flips half of its triangles in three r169)
+    const prof = [];
+    for (let k = 0; k <= 14; k++) { const t = k / 14; prof.push(new THREE.Vector2(Math.max(1e-4, er0 * (1 - t) * (1 - .12 * Math.sin(Math.PI * t))), -eh / 2 + eh * t)); }
+    const eg = new THREE.LatheGeometry(prof, 40); eg.translate(0, .08 * es, 0);
     const ear = new THREE.Group();
-    ear.add(mk(eg, 'ear', 'headDir', bodyMat), mk(ig, 'innerEar', null));
-    const ex = x * HS * .55 * s.headW, ey = HS * .62;
+    const earMesh = mk(eg, 'ear', { ear: true, h: eh, r: er0, y0: .08 * es - eh / 2 }, bodyMat);
+    earMesh.receiveShadow = false;   // thin cones self-shadow into moire bands
+    ear.add(earMesh);
+    const ex = x * HS * .5 * s.headW, ey = HS * .6;
     ear.position.set(ex, ey, -HS * .05);
-    if (s.ear === 'fold') { ear.scale.set(1.1, .6, 1); ear.rotation.set(1.25, 0, x * .5); ear.position.set(x * HS * .5, HS * .66, HS * .15); }
+    if (s.ear === 'fold') { ear.scale.set(1.08, .5, .72); ear.rotation.set(1.62, 0, x * .45); ear.position.set(x * HS * .44, HS * .76, HS * .16); }
     else if (s.ear === 'curl') { ear.rotation.set(-1.0, 0, -x * .2); }
-    else if (s.ear === 'large') { ear.rotation.set(0, 0, -x * .55); ear.position.x *= 1.05; }
+    else if (s.ear === 'large') { ear.rotation.set(0, 0, -x * .42); }
     else if (s.ear === 'small') { ear.scale.setScalar(.75); ear.rotation.set(.15, 0, -x * .45); }
     else ear.rotation.set(.05, 0, -x * .32);
     if (s.earTuft) {
-      const t = new THREE.ConeGeometry(.025 * es, .12 * es, 8); t.translate(0, .3 * es, 0);
+      const t = new THREE.ConeGeometry(.022 * es, .09 * es, 8); t.translate(0, .3 * es, 0);
       ear.add(mk(t, 'tuft', null));
     }
     head.add(ear);
@@ -314,7 +326,7 @@ export function buildCat(shapeIn, coatSpec) {
     const mz = ellipsoid(HS * .4, 1.2, .72, .7 * s.muzzleLen * (1 - flat * .5), 48);
     mz.translate(0, -HS * .3 + flat * HS * .06, HS * (.72 - flat * .14));
     head.add(mk(mz, 'muzzle', 'headDir', bodyMat));
-    const ng = ellipsoid(HS * .1, 1.25, .8, .8, 20); ng.translate(0, -HS * .14 + flat * HS * .1, HS * (.97 - flat * .2) * Math.min(1, s.muzzleLen * .1 + .9));
+    const ng = ellipsoid(HS * .072, 1.3, .78, .6, 20); ng.translate(0, -HS * .14 + flat * HS * .1, HS * (.97 - flat * .2) * Math.min(1, s.muzzleLen * .1 + .9));
     head.add(mk(ng, 'nose', null, MAT_GLOSS));
     // mouth: a tiny 'w' under the nose
     for (const x of [-1, 1]) {
@@ -353,8 +365,14 @@ export function buildCat(shapeIn, coatSpec) {
       v.fromBufferAttribute(pos, i);
       const p = w.copy(v).applyMatrix4(m).clone();
       let info = o.userData.info, c;
-      if (o.userData.part === 'tuft') c = C('#3a302a');
+      if (o.userData.part === 'tuft') c = colorAt('ear', p, { dir: new THREE.Vector3(0, 1, 0) }).multiplyScalar(.55);
       else if (o.userData.part === 'mouth') c = C('#3a2a24');
+      else if (info && info.ear) {
+        const y = (v.y - info.y0) / info.h, rr = Math.max(1e-4, info.r * (1 - y));
+        const outer = colorAt('ear', p, { dir: v.clone().applyMatrix4(mh).normalize() });
+        const w = sstep(.62, .82, v.z / rr) * sstep(.55, .38, Math.abs(v.x) / rr) * sstep(.28, .38, y) * sstep(.78, .66, y);
+        c = outer.lerp(colorAt('innerEar'), .8 * w);
+      }
       else if (o.userData.part === 'eye') {
         const t = (v.y - info.cy) / info.er;
         c = C('#271c18').lerp(colorAt('eye'), .5 * sstep(-.15, -.95, t));
@@ -415,7 +433,7 @@ export function setPose(cat, mode = 'walk', phase = 0) {
   // relaxed 'J': leaves the rump pointing back-down, then rises with a soft curl at the tip
   tail.forEach((j, i) => {
     const k = i / Math.max(1, tail.length - 1);
-    j.rotation.x = i === 0 ? -1.75 : (k < .7 ? .17 : .3) * curl;
+    j.rotation.x = i === 0 ? -1.45 : (k < .7 ? .15 : .28) * curl;
     j.rotation.z = (mode === 'walk' ? Math.sin(phase * TAU - k * 2) * .1 : .04) * curl;
   });
 }
