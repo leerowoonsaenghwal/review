@@ -15,9 +15,12 @@
 ![털 무늬 프리셋](images/coats_3d.png)
 ![걷기 동작](images/walk_cycle.png)
 ![얼굴 클로즈업](images/hero_cats.png)
+![정면 얼굴 32종](images/faces_front.png)
 
 **얼굴 원칙 (동물의 숲 스타일):**
 - 눈은 크고 동그란 까만 유광 눈에 큰 하이라이트와 작은 하이라이트를 넣는다.
+- 하이라이트는 눈 표면에 붙은 납작한 원이고, 두 눈 모두 같은 빛 방향(왼쪽 위)에 놓는다.
+- 장모와 곱슬 품종은 털이 눈을 덮지 않도록 눈을 앞으로 뺀다.
 - 품종별 눈 색은 눈 아래쪽에 은은하게만 비친다. 세로 동공과 사실적인 홍채는 쓰지 않는다.
 - 작은 ω 입과 볼터치를 넣는다.
 - 머리 대 몸 비율을 키운 아기자기한 비율(머리 1.5배, 다리 0.8배)을 쓰되, 네 발 보행 구조는 유지한다.
@@ -132,6 +135,8 @@ python3 -m http.server 8765
 #   http://localhost:8765/catalog.html?mode=breeds   품종 프리셋
 #   http://localhost:8765/catalog.html?mode=coats    털 무늬 프리셋
 #   http://localhost:8765/walk.html?id=scottish_fold 걷기 동작 8프레임
+#   http://localhost:8765/face.html                   전 품종 정면 얼굴 점검
+#   http://localhost:8765/inspect.html?ids=a,b        다각도 점검 (정면·대각·측면·뒷면·위)
 #   http://localhost:8765/village.html               마을 그래픽 시안
 # 이미지로 저장 (Playwright 필요)
 python3 render.py out.png "catalog.html?mode=breeds"   # 기본 포트 8766

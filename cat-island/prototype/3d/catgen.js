@@ -337,14 +337,22 @@ export function buildCat(shapeIn, coatSpec) {
     for (const x of [-1, 1]) {
       // big, round, glossy dark eyes; the breed's eye colour only glows softly at the bottom
       const er = HS * .2 * s.eyeSize;
-      const ex = x * HS * .37, ey = HS * .02, ez = HS * (.84 - flat * .05);
-      const ig = ellipsoid(er, s.eyeShape === 'almond' ? .9 : .82, 1.04, .42, 40);
+      const furPush = s.fur === 'curly' ? .07 : s.fur === 'long' ? .045 : 0;      // keep eyes in front of fluffy fur
+      const ex = x * HS * .37, ey = HS * .02, ez = HS * (.84 - flat * .05 + furPush);
+      const sx = s.eyeShape === 'almond' ? .9 : .82, sy = 1.04, sz = .42;
+      const ig = ellipsoid(er, sx, sy, sz, 48);
       ig.translate(ex, ey, ez);
       head.add(mk(ig, 'eye', { cy: ey, er }, MAT_GLOSS));
-      const big = new THREE.Mesh(new THREE.SphereGeometry(er * .34, 16, 12), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
-      big.scale.set(1, 1, .4); big.position.set(ex - x * er * .1 - er * .2, ey + er * .4, ez + er * .4); head.add(big);
-      const small = new THREE.Mesh(new THREE.SphereGeometry(er * .14, 12, 10), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
-      small.scale.set(1, 1, .4); small.position.set(ex + er * .28, ey - er * .38, ez + er * .38); head.add(small);
+      // highlights: flat discs lying on the eye surface, same light direction (upper-left) for both eyes
+      for (const [dx, dy, rr] of [[-.3, .36, .3], [.3, -.36, .12]]) {
+        const hx = dx * er, hy = dy * er;
+        const k = 1 - (hx / (er * sx)) ** 2 - (hy / (er * sy)) ** 2;
+        const hz = ez + er * sz * Math.sqrt(Math.max(0, k)) + er * .015;
+        const disc = new THREE.Mesh(new THREE.CircleGeometry(er * rr, 24), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
+        disc.position.set(ex + hx, ey + hy, hz);
+        disc.lookAt(ex + hx * 1.6, ey + hy * 1.6, hz + er);                    // follow the eye's curvature
+        head.add(disc);
+      }
       const bl = new THREE.Mesh(new THREE.SphereGeometry(HS * .13, 16, 12), new THREE.MeshStandardMaterial({ color: '#f7a3b6', roughness: 1, transparent: true, opacity: .6 }));
       bl.scale.set(1.35, .55, .3); bl.position.set(x * HS * .62, -HS * .2, HS * .72); head.add(bl);
     }
