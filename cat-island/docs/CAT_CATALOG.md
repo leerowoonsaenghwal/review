@@ -194,6 +194,22 @@ root
 - 터키시 반: 물을 좋아함 → 물그릇을 앞발로 톡톡 치는 `paw` 포즈
 - 두 포즈는 다른 품종도 쓸 수 있는 공용 동작이다(`setPose(cat, 'flop' | 'paw')`). 방치형 게임의 쉬는 동작으로도 쓴다.
 
+**움직이는 동작 (GIF)**
+
+| 랙돌 · 눕기 → 숨쉬기 | 터키시 반 · 물그릇 톡톡 | 스코티시 폴드 · 걷기 |
+|---|---|---|
+| ![](images/anim_ragdoll_flop.gif) | ![](images/anim_turkish_van_paw.gif) | ![](images/anim_walk.gif) |
+
+- `setPose(cat, 'flop', phase, { blend })`: `blend` 0→1로 서 있다가 옆으로 눕는다. `phase`는 숨쉬기(몸이 살짝 부풀었다 줄어듦), 꼬리 끝 까딱임, 고개 흔들림을 만든다.
+- `setPose(cat, 'paw', phase)`: 앞발을 들고(0~.4) 물을 톡 치고(.4~.55) 내려놓는다(.55~1). 고개는 물을 내려다보고 꼬리는 흔들린다. 칠 때마다 물결이 퍼진다(`anim.html`).
+- `anim.html?id=…&clip=liedown|paw|walk&live`로 브라우저에서 반복 재생된다. `make_gif.py`로 GIF를 만든다.
+- Unity에서는 같은 계산식을 애니메이션 커브로 옮긴다(각 관절 각도 = 포즈 사이 보간).
+
+**멀리서도 보이게 키운 세부 특징**
+- 수염: 굵기 1.4배, 길이 1.13배
+- 사바나 눈물 자국: 머리뿐 아니라 주둥이 위에도 칠한다. 원래는 주둥이가 선 대부분을 덮어서 보이지 않았다.
+- 스핑크스 주름: 볼록한 결에 더해 골을 어둡게 칠해서 작게 봐도 줄무늬로 읽힌다(이마·목).
+
 ## 3. 털 파라미터 (`makeCoat`)
 
 | 무늬 `pattern` | 국내 호칭 | 사용 색 |
@@ -287,6 +303,8 @@ python3 -m http.server 8765
 #   http://localhost:8765/face.html                   전 품종 정면 얼굴 점검
 #   http://localhost:8765/inspect.html?ids=a,b        다각도 점검 (정면·대각·측면·뒷면·위)
 #   http://localhost:8765/silhouette.html             실루엣 점검 (색 없이 측면·정면)
+#   http://localhost:8765/fullbody.html               품종별 전신 + 품종 표준 체크리스트
+#   http://localhost:8765/anim.html?id=ragdoll&clip=liedown&live   동작 반복 재생 (liedown / paw / walk)
 #   http://localhost:8765/village.html               마을 그래픽 시안
 #   http://localhost:8765/photo.html?items=tabby:.353,.32,.479,.32   사진 → 고양이
 #        (items = 사진이름:눈1x,눈1y,눈2x,눈2y:ear=fold,fur=long:품종 ; 여러 장은 ; 로 구분, ?debug 는 줄무늬 신호 보기)

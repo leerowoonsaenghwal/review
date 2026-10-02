@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<style>body{margin:0;background:#fbf6e6}canvas{display:block}</style></head>
+<body><canvas id="cv"></canvas>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js" } }</script>
+<script type="module">
+// Animated breed behaviours. Opens as a live loop in a browser; make_gif.py drives window.frame(t) to export GIFs.
+//   ?id=ragdoll&clip=liedown      stand -> lie down on its side -> breathe, lazy tail flicks
+//   ?id=turkish_van&clip=paw      bat at the water bowl (two taps per loop), ripples spread from each tap
+//   ?id=scottish_fold&clip=walk   walk cycle
+import * as THREE from 'three';
+import { buildCat, setPose, BREEDS } from './catgen.js';
+const q = new URLSearchParams(location.search);
+const id = q.get('id') || 'ragdoll', clip = q.get('clip') || 'liedown';
+const W = +(q.get('w') || 480), H = +(q.get('h') || 360);
+const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true });
+r.setPixelRatio(1); r.setSize(W, H); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1;
+const sc = new THREE.Scene(); sc.background = new THREE.Color('#fbf6e6');
+sc.add(new THREE.HemisphereLight('#f2fbff', '#c9b892', 1.35));
+const sun = new THREE.DirectionalLight('#fff4dc', 2); sun.position.set(-3, 6, 5); sun.castShadow = true;
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03; sun.shadow.radius = 4; sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3 }); sc.add(sun);
+const ground = new THREE.Mesh(new THREE.CircleGeometry(2.8, 64), new THREE.MeshStandardMaterial({ color: '#a8db84', roughness: 1 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; sc.add(ground);
+const b = BREEDS.find(x => x.id === id), cat = buildCat(b.shape, b.coat); sc.add(cat);
+const cam = new THREE.PerspectiveCamera(24, W / H, .1, 60);
+
+const rings = [];
+if (clip === 'paw') {
+  const bowl = new THREE.Mesh(new THREE.CylinderGeometry(.42, .34, .16, 48), new THREE.MeshStandardMaterial({ color: '#7fb0d8', roughness: .5 }));
+  bowl.position.set(.3, .08, 1.05); bowl.castShadow = bowl.receiveShadow = true; sc.add(bowl);
+  const water = new THREE.Mesh(new THREE.CircleGeometry(.37, 48), new THREE.MeshStandardMaterial({ color: '#bfe6f7', roughness: .15 }));
+  water.rotation.x = -Math.PI / 2; water.position.set(.3, .165, 1.05); sc.add(water);
+  for (let i = 0; i < 2; i++) {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(.9, 1, 40), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true }));
+    ring.rotation.x = -Math.PI / 2; ring.position.set(.26, .17, .98); sc.add(ring); rings.push(ring);
+  }
+  cam.position.set(5.6, 2.4, 4.4); cam.lookAt(0, .75, .4);
+} else if (clip === 'liedown') { cam.position.set(4.2, 3.0, 5.6); cam.lookAt(-.3, .6, .1); }
+else { cam.position.set(4.8, 2.6, 4.4); cam.lookAt(0, .78, .15); }
+
+window.frame = t => {   // t: 0..1 over the whole loop
+  if (clip === 'liedown') {
+    // 0-.35 lie down, then two slow breaths; the loop ends lying (the GIF holds the last frame briefly)
+    const blend = Math.min(1, t / .35), ph = t < .35 ? 0 : (t - .35) / .65 * 2;
+    setPose(cat, 'flop', ph % 1, { blend });
+  } else if (clip === 'paw') {
+    const ph = (t * 2) % 1;              // two bats per loop
+    setPose(cat, 'paw', ph);
+    rings.forEach((ring, i) => {         // each tap (phase ~.5) sends out a ripple
+      const age = ((ph - .5 - i * .18) % 1 + 1) % 1, rr = .03 + age * .3;
+      ring.scale.setScalar(rr); ring.material.opacity = Math.max(0, .9 - age * 1.6);
+    });
+  } else setPose(cat, 'walk', t);
+  r.render(sc, cam);
+};
+if (q.has('live')) { const t0 = performance.now(); const loop = () => { frame(((performance.now() - t0) / 3000) % 1); requestAnimationFrame(loop); }; loop(); }
+else frame(0);
+window.__done = true;
+</script></body></html>

@@ -10,6 +10,7 @@
   - 품종 33종과 털 무늬 12종 카탈로그
   - 마을 그래픽 시안
   - 사진 → 고양이 변환 (`photo.html`, `photo2cat.js`)
+  - 품종별 전신 점검 (`fullbody.html`), 동작 애니메이션 (`anim.html`, GIF는 `make_gif.py`)
 
 ![로꼬 사진 → 3D](docs/images/rocco_photo_to_3d.png)
 
