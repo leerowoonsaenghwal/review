@@ -313,6 +313,10 @@ export function buildCat(shapeIn, coatSpec) {
   const bodyY = shoulderY + .06 + hindExtra / 2;
 
   const body = new THREE.Group(); body.position.y = bodyY; root.add(body); rig.body = body;
+  // spine: two bones pivoting at mid-body, so the torso can arch (stretch), curl (sleep) and tuck (sit).
+  // Front legs, neck and ruff ride on the chest bone; hind legs and tail on the hip bone.
+  const chest = new THREE.Bone(), hip = new THREE.Bone(); body.add(chest, hip); rig.chest = chest; rig.hip = hip;
+  rig.dims = { fUp, fLo, hTh, hSh, hHo, pawR, L, BL, B, bodyY, fluffy: s.fur === 'long' ? 1.06 + .08 * s.furAmount : s.fur === 'curly' ? 1.08 : 1 };
   rig.pitch = Math.atan2(hindExtra, .96 * BL);           // rump-high breeds lean forward
   const fluffy = s.fur === 'long' ? 1.06 + .08 * s.furAmount : s.fur === 'curly' ? 1.08 : 1;
   const bodyNorm = p => ({ nx: p.x / (.32 * B), ny: (p.y - bodyY) / (.34 * B), nz: p.z / (.9 * BL) });
@@ -336,12 +340,19 @@ export function buildCat(shapeIn, coatSpec) {
     }
     g.computeVertexNormals();
     if (!hairless) furify(g, fur, 1);
-    body.add(mk(g, 'body', 'bodyNorm', bodyMat));
+    // skin weights: front half follows the chest bone, back half the hip bone, blended over the waist
+    const n = pos.count, si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) { const w = sstep(-.32 * BL, .32 * BL, pos.getZ(i)); si[i * 4 + 1] = 1; sw[i * 4] = w; sw[i * 4 + 1] = 1 - w; }
+    g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+    g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+    const torso = new THREE.SkinnedMesh(g, bodyMat);
+    torso.castShadow = torso.receiveShadow = true; torso.userData.part = 'body'; torso.userData.info = 'bodyNorm';
+    body.add(torso); rig.torso = torso;
   }
   if (s.ruff) {
     const g = ellipsoid(1, .4 * B * fluffy, .36, .3, 96); g.translate(0, .1, .6 * BL);
     furify(g, { type: s.fur === 'curly' ? 'curly' : 'long', amount: s.ruff }, 9);
-    body.add(mk(g, 'body', 'bodyNorm'));
+    chest.add(mk(g, 'body', 'bodyNorm'));
   }
 
   // legs
@@ -352,7 +363,7 @@ export function buildCat(shapeIn, coatSpec) {
   for (const [name, side, kind, z] of legs) {
     const top = new THREE.Group();
     top.position.set(side * .19 * B, kind === 'front' ? -.08 : -.02, z * BL);
-    body.add(top);
+    (kind === 'front' ? chest : hip).add(top);
     const chain = [];
     const segs = kind === 'front' ? [[fUp, .1, .085], [fLo, .085, .075]] : [[hTh, .14, .1], [hSh, .095, .075], [hHo, .072, .07]];
     let parent = top, acc = 0, total = segs.reduce((a, b) => a + b[0], 0);
@@ -377,7 +388,7 @@ export function buildCat(shapeIn, coatSpec) {
   // tail
   const tailN = s.tail === 'none' ? 0 : s.tail === 'bob' ? 3 : 10;
   if (tailN) {
-    let parent = new THREE.Group(); parent.position.set(0, .16, -.78 * BL); body.add(parent);
+    let parent = new THREE.Group(); parent.position.set(0, .16, -.78 * BL); hip.add(parent);
     const segLen = (s.tail === 'bob' ? .06 : .1) * s.tailLen;
     const plume = s.tailFluff ? 1 + s.tailFluff * (s.fur === 'long' ? 1.2 : .9) : 1;
     for (let i = 0; i < tailN; i++) {
@@ -399,7 +410,7 @@ export function buildCat(shapeIn, coatSpec) {
   }
 
   // neck + head
-  const neck = new THREE.Group(); neck.position.set(0, .2, .62 * BL); body.add(neck); rig.neck = neck;
+  const neck = new THREE.Group(); neck.position.set(0, .2, .62 * BL); chest.add(neck); rig.neck = neck;
   {
     const g = ellipsoid(1, .25 * B * fluffy * (1 - (s.neckLen - 1) * .3), .27 * B * fluffy * s.neckLen, .28, 64); g.translate(0, .1 * s.neckLen, .06);
     if (!hairless) furify(g, fur, 5);
@@ -460,7 +471,7 @@ export function buildCat(shapeIn, coatSpec) {
     }
   }
   // ears
-  const earGroups = [];
+  const earGroups = []; rig.ears = earGroups; rig.eyes = [];
   for (const x of [-1, 1]) {
     const es = Math.pow(s.earSize, .65) * HS / .42 * .82 * (s.ear === 'large' ? 1.15 : 1);
     // one cone per ear (base sunk into the skull); the pink inner ear is painted on its front face
@@ -487,7 +498,7 @@ export function buildCat(shapeIn, coatSpec) {
       const t = new THREE.ConeGeometry(.022 * es, .09 * es, 8); t.translate(0, .3 * es, 0);
       ear.add(mk(t, 'tuft', null));
     }
-    ear.userData.x = x; ear.userData.es = es; earGroups.push(ear);
+    ear.userData.x = x; ear.userData.es = es; ear.userData.base = ear.rotation.clone(); earGroups.push(ear);
     head.add(ear);
   }
   // muzzle, nose, eyes, blush, whisker pads
@@ -498,6 +509,10 @@ export function buildCat(shapeIn, coatSpec) {
     head.add(mk(mz, 'muzzle', 'headDir', bodyMat));
     const ng = ellipsoid(HS * .072, 1.3, .78, .6, 20); ng.translate(0, -HS * .14 + flat * HS * .1, HS * (.97 - flat * .14) * Math.min(1, s.muzzleLen * .1 + .9));
     head.add(mk(ng, 'nose', null, MAT_GLOSS));
+    // tongue (shown while grooming): a small pink tongue tip just under the mouth
+    const tg = ellipsoid(HS * .07, 1, .4, 1.1, 20); tg.translate(0, -HS * .06, HS * .05);
+    const tongue = new THREE.Group(); tongue.position.set(0, -HS * .2 + flat * HS * .1, HS * (.88 - flat * .14)); head.add(tongue);
+    tongue.add(mk(tg, 'tongue', null, MAT_GLOSS)); tongue.scale.setScalar(.001); rig.tongue = tongue;
     // mouth: a tiny 'w' under the nose
     for (const x of [-1, 1]) {
       const m = new THREE.TorusGeometry(HS * .055, HS * .014, 8, 20, Math.PI);
@@ -515,6 +530,7 @@ export function buildCat(shapeIn, coatSpec) {
       const furPush = s.fur === 'curly' ? .03 : s.fur === 'long' ? .02 : 0;      // keep eyes in front of the fur texture
       const ex = x * HS * .37 * s.eyeSpace, ey = HS * .02, ez = HS * (.84 - flat * .05 + furPush);
       const eye = new THREE.Group(); eye.position.set(ex, ey, ez); eye.rotation.z = x * s.eyeTilt; head.add(eye);
+      eye.userData.discs = []; rig.eyes.push(eye);
       const pinch = g => {                    // almond / lemon: pinch the inner and outer corners
         const q = g.attributes.position;
         for (let i = 0; i < q.count; i++) { const u = q.getX(i) / (er * sx * 1.1); q.setY(i, q.getY(i) * (1 - sharp * u * u)); }
@@ -547,7 +563,7 @@ export function buildCat(shapeIn, coatSpec) {
         const disc = new THREE.Mesh(new THREE.CircleGeometry(er * rr * hsz, 24), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
         disc.position.set(hx, hy, hz);
         disc.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(hx / sx ** 2, y0 / sy ** 2, hz / sz ** 2).normalize());
-        eye.add(disc);
+        eye.add(disc); eye.userData.discs.push(disc);
       }
       // whiskers: three per side from the whisker pad; curly for rex/curly coats, none on a Sphynx
       if (s.whisker !== 'none') for (let w = 0; w < 3; w++) {
@@ -575,12 +591,12 @@ export function buildCat(shapeIn, coatSpec) {
     // (wide, overlapping, lying on the collar: a scalloped bib, not a row of spikes)
     for (let j = -2; j <= 2; j++) {
       const f = j / 2, len = (.22 - .06 * Math.abs(f)) * ruff;
-      placeTuft(body, T(len, .12, .6), V(f * .19 * B * fluffy, .02 - .04 * Math.abs(f), .78 * BL + .04 * (1 - Math.abs(f))),
+      placeTuft(chest, T(len, .12, .6), V(f * .19 * B * fluffy, .02 - .04 * Math.abs(f), .78 * BL + .04 * (1 - Math.abs(f))),
         V(f * .45, -1, .55), V(0, 0, 1), 'body', 'bodyNorm', bodyMat);
     }
     // belly fringe and 'trousers' on the back of the thighs
     for (const x of [-1, 1]) {
-      for (const z of [-.25, .02, .28]) placeTuft(body, T(.14 * amt, .07, .3), V(x * .15 * B * fluffy, -.2 * B * fluffy, z * BL), V(x * .25, -1, -.2), V(0, 0, -1), 'body', 'bodyNorm', bodyMat);
+      for (const z of [-.25, .02, .28]) placeTuft(z > 0 ? chest : hip, T(.14 * amt, .07, .3), V(x * .15 * B * fluffy, -.2 * B * fluffy, z * BL), V(x * .25, -1, -.2), V(0, 0, -1), 'body', 'bodyNorm', bodyMat);
       const thigh = rig.legs[x < 0 ? 'hindL' : 'hindR'].chain[0];
       for (const [y, k] of [[-.35, 1], [-.65, .8]]) placeTuft(thigh, T(.17 * amt * k, .075, .35), V(x * .03, hTh * y, -.09), V(x * .2, -.5, -1), V(0, -1, 0), 'body', 'bodyNorm', bodyMat);
     }
@@ -607,12 +623,13 @@ export function buildCat(shapeIn, coatSpec) {
 
   // ---------- paint every mesh in rest pose, using root-space positions
   root.updateMatrixWorld(true);
+  rig.torso.bind(new THREE.Skeleton([chest, hip]));
   const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const headInv = new THREE.Matrix4().copy(head.matrixWorld).invert();
   const v = new THREE.Vector3(), w = new THREE.Vector3();
   root.traverse(o => {
     if (!o.isMesh || !o.userData.part) return;
-    const part = ['tuft', 'furnish', 'liner', 'whisker'].includes(o.userData.part) ? 'ear' : o.userData.part;
+    const part = ['tuft', 'furnish', 'liner', 'whisker', 'tongue'].includes(o.userData.part) ? 'ear' : o.userData.part;
     const pos = o.geometry.attributes.position, col = new Float32Array(pos.count * 3);
     const fl = o.geometry.attributes.fluff;
     const m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
@@ -624,6 +641,7 @@ export function buildCat(shapeIn, coatSpec) {
       if (o.userData.part === 'tuft') c = colorAt('ear', p, { dir: new THREE.Vector3(0, 1, 0) }).multiplyScalar(.55);
       else if (o.userData.part === 'furnish') c = C('#f5efe4');
       else if (o.userData.part === 'liner') c = C('#2b2220');
+      else if (o.userData.part === 'tongue') c = C('#ef8c98');
       else if (o.userData.part === 'whisker') c = C(coatSpec.whiskerColor || '#fbf8f2');
       else if (o.userData.part === 'mouth') c = C('#3a2a24');
       else if (info && info.ear) {
@@ -663,58 +681,233 @@ export function buildCat(shapeIn, coatSpec) {
 
 // ------------------------------------------------------------------ poses / motion
 // walk: lateral-sequence gait (LH, LF, RH, RF), phase 0..1
-export function setPose(cat, mode = 'walk', phase = 0, opts = {}) {
-  // mode: 'stand' | 'walk' | 'look' | 'flop' | 'paw'
-  //   walk  phase 0..1 = one gait cycle
-  //   flop  opts.blend 0..1 = standing -> lying on its side (Ragdoll); phase drives slow breathing / tail flicks
-  //   paw   phase 0..1 = one bat at the water (Turkish Van): lift, tap, return
-  const { legs, tail, body, neck, head } = cat.userData.rig;
-  const s = cat.userData.shape;
-  const TAU = Math.PI * 2, lerp = (a, b, t) => a + (b - a) * t;
-  const ease = t => t * t * (3 - 2 * t);
-  const k = mode === 'flop' ? ease(Math.min(1, Math.max(0, opts.blend ?? 1))) : 0;
-  const breathe = mode === 'flop' ? Math.sin(phase * TAU) : 0;
-  // paw cycle: lift (0-.4), tap down (.4-.55), back to standing (.55-1)
-  const pw = mode === 'paw' ? (phase < .4 ? ease(phase / .4) : phase < .55 ? 1 - .55 * ease((phase - .4) / .15) : .45 * (1 - ease((phase - .55) / .45))) : 0;
+// ------------------------------------------------------------------ poses & motion
+// Paws are placed with two-bone IK, so the legs bend the way a real cat's do:
+//   front leg: elbow behind (upper arm down-back, forearm down-forward), paw flat on the ground
+//   hind leg:  knee (stifle) forward, hock (heel) back, metatarsus near-vertical; the hock angle is set
+//              per pose (flat on the ground when sitting or loafing)
+// setPose(cat, mode, phase, opts)
+//   mode  'stand' | 'walk' | 'sit' | 'loaf' | 'groom' | 'sleep' | 'stretch' | 'flop' | 'paw' | 'look'
+//   phase 0..1 inside the motion's loop (gait cycle, breath, lick ...)
+//   opts.from = { mode, phase } and opts.blend 0..1: cross-fade between two poses (stand -> sit, ...)
+// The same joint maths ports to Unity as a small procedural animator (or baked into clips).
+const TAU = Math.PI * 2;
+const easeIO = t => t * t * (3 - 2 * t);
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _qx = new THREE.Quaternion();
+const AX = new THREE.Vector3(1, 0, 0);
+const pulse = (t, a, b) => sstep(a, (a + b) / 2, t) * sstep(b, (a + b) / 2, t);   // 0 -> 1 -> 0 between a and b
 
-  cat.rotation.z = 1.42 * k;
-  cat.position.y = lerp(0, .3 * s.bodyBulk * s.size * (s.fur === 'long' ? 1.12 : 1), k);
-  const offsets = { hindL: 0, frontL: .25, hindR: .5, frontR: .75 };
-  for (const [name, leg] of Object.entries(legs)) {
-    const ph = (phase + offsets[name]) % 1;
-    const swing = mode === 'walk' ? Math.sin(ph * TAU) : 0;
-    const lift = mode === 'walk' ? Math.max(0, Math.sin(ph * TAU - .6)) : 0;
-    const [a, b, c, d] = leg.chain, fr = leg.kind === 'front';
-    // standing / walking angles
-    let ax = fr ? -.05 + swing * .45 : .55 + swing * .4, bx = fr ? -lift * .9 : -1.0 - lift * .5, cx = fr ? lift * .6 : .5 + lift * .7, az = 0;
-    if (mode === 'paw' && name === 'frontR') { ax = lerp(ax, -1.25, pw); bx = lerp(bx, -1.1, pw); cx = lerp(cx, .9, pw); }
-    // lying on the side: limbs loose; the upper legs drape towards the ground
-    if (k > 0) {
-      const lim = Math.sin(phase * TAU + (fr ? 0 : 1)) * .03;
-      ax = lerp(ax, (fr ? .55 : .2) + lim, k); bx = lerp(bx, fr ? -.5 : -.6, k); cx = lerp(cx, fr ? .3 : .5, k);
-      az = lerp(0, leg.side > 0 ? -.75 : -.15, k);
-    }
-    a.rotation.x = ax; a.rotation.z = az; b.rotation.x = bx; c.rotation.x = cx; if (d) d.rotation.x = 0;
+// angles of a two-bone chain hanging from its pivot so its end reaches (ty, tz) in the pivot frame.
+// rotation.x = +a swings a hanging bone backwards (-z). knee < 0: middle joint behind (elbow); > 0: in front (stifle).
+function twoBone(ty, tz, L1, L2, knee) {
+  const D = clamp(Math.hypot(ty, tz), Math.abs(L1 - L2) + 1e-3, L1 + L2 - 1e-4);
+  const phi = Math.atan2(-tz, -ty);
+  const al = Math.acos(clamp((L1 * L1 + D * D - L2 * L2) / (2 * L1 * D), -1, 1));
+  const be = Math.PI - Math.acos(clamp((L1 * L1 + L2 * L2 - D * D) / (2 * L1 * L2), -1, 1));
+  return knee < 0 ? [phi + al, -be] : [phi - al, be];
+}
+
+// place one leg's paw joint at `target` (cat root space). o.hock: hind metatarsus angle in the leg-top frame
+// (+ back, - forward, -1.5 = lying flat forward); o.flex: toe/wrist curl; o.az: sideways spread
+function solveLeg(cat, leg, target, o = {}) {
+  const d = cat.userData.rig.dims, { top, chain, kind } = leg;
+  top.updateWorldMatrix(true, false);
+  const loc = top.worldToLocal(cat.localToWorld(_v.copy(target)));
+  const paw = chain.at(-1);
+  chain[0].rotation.z = o.az || 0;
+  if (kind === 'front') {
+    const [a, b] = twoBone(loc.y, loc.z, d.fUp, d.fLo, -1);
+    chain[0].rotation.x = a; chain[1].rotation.x = b;
+  } else {
+    const psi = o.hock ?? .12;
+    const [a, b] = twoBone(loc.y + d.hHo * Math.cos(psi), loc.z + d.hHo * Math.sin(psi), d.hTh, d.hSh, 1);
+    chain[0].rotation.x = a; chain[1].rotation.x = b; chain[2].rotation.x = psi - a - b;
   }
-  const bob = mode === 'walk' ? Math.sin(phase * TAU * 2) * .015 : 0;
-  body.rotation.x = (cat.userData.rig.pitch || 0) + (mode === 'paw' ? -.06 * pw : 0);
-  neck.userData.pitchComp = -(cat.userData.rig.pitch || 0);
-  body.children[0] && (cat.userData.baseY ??= body.position.y);
-  body.position.y = cat.userData.baseY + bob;
-  body.scale.set(1 + .018 * breathe * k, 1 + .025 * breathe * k, 1);          // slow breathing while lying
-  neck.rotation.x = -.15 + (neck.userData.pitchComp || 0) + (mode === 'walk' ? Math.sin(phase * TAU * 2 + 1) * .04 : 0);
-  head.rotation.x = lerp(.12, -.1, k) + .3 * pw;                              // looks down at the water
-  head.rotation.y = mode === 'look' ? -.5 : mode === 'paw' ? -.12 * pw : 0;
-  head.rotation.z = -.35 * k + .02 * breathe * k;
-  // tail: relaxed 'J', swaying while walking / batting, lying out limp with a lazy tip flick when flopped
-  const curl = s.tail === 'bob' ? 0 : 1;
-  tail.forEach((j, i) => {
-    const t = i / Math.max(1, tail.length - 1);
-    const up = i === 0 ? -1.45 : (t < .7 ? .15 : .28) * curl, limp = i === 0 ? -1.75 : .04;
-    const flick = t > .6 ? Math.sin(phase * TAU * 2 - t * 3) * .25 * t : 0;
-    j.rotation.x = lerp(up, limp, k);
-    j.rotation.z = ((mode === 'walk' ? Math.sin(phase * TAU - t * 2) * .1 : mode === 'paw' ? Math.sin(phase * TAU - t * 2) * .14 : .04) * (1 - k) + flick * k) * curl;
+  // paw pad flat to the ground (the cat's own up), then curled by `flex`
+  paw.parent.updateWorldMatrix(true, false);
+  paw.parent.getWorldQuaternion(_q); cat.getWorldQuaternion(_q2);
+  paw.quaternion.copy(_q.invert().multiply(_q2)).multiply(_qx.setFromAxisAngle(AX, o.flex || 0));
+}
+
+function setEyes(r, closed) {
+  for (const e of r.eyes) { e.scale.y = 1 - .9 * closed; for (const dd of e.userData.discs) dd.visible = closed < .45; }
+}
+
+function resetRig(cat) {
+  const r = cat.userData.rig, d = r.dims;
+  cat.rotation.set(0, 0, 0); cat.position.set(0, 0, 0);
+  r.body.position.set(0, d.bodyY, 0); r.body.rotation.set(r.pitch || 0, 0, 0); r.body.scale.set(1, 1, 1);
+  r.chest.rotation.set(0, 0, 0); r.hip.rotation.set(0, 0, 0);
+  r.neck.rotation.set(-.15 - (r.pitch || 0), 0, 0);       // the neck cancels the body pitch: head stays level
+  r.head.rotation.set(.12, 0, 0);
+  for (const e of r.ears) e.rotation.copy(e.userData.base);
+  setEyes(r, 0); r.tongue.scale.setScalar(.001);
+  for (const leg of Object.values(r.legs)) for (const j of leg.chain) j.rotation.set(0, 0, 0);
+}
+
+// tail: base angle (more negative = higher), bend per joint, sideways curl per joint, wave amplitude/phase
+function poseTail(cat, base, bend, curl, wave = 0, ph = 0) {
+  const r = cat.userData.rig, s = cat.userData.shape, n = r.tail.length, k0 = s.tail === 'bob' ? 0 : 1;
+  r.tail.forEach((j, i) => {
+    const t = i / Math.max(1, n - 1);
+    j.rotation.x = i === 0 ? base : bend * k0 * (t < .7 ? 1 : 1.8);
+    j.rotation.z = (curl + wave * t * Math.sin(ph * TAU - t * 2.6)) * k0;
   });
+}
+
+const rootPos = (cat, obj) => cat.worldToLocal(obj.getWorldPosition(new THREE.Vector3()));
+
+function posePure(cat, mode, phase) {
+  const r = cat.userData.rig, d = r.dims, s = cat.userData.shape;
+  resetRig(cat);
+  const legs = r.legs, P = d.pawR * .9, L = d.L;
+  const breath = Math.sin(phase * TAU);
+  const blink = pulse(phase, .9, .97);
+  const feet = {};                                    // name -> [target, opts]
+  const under = (name, dz = 0, dy = 0, o = {}) => { const t = rootPos(cat, legs[name].top); feet[name] = [new THREE.Vector3(t.x, P + dy, t.z + dz), o]; };
+  const sideways = (name, k) => { feet[name][0].x *= k; };
+
+  if (mode === 'stand' || mode === 'look' || mode === 'paw') {
+    r.body.scale.set(1 + .006 * breath, 1 + .01 * breath, 1);
+    setEyes(r, blink);
+    if (mode === 'look') { r.head.rotation.y = -.5; r.neck.rotation.y = -.15; }
+    poseTail(cat, -1.45, .16, 0, .12, phase);
+    cat.updateMatrixWorld(true);
+    for (const n of ['frontL', 'frontR']) under(n, .02);
+    for (const n of ['hindL', 'hindR']) under(n, .03, 0, { hock: .12 });
+    if (mode === 'paw') {
+      // bat at the water: lift (0-.4), tap down into the bowl (.4-.55), back to the ground (.55-1)
+      const up = phase < .4 ? easeIO(phase / .4) : phase < .55 ? 1 - easeIO((phase - .4) / .15) : 0;
+      const fwd = phase < .55 ? easeIO(Math.min(1, phase / .45)) : 1 - easeIO((phase - .55) / .45);
+      const [t] = feet.frontR;
+      t.y = P + up * .42 * L + (phase > .4 && phase < .6 ? .02 : 0); t.z += fwd * .32 * L; t.x *= .85;
+      feet.frontR[1] = { flex: .9 * up };
+      r.head.rotation.x = .12 + .32 * Math.max(up, fwd * .8); r.head.rotation.y = -.1 * fwd;
+      r.body.rotation.x += -.05 * up;                   // shifts weight back a little
+      poseTail(cat, -1.4, .16, 0, .2, phase * 2);
+    }
+  } else if (mode === 'walk') {
+    // lateral-sequence walk: hind-left, fore-left, hind-right, fore-right; each foot is planted for 62% of
+    // the cycle and slides back under the body (stance), then lifts, curls and swings forward
+    const offs = { hindL: 0, frontL: .25, hindR: .5, frontR: .75 }, duty = .62, S = .5 * L;
+    r.body.position.y -= .012 * (.5 - .5 * Math.cos(phase * TAU * 2));          // dips twice per cycle
+    r.body.rotation.z = .025 * Math.sin(phase * TAU);                              // gentle roll
+    r.chest.rotation.y = .06 * Math.sin(phase * TAU);                              // shoulders and hips sway
+    r.hip.rotation.y = -.06 * Math.sin(phase * TAU + .5);                          // in opposite directions
+    r.neck.rotation.y = -.05 * Math.sin(phase * TAU);                              // head stays steady
+    r.head.rotation.x = .12 + .025 * Math.cos(phase * TAU * 2);
+    poseTail(cat, -1.35, .14, 0, .16, phase);
+    cat.updateMatrixWorld(true);
+    for (const [name, leg] of Object.entries(legs)) {
+      const ph = (phase + offs[name]) % 1, fr = leg.kind === 'front', lift = (fr ? .13 : .1) * L;
+      let dz, dy = 0, o;
+      if (ph < duty) { const u = ph / duty; dz = S / 2 - S * u; o = fr ? { flex: 0 } : { hock: .08 + .4 * u }; }
+      else {
+        const u = (ph - duty) / (1 - duty), arc = Math.sin(Math.PI * u);
+        dz = -S / 2 + S * easeIO(u); dy = lift * arc;
+        o = fr ? { flex: 1.25 * arc } : { hock: .48 + .45 * arc - .4 * u, flex: .5 * arc };
+      }
+      under(name, dz + (fr ? .03 : .02), dy, o);
+    }
+  } else if (mode === 'sit' || mode === 'groom') {
+    // haunches on the ground, front legs straight, chest up, tail wrapped round the paws
+    r.body.rotation.x = (r.pitch || 0) - .62;
+    r.chest.rotation.x = -.12; r.hip.rotation.x = -.22;
+    r.body.position.y = d.bodyY * .72 + .03;
+    r.neck.rotation.x = -.15 - (r.pitch || 0) + .62;
+    r.body.scale.set(1 + .006 * breath, 1 + .01 * breath, 1);
+    poseTail(cat, -.35, -.02, -.36, mode === 'sit' ? .05 : 0, phase * 2);   // down to the ground, round the front paws; tip twitches
+    setEyes(r, mode === 'groom' ? .75 : blink);
+    cat.updateMatrixWorld(true);
+    for (const n of ['frontL', 'frontR']) under(n, .04);
+    for (const n of ['hindL', 'hindR']) { under(n, .32 * L, 0, { hock: -1.45 }); sideways(n, 1.25); }
+    if (mode === 'groom') {
+      // licks the right paw: paw raised to the mouth, head tilted to it, little licking nods
+      const lick = .5 + .5 * Math.sin(phase * TAU * 3);
+      r.head.rotation.set(.32 + .1 * lick, .32, .16);
+      r.tongue.scale.setScalar(.001 + lick);
+      cat.updateMatrixWorld(true);
+      const mouth = rootPos(cat, r.tongue);
+      feet.frontR = [mouth.add(new THREE.Vector3(.04, -.07, .12)), { flex: 1.1 }];   // paw held up in front of the mouth
+    }
+  } else if (mode === 'loaf' || mode === 'sleep') {
+    // 'loaf': belly down, paws tucked away, eyes half shut. 'sleep': curled into a doughnut, head to tail
+    const curl = mode === 'sleep';
+    r.body.position.y = .3 * d.B * d.fluffy + .02;
+    r.body.rotation.x = 0;
+    r.neck.rotation.x = -.15 + (curl ? .35 : .08);
+    r.body.scale.set(1 + .012 * breath, 1 + .02 * breath, 1);
+    if (curl) {
+      // body curled into a C with the tail round the front; the chin rests on the paws, face to the viewer
+      // (a big toy head turned towards the tail would only show the back of the head)
+      r.body.rotation.z = .22;
+      r.chest.rotation.y = .38; r.hip.rotation.y = -.5;
+      r.neck.rotation.set(-.15 + .6, .12, 0); r.head.rotation.set(-.32, .12, .3);   // neck lowered, face level
+      setEyes(r, 1);
+      poseTail(cat, -1.72, -.02, -.44, 0);             // wrapped round to the front paws
+      for (const e of r.ears) e.rotation.x = e.userData.base.x - .25;    // ears relaxed back
+    } else { setEyes(r, .55 + .45 * blink); poseTail(cat, -1.72, -.02, -.3, 0); }   // lying along its side
+    cat.updateMatrixWorld(true);
+    for (const n of ['frontL', 'frontR']) under(n, -.1, -P * .25, { flex: 1.3 });
+    for (const n of ['hindL', 'hindR']) { under(n, .2 * L, -P * .25, { hock: -1.5 }); sideways(n, 1.1); }
+  } else if (mode === 'stretch') {
+    // play-bow stretch: front legs reach forward along the ground, chest low, rump and tail high
+    r.body.rotation.x = (r.pitch || 0) + .42;
+    r.chest.rotation.x = .2; r.hip.rotation.x = -.08;
+    r.body.position.y = d.bodyY * .78;
+    r.neck.rotation.x = -.15 - (r.pitch || 0) - .5;
+    r.head.rotation.x = -.05;
+    setEyes(r, .85);
+    poseTail(cat, -2.1, .12, 0, .1, phase);
+    cat.updateMatrixWorld(true);
+    for (const n of ['frontL', 'frontR']) under(n, .8 * L, 0, { flex: -.2 });      // reach far forward
+    for (const n of ['hindL', 'hindR']) under(n, -.04, 0, { hock: .2 });           // hind legs straight, rump up
+  } else if (mode === 'flop') {
+    // lying on its side, fully relaxed (Ragdoll); limbs loose, upper legs draped towards the ground
+    cat.rotation.z = 1.42; cat.position.y = .3 * s.bodyBulk * (s.fur === 'long' ? 1.12 : 1);
+    r.body.scale.set(1 + .018 * breath, 1 + .025 * breath, 1);
+    r.head.rotation.set(-.1, 0, -.35 + .02 * breath); r.hip.rotation.y = -.12;
+    setEyes(r, .6);
+    r.tail.forEach((j, i) => { const t = i / (r.tail.length - 1); j.rotation.x = i === 0 ? -1.75 : .04; j.rotation.z = t > .6 ? Math.sin(phase * TAU * 2 - t * 3) * .25 * t : 0; });
+    for (const [name, leg] of Object.entries(legs)) {
+      const [a, b, c, dd] = leg.chain, fr = leg.kind === 'front', lim = Math.sin(phase * TAU + (fr ? 0 : 1)) * .03;
+      a.rotation.z = leg.side > 0 ? -.75 : -.15;
+      if (fr) { a.rotation.x = .35 + lim; b.rotation.x = -.45; c.rotation.x = .5; }
+      else { a.rotation.x = -.25 + lim; b.rotation.x = .7; c.rotation.x = -.35; dd.rotation.x = .3; }
+    }
+  }
+  if (Object.keys(feet).length) {
+    cat.updateMatrixWorld(true);
+    for (const [name, [t, o]] of Object.entries(feet)) solveLeg(cat, legs[name], t, o);
+  }
+}
+
+// every animated value, in a fixed order, for cross-fading two poses
+function rigChannels(cat) {
+  const r = cat.userData.rig, out = [];
+  const rot = (o, axes = 'xyz') => { for (const a of axes) out.push([o.rotation, a]); };
+  out.push([cat.position, 'y']); rot(cat, 'z');
+  out.push([r.body.position, 'y'], [r.body.scale, 'x'], [r.body.scale, 'y']); rot(r.body, 'xz');
+  rot(r.chest); rot(r.hip); rot(r.neck); rot(r.head);
+  for (const j of r.tail) rot(j, 'xz');
+  for (const leg of Object.values(r.legs)) for (const j of leg.chain) rot(j);
+  for (const e of r.ears) rot(e);
+  for (const e of r.eyes) out.push([e.scale, 'y']);
+  out.push([r.tongue.scale, 'x'], [r.tongue.scale, 'y'], [r.tongue.scale, 'z']);
+  return out;
+}
+
+export function setPose(cat, mode = 'stand', phase = 0, opts = {}) {
+  let from = opts.from;
+  if (!from && mode === 'flop' && opts.blend != null) from = { mode: 'stand', phase: 0 };
+  if (!from) { posePure(cat, mode, phase); return; }
+  const ch = rigChannels(cat), k = easeIO(clamp(opts.blend ?? 1, 0, 1));
+  posePure(cat, from.mode, from.phase ?? 0); const A = ch.map(([o, a]) => o[a]);
+  posePure(cat, mode, phase); const B = ch.map(([o, a]) => o[a]);
+  ch.forEach(([o, a], i) => { o[a] = A[i] + (B[i] - A[i]) * k; });
+  const r = cat.userData.rig;
+  for (const e of r.eyes) for (const dd of e.userData.discs) dd.visible = e.scale.y > .55;
 }
 
 // ------------------------------------------------------------------ catalogue

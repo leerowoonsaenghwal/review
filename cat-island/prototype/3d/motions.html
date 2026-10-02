@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#f6f1e3;font-family:Jua,sans-serif;color:#6f5a40}h1{margin:16px 24px 2px;font-size:28px;font-weight:normal}
+p{margin:0 24px 10px;color:#a08a6a;font-size:15px}#g{display:grid;gap:8px;padding:0 12px 14px}
+.c{background:#fbf6e6;border-radius:18px;overflow:hidden}.c canvas{display:block}.c b{display:block;font-weight:normal;font-size:17px;margin:4px 12px 8px}</style></head>
+<body><h1 id="t"></h1><p>기본 동작 세트 · 위: 3/4 정면 · 아래: 측면</p><div id="g"></div>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildCat, setPose, BREEDS } from './catgen.js';
+const q = new URLSearchParams(location.search);
+const b = BREEDS.find(x => x.id === (q.get('id') || 'korean_shorthair'));
+t.textContent = `${b.ko} · 기본 동작`;
+const M = [['stand', .3, '서기'], ['walk', 0, '걷기 0'], ['walk', .25, '걷기 ¼'], ['walk', .5, '걷기 ½'], ['walk', .75, '걷기 ¾'], ['sit', .3, '앉기'], ['loaf', .3, '식빵'], ['groom', .1, '그루밍'], ['sleep', .3, '잠자기'], ['stretch', .3, '기지개'], ['flop', .3, '발라당 (flop)'], ['paw', .35, '앞발 톡톡 (paw)']];
+const CW = +(q.get('cw') || 230), CH = +(q.get('ch') || 190), cols = +(q.get('cols') || 6);
+const only = q.get('modes') ? q.get('modes').split(',') : null;
+g.style.gridTemplateColumns = `repeat(${cols}, ${CW}px)`;
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setPixelRatio(2); r.setSize(CW, CH); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1;
+for (const [mode, ph, label] of M.filter(m => !only || only.includes(m[2]) || only.includes(m[0]))) {
+  const cell = document.createElement('div'); cell.className = 'c';
+  for (const view of ['34', 'side']) {
+    const sc = new THREE.Scene();
+    sc.add(new THREE.HemisphereLight('#f2fbff', '#c9b892', 1.35));
+    const sun = new THREE.DirectionalLight('#fff4dc', 2); sun.position.set(-3, 6, 5); sun.castShadow = true;
+    sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03; sun.shadow.radius = 4; sun.shadow.mapSize.set(1024, 1024);
+    Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3 }); sc.add(sun);
+    const gr = new THREE.Mesh(new THREE.CircleGeometry(2.4, 48), new THREE.MeshStandardMaterial({ color: '#a8db84', roughness: 1 }));
+    gr.rotation.x = -Math.PI / 2; gr.receiveShadow = true; sc.add(gr);
+    const cat = buildCat(b.shape, b.coat); setPose(cat, mode, ph); sc.add(cat);
+    const cam = new THREE.PerspectiveCamera(24, CW / CH, .1, 60);
+    if (view === '34') { cam.position.set(4.6, 2.5, 4.6); cam.lookAt(0, .6, 0); } else { cam.position.set(6.6, 1.1, 0); cam.lookAt(0, .62, 0); }
+    r.render(sc, cam);
+    const cv = document.createElement('canvas'); cv.width = CW * 2; cv.height = CH * 2; cv.style.width = CW + 'px'; cv.style.height = CH + 'px';
+    cv.getContext('2d').drawImage(r.domElement, 0, 0); cell.append(cv);
+  }
+  cell.insertAdjacentHTML('beforeend', `<b>${label}</b>`); g.append(cell);
+}
+window.__done = true;
+</script></body></html>

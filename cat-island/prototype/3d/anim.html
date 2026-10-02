@@ -8,6 +8,7 @@
 //   ?id=ragdoll&clip=liedown      stand -> lie down on its side -> breathe, lazy tail flicks
 //   ?id=turkish_van&clip=paw      bat at the water bowl (two taps per loop), ripples spread from each tap
 //   ?id=scottish_fold&clip=walk   walk cycle
+//   clip=idle | sit | loaf | groom | sleep | stretch   the basic motion set (stand -> pose -> stand loops)
 import * as THREE from 'three';
 import { buildCat, setPose, BREEDS } from './catgen.js';
 const q = new URLSearchParams(location.search);
@@ -38,21 +39,32 @@ if (clip === 'paw') {
   }
   cam.position.set(5.6, 2.4, 4.4); cam.lookAt(0, .75, .4);
 } else if (clip === 'liedown') { cam.position.set(4.2, 3.0, 5.6); cam.lookAt(-.3, .6, .1); }
-else { cam.position.set(4.8, 2.6, 4.4); cam.lookAt(0, .78, .15); }
+else { cam.position.set(4.9, 2.4, 4.6); cam.lookAt(0, .62, .1); }
 
+// clip timelines: (t 0..1) -> pose. Transitions cross-fade two poses with setPose(..., { from, blend }).
+const seg = (t, a, b) => Math.min(1, Math.max(0, (t - a) / (b - a)));
+const there = (t, a, b) => seg(t, a, b) - seg(t, 1 - b, 1 - a);   // 0 -> 1 (in) ... 1 -> 0 (out), symmetric
+const CLIPS = {
+  idle: t => t < .45 || t > .9 ? setPose(cat, 'stand', t * 2 % 1) : setPose(cat, 'look', 0, { from: { mode: 'stand' }, blend: seg(t, .45, .55) - seg(t, .8, .9) }),
+  walk: t => setPose(cat, 'walk', t),
+  sit: t => setPose(cat, 'sit', t * 2 % 1, { from: { mode: 'stand' }, blend: there(t, 0, .22) }),
+  loaf: t => setPose(cat, 'loaf', t * 2 % 1, { from: { mode: 'stand' }, blend: there(t, 0, .25) }),
+  groom: t => t < .2 || t > .85 ? setPose(cat, 'sit', 0, { from: { mode: 'stand' }, blend: there(t, 0, .15) })
+                              : setPose(cat, 'groom', (t - .2) / .65 * 2 % 1, { from: { mode: 'sit' }, blend: seg(t, .2, .3) - seg(t, .75, .85) }),
+  sleep: t => setPose(cat, 'sleep', t * 2 % 1, { from: { mode: 'loaf' }, blend: there(t, .05, .3) }),
+  stretch: t => setPose(cat, 'stretch', t, { from: { mode: 'stand' }, blend: there(t, .05, .4) }),
+  liedown: t => setPose(cat, 'flop', t < .35 ? 0 : (t - .35) / .65 * 2 % 1, { blend: Math.min(1, t / .35) }),
+  paw: t => setPose(cat, 'paw', t * 2 % 1),
+};
 window.frame = t => {   // t: 0..1 over the whole loop
-  if (clip === 'liedown') {
-    // 0-.35 lie down, then two slow breaths; the loop ends lying (the GIF holds the last frame briefly)
-    const blend = Math.min(1, t / .35), ph = t < .35 ? 0 : (t - .35) / .65 * 2;
-    setPose(cat, 'flop', ph % 1, { blend });
-  } else if (clip === 'paw') {
-    const ph = (t * 2) % 1;              // two bats per loop
-    setPose(cat, 'paw', ph);
+  (CLIPS[clip] || CLIPS.idle)(t);
+  if (clip === 'paw') {
+    const ph = (t * 2) % 1;
     rings.forEach((ring, i) => {         // each tap (phase ~.5) sends out a ripple
       const age = ((ph - .5 - i * .18) % 1 + 1) % 1, rr = .03 + age * .3;
       ring.scale.setScalar(rr); ring.material.opacity = Math.max(0, .9 - age * 1.6);
     });
-  } else setPose(cat, 'walk', t);
+  }
   r.render(sc, cam);
 };
 if (q.has('live')) { const t0 = performance.now(); const loop = () => { frame(((performance.now() - t0) / 3000) % 1); requestAnimationFrame(loop); }; loop(); }

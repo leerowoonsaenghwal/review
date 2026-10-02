@@ -36,16 +36,42 @@
 
 ```
 root
- └ body (걸을 때 위아래로 흔들림)          가슴 · 허리 · 골반
-    ├ neck ─ head                         귀, 주둥이, 눈, 볼
-    ├ frontL/R : upper ─ lower ─ paw      앞다리 3마디
-    ├ hindL/R  : thigh ─ shin ─ hock ─ paw  뒷다리 4마디 (고양이 특유의 뒤꿈치 각도)
-    └ tail0 … tail9                       꼬리 10마디 (밥테일 3마디, 맹크스 없음)
+ └ body (높이 · 기울기 · 좌우 흔들림)
+    ├ torso (스킨 메시: 앞쪽은 chest, 뒤쪽은 hip 뼈를 따라 허리에서 부드럽게 휨)
+    ├ chest (척추 앞 뼈)
+    │  ├ neck ─ head                      귀, 주둥이, 눈, 볼, 혀
+    │  └ frontL/R : upper ─ lower ─ paw   앞다리 (팔꿈치가 뒤로)
+    └ hip (척추 뒤 뼈)
+       ├ hindL/R  : thigh ─ shin ─ hock ─ paw  뒷다리 (무릎은 앞으로, 뒤꿈치는 뒤로)
+       └ tail0 … tail9                    꼬리 10마디 (밥테일 3마디, 맹크스 없음)
 ```
 
-- `setPose(cat, 'walk', phase)`는 고양이의 실제 걸음 순서를 따른다(뒷왼 → 앞왼 → 뒷오 → 앞오, phase 0~1).
-  - 다리 스윙, 발 들기, 몸통 흔들림, 목 끄덕임, 꼬리 흔들기를 계산한다.
-- 이 계층은 Unity Transform 리그로 1:1 옮길 수 있다. 같은 계산식을 Animator 또는 코드 애니메이션으로 사용한다.
+- 척추를 두 개의 뼈(chest, hip)로 나눠서, 기지개(등 휘기), 잠(C자로 말기), 앉기(엉덩이 말아 넣기)처럼 몸이 휘는 동작을 만든다.
+- 다리는 **발 위치를 먼저 정하고 관절 각도를 역으로 푼다(IK)**. 그래서 실제 고양이처럼 앞다리는 팔꿈치가 뒤로, 뒷다리는 무릎이 앞으로 뒤꿈치가 뒤로 굽고, 발바닥은 항상 땅에 평평하게 붙는다.
+  - 예전 버전은 뒷다리가 거꾸로 굽어(무릎이 뒤, 정강이가 앞) 걸음이 어색했다.
+- 이 계층은 Unity의 SkinnedMeshRenderer + Transform 리그로 1:1 옮길 수 있다. 같은 계산식을 코드 애니메이션으로 쓰거나 클립으로 구워 쓴다.
+
+### 0-1. 기본 동작 세트
+
+![기본 동작](images/motions.png)
+
+| 동작 | GIF | 내용 |
+|---|---|---|
+| 서기 (idle) | ![](images/anim_idle.gif) | 숨쉬기, 눈 깜빡임, 꼬리 살랑, 가끔 고개 돌리기 |
+| 걷기 | ![](images/anim_walk.gif) | 뒷왼 → 앞왼 → 뒷오 → 앞오. 발은 62% 동안 땅을 딛고 몸 아래로 밀리며, 들 때는 발목을 말아 앞으로. 몸은 두 번 살짝 내려앉고, 어깨와 엉덩이가 반대로 흔들리고, 머리는 흔들리지 않으며, 꼬리는 S자로 출렁인다 |
+| 앉기 | ![](images/anim_sit.gif) | 엉덩이를 땅에, 앞다리는 곧게, 뒷발은 뒤꿈치째 바닥에, 꼬리는 앞발을 감싼다. 꼬리 끝만 까딱 |
+| 식빵 | ![](images/anim_loaf.gif) | 배를 깔고 발을 몸 아래로 접어 넣음, 반쯤 감은 눈 |
+| 그루밍 | ![](images/anim_groom.gif) | 앉아서 앞발을 입 앞으로 들고 고개를 기울여 핥기 (혀가 나왔다 들어감) |
+| 잠자기 | ![](images/anim_sleep.gif) | 몸을 C자로 말고 꼬리로 앞을 감싸고, 턱을 바닥에 대고 눈을 감음. 천천히 숨쉬기 |
+| 기지개 | ![](images/anim_stretch.gif) | 앞다리를 멀리 뻗고 가슴은 낮게, 엉덩이와 꼬리는 높게 |
+| 발라당 (랙돌) | ![](images/anim_ragdoll_flop.gif) | 옆으로 누워 힘을 뺌 |
+| 앞발 톡톡 (터키시 반) | ![](images/anim_turkish_van_paw.gif) | 물그릇을 앞발로 치면 물결이 퍼짐 |
+
+- 사용법: `setPose(cat, mode, phase, { from: { mode }, blend })`.
+  - `mode`: `stand` / `walk` / `sit` / `loaf` / `groom` / `sleep` / `stretch` / `flop` / `paw` / `look`
+  - `blend` 0→1로 두 자세 사이를 부드럽게 넘어간다(서기 → 앉기 등).
+- 표정도 같이 움직인다: 눈 깜빡임과 감은 눈(동물의 숲식 가는 눈), 그루밍할 때 혀, 잘 때 귀가 뒤로 누움.
+- 33종 모두 같은 동작을 쓴다. 다리 길이와 체형이 달라도 발 위치 기준으로 각도를 풀기 때문에 먼치킨의 짧은 다리도 사바나의 긴 다리도 땅을 제대로 딛는다.
 
 ## 1. 품종 목록 (33종)
 
@@ -194,16 +220,7 @@ root
 - 터키시 반: 물을 좋아함 → 물그릇을 앞발로 톡톡 치는 `paw` 포즈
 - 두 포즈는 다른 품종도 쓸 수 있는 공용 동작이다(`setPose(cat, 'flop' | 'paw')`). 방치형 게임의 쉬는 동작으로도 쓴다.
 
-**움직이는 동작 (GIF)**
-
-| 랙돌 · 눕기 → 숨쉬기 | 터키시 반 · 물그릇 톡톡 | 스코티시 폴드 · 걷기 |
-|---|---|---|
-| ![](images/anim_ragdoll_flop.gif) | ![](images/anim_turkish_van_paw.gif) | ![](images/anim_walk.gif) |
-
-- `setPose(cat, 'flop', phase, { blend })`: `blend` 0→1로 서 있다가 옆으로 눕는다. `phase`는 숨쉬기(몸이 살짝 부풀었다 줄어듦), 꼬리 끝 까딱임, 고개 흔들림을 만든다.
-- `setPose(cat, 'paw', phase)`: 앞발을 들고(0~.4) 물을 톡 치고(.4~.55) 내려놓는다(.55~1). 고개는 물을 내려다보고 꼬리는 흔들린다. 칠 때마다 물결이 퍼진다(`anim.html`).
-- `anim.html?id=…&clip=liedown|paw|walk&live`로 브라우저에서 반복 재생된다. `make_gif.py`로 GIF를 만든다.
-- Unity에서는 같은 계산식을 애니메이션 커브로 옮긴다(각 관절 각도 = 포즈 사이 보간).
+동작 GIF와 사용법은 위의 **0-1. 기본 동작 세트**에 있다.
 
 **멀리서도 보이게 키운 세부 특징**
 - 수염: 굵기 1.4배, 길이 1.13배
@@ -304,7 +321,8 @@ python3 -m http.server 8765
 #   http://localhost:8765/inspect.html?ids=a,b        다각도 점검 (정면·대각·측면·뒷면·위)
 #   http://localhost:8765/silhouette.html             실루엣 점검 (색 없이 측면·정면)
 #   http://localhost:8765/fullbody.html               품종별 전신 + 품종 표준 체크리스트
-#   http://localhost:8765/anim.html?id=ragdoll&clip=liedown&live   동작 반복 재생 (liedown / paw / walk)
+#   http://localhost:8765/motions.html?id=korean_shorthair    기본 동작 세트 (정지 화면)
+#   http://localhost:8765/anim.html?id=korean_shorthair&clip=sit&live   동작 반복 재생 (idle·walk·sit·loaf·groom·sleep·stretch·liedown·paw)
 #   http://localhost:8765/village.html               마을 그래픽 시안
 #   http://localhost:8765/photo.html?items=tabby:.353,.32,.479,.32   사진 → 고양이
 #        (items = 사진이름:눈1x,눈1y,눈2x,눈2y:ear=fold,fur=long:품종 ; 여러 장은 ; 로 구분, ?debug 는 줄무늬 신호 보기)
