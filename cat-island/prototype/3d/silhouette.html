@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+<style>body{margin:0;background:#fff;font-family:Jua,sans-serif;color:#555}
+.g{position:relative}.l{position:absolute;font-size:13px;width:200px;text-align:center}</style></head>
+<body><div class="g" id="g"></div>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildCat, setPose, BREEDS } from './catgen.js';
+// Silhouette test: pure black shapes, side (stand) + front, so breeds must read by shape alone.
+const q = new URLSearchParams(location.search);
+const ids = (q.get('ids') || BREEDS.map(b => b.id).join(',')).split(',');
+const COLS = 8, CW = 200, CH = 150, ROWH = CH * 2 + 24, rows = Math.ceil(ids.length / COLS);
+const W = COLS * CW, H = rows * ROWH;
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+r.setPixelRatio(2); r.setSize(W, H); r.setScissorTest(true); r.setClearColor('#ffffff');
+g.appendChild(r.domElement);
+const black = new THREE.MeshBasicMaterial({ color: '#1a1a1a' });
+ids.forEach((id, i) => {
+  const b = BREEDS.find(x => x.id === id);
+  const col = i % COLS, row = Math.floor(i / COLS);
+  for (const [k, view] of [[0, 'side'], [1, 'front']]) {
+    const scene = new THREE.Scene(); scene.background = new THREE.Color('#ffffff');
+    const cat = buildCat(b.shape, b.coat); setPose(cat, 'stand', 0); scene.add(cat);
+    cat.traverse(o => { if (o.isMesh) o.material = black; });
+    const cam = new THREE.OrthographicCamera(-2.0, 2.0, 1.5, -1.5, .1, 50);
+    if (view === 'side') cam.position.set(8, 1.15, 0); else cam.position.set(0, 1.15, 8);
+    cam.lookAt(0, 1.15, 0);
+    const y = H - row * ROWH - (k + 1) * CH;
+    r.setViewport(col * CW, y, CW, CH); r.setScissor(col * CW, y, CW, CH); r.render(scene, cam);
+  }
+  g.insertAdjacentHTML('beforeend', `<div class="l" style="left:${col * CW}px;top:${row * ROWH + CH * 2 + 2}px">${b.ko}</div>`);
+});
+window.__done = true;
+</script></body></html>

@@ -23,6 +23,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { buildCat, setPose, BREEDS, KOREAN_COATS } from './catgen.js';
+const BASE_TOP = (() => { const c = buildCat({}, {}); setPose(c, 'walk', .12); return new THREE.Box3().setFromObject(c).max.y * 1.06; })();
 
 const q = new URLSearchParams(location.search);
 const mode = q.get('mode') || 'breeds';
@@ -58,7 +59,9 @@ items.forEach((it, i) => {
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
   const cat = buildCat(it.shape, it.coat); setPose(cat, 'walk', .12); cat.rotation.y = .42; scene.add(cat);
   const cam = new THREE.PerspectiveCamera(24, CW / (CH - 40), .1, 50);
-  cam.position.set(7.0, 2.7, 2.2); cam.lookAt(0, .86, .05);
+  // tall breeds (Savannah, Maine Coon) pull the camera back so the ears stay in frame
+  const top = new THREE.Box3().setFromObject(cat).max.y, k = Math.max(1, top / BASE_TOP);
+  cam.position.set(7.0 * k, 2.7 * k, 2.2 * k); cam.lookAt(0, .86 * k, .05);
   const col = i % COLS, row = Math.floor(i / COLS);
   const x = 12 + col * CW, y = H - (row + 1) * CH;
   renderer.setViewport(x, y + 40, CW, CH - 40); renderer.setScissor(x, y + 40, CW, CH - 40);

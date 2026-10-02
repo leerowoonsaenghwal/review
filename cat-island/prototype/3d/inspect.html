@@ -22,7 +22,7 @@ ids.forEach((id, row) => {
     const sun = new THREE.DirectionalLight('#fff4dc', 2); sun.position.set(-3, 6, 5); sun.castShadow = true; sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03; sun.shadow.radius = 4; scene.add(sun);
     const g = new THREE.Mesh(new THREE.CircleGeometry(2, 48), new THREE.MeshStandardMaterial({ color: '#a8db84' })); g.rotation.x = -Math.PI / 2; g.receiveShadow = true; scene.add(g);
     const cat = buildCat(b.shape, b.coat); setPose(cat, pose, .1); scene.add(cat);
-    const k = b.shape.size || 1; const cam = new THREE.PerspectiveCamera(26, CW / CH, .1, 50); cam.position.set(p[0] * k, p[1] * k, p[2] * k); cam.lookAt(0, .75 * k, 0);
+    const k = b.shape.size || 1; const cam = new THREE.PerspectiveCamera(26, CW / CH, .1, 50); cam.position.set(p[0] * k * 1.1, p[1] * k * 1.1, p[2] * k * 1.1); cam.lookAt(0, .85 * k, 0);
     r.setViewport(col * CW, H - (row + 1) * CH, CW, CH); r.setScissor(col * CW, H - (row + 1) * CH, CW, CH); r.render(scene, cam);
   });
 });
