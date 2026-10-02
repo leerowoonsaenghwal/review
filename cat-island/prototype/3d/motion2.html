@@ -20,6 +20,7 @@ const cat = buildCatModel(b.shape, b.coat, { res: +(q.get('res') || .02) });
 const rig = makeRig(cat), clips = makeClips(rig);
 ttl.textContent = `${b.ko} · ${clipNames.join(', ')}`;
 sub.textContent = clips.filter(c => clipNames.includes(c.name)).map(c => `${c.name} ${c.dur.toFixed(2)}s${c.speed ? ` · ${c.speed.toFixed(2)} m/s · 보폭 ${(c.stride * 100).toFixed(0)}cm` : ''}`).join('  |  ');
+if (clips.groomReport) sub.textContent += '  |  입→목표 거리(mm, 혀가 메우는 몫 제외): ' + Object.entries(clips.groomReport).map(([k, v]) => k + ' ' + (v * 1000).toFixed(0)).join(', ');
 g.style.gridTemplateColumns = `repeat(${n}, ${CW}px)`;
 const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 r.setPixelRatio(2); r.setSize(CW, CH); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -40,7 +41,7 @@ for (const cn of clipNames) {
     const t = clip.loop ? clip.dur * i / n : clip.dur * i / (n - 1);
     solveAt(rig, clip, t);
     const c = rig.B.Hips.getWorldPosition(new THREE.Vector3()).lerp(rig.B.Head.getWorldPosition(new THREE.Vector3()), .45);   // frame body and head
-    const dir = { side: [1, .12, 0], '34': [.8, .35, .75], front: [.15, .2, 1], back: [-.4, .3, -1] }[view];
+    const dir = { side: [1, .12, 0], '34': [.8, .35, .75], '34r': [-.8, .35, .75], sider: [-1, .12, 0], front: [.15, .2, 1], back: [-.4, .3, -1], top: [.3, 1.2, .5] }[view];
     const cam = new THREE.PerspectiveCamera(26, CW / CH, .01, 20);
     cam.position.copy(c).add(new THREE.Vector3(...dir).normalize().multiplyScalar(+(q.get('dist') || 2.3))); cam.lookAt(c.x, c.y, c.z);
     sun.position.copy(c).add(new THREE.Vector3(-1, 2, 1.6)); sun.target.position.copy(c);

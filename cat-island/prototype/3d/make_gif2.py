@@ -1,5 +1,5 @@
 """Record a play2.html clip at 30 fps and save it as a GIF (and optionally MP4).
-   python3 make_gif2.py out.gif "id=korean_shorthair&clip=Walk&view=34" [repeat] [--mp4]
+   python3 make_gif2.py out.gif "id=korean_shorthair&clip=Walk&view=34" [repeat] [--mp4] [--width 290]
 """
 import os, subprocess, sys, tempfile
 from playwright.sync_api import sync_playwright
@@ -25,9 +25,9 @@ with sync_playwright() as p:
             pg.locator("#cv").screenshot(path=os.path.join(tmp, f"f{k:04d}.png")); k += 1
     b.close()
 src = os.path.join(tmp, "f%04d.png")
-pal = os.path.join(tmp, "pal.png")
-subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", "30", "-i", src, "-vf", "palettegen=stats_mode=diff", pal], check=True)
-subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", "30", "-i", src, "-i", pal, "-lavfi", "paletteuse=dither=sierra2_4a", "-loop", "0", out], check=True)
+# a palette per frame: one shared palette has too few pinks for the small tongue, which then dithers into dots
+subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", "30", "-i", src, "-lavfi",
+                ("scale=%d:-1:flags=lanczos," % int(sys.argv[sys.argv.index("--width") + 1]) if "--width" in sys.argv else "") + "split[a][b];[a]palettegen=stats_mode=single[p];[b][p]paletteuse=new=1:dither=sierra2_4a", "-loop", "0", out], check=True)
 if "--mp4" in sys.argv:
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", "30", "-i", src, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", out.rsplit(".", 1)[0] + ".mp4"], check=True)
 print(out, k, "frames", os.path.getsize(out) // 1024, "KB")

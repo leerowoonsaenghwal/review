@@ -81,7 +81,7 @@ export function stand(rig) {
   return P;
 }
 export const mix = (A, B, k) => { const o = {}; for (const key in A) o[key] = lerp(A[key], B[key] ?? A[key], k); return o; };
-const over = (P, o) => Object.assign({ ...P }, o);
+const over = (P, ...o) => Object.assign({ ...P }, ...o);
 
 // ------------------------------------------------------------------ solve a pose onto the bones
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _e = new THREE.Euler();
@@ -258,16 +258,35 @@ function gaitPose(rig, g, t) {
 }
 
 // ------------------------------------------------------------------ key poses
-function sitPose(rig) {
-  const P = stand(rig), h = rig.hipH;
-  Object.assign(P, {
-    hipY: -.47 * rig.hipY, hipZ: -.02 * h, hipPitch: -.78, spPitch: -.32, nkPitch: .62, hdPitch: .02,
-    scapL: -.08, scapR: -.08,
-    tailBase: -1.05, tailBend: .1, tailCurl: .26, tailYaw: .35,
-  });
-  for (const f of ['FL', 'FR']) { P[f + 'a'] = .12; P[f + 'z'] -= .01; P[f + 'x'] *= .8; }
-  for (const f of ['HL', 'HR']) { P[f + 'a'] = 1.42; P[f + 'z'] += .17 * h; P[f + 'x'] *= 1.25; }
+// Sitting the way cats really sit: the rump rests ON the ground, the hind legs fold forward along the body with
+// the whole hind foot (heel to toes) flat on the floor, and the front legs stand straight under the shoulders.
+// Solved per breed: the hips are lowered onto the rump, then the body is tilted until the shoulders sit exactly
+// at front-leg height (a Munchkin sits low and flat, a Savannah tall and upright).
+const _w = new THREE.Vector3();
+function worldOf(rig, name) { return rig.B[name].getWorldPosition(_w).clone(); }
+export function fitSit(rig, P, opts = {}) {
+  const d = rig.d, hipsTarget = d.rumpR * (opts.rump ?? .92), shoulderTarget = d.joints.UpperArm_L.y * (opts.shoulder ?? .97);
+  P.hipY = hipsTarget - rig.J.Hips.y;
+  P.spPitch = opts.spPitch ?? -.12;
+  let pitch = P.hipPitch || -.6;
+  for (let it = 0; it < 10; it++) {
+    P.hipPitch = pitch; applyPose(rig, P);
+    const sh = worldOf(rig, 'UpperArm_L'), hp = worldOf(rig, 'Hips'), arm = sh.clone().sub(hp).length();
+    pitch -= (shoulderTarget - sh.y) / Math.max(.05, arm * Math.cos(pitch)) * .8;
+    pitch = clamp(pitch, -1.25, 0);
+  }
+  P.hipPitch = pitch; applyPose(rig, P);
+  // neck carries the head back over the chest; the head itself is authored level in the root frame
+  P.nkPitch = -(pitch + P.spPitch) * .85;
+  const shL = worldOf(rig, 'UpperArm_L'), shR = worldOf(rig, 'UpperArm_R'), hp = worldOf(rig, 'Hips');
+  for (const [f, sh] of [['FL', shL], ['FR', shR]]) { P[f + 'z'] = sh.z + .006; P[f + 'x'] = sh.x * .85; P[f + 'y'] = rig.ballH; P[f + 'a'] = .1; }
+  for (const f of ['HL', 'HR']) { P[f + 'z'] = hp.z + d.len.lMt * 1.05; P[f + 'x'] = rig.restFoot[f].x * 1.3; P[f + 'y'] = rig.ballH; P[f + 'a'] = 1.52; }
   return P;
+}
+function sitPose(rig) {
+  const P = stand(rig);
+  Object.assign(P, { hdPitch: .02, scapL: -.05, scapR: -.05, tailBase: -1.25, tailBend: .02, tailCurl: .3, tailYaw: .45 });
+  return fitSit(rig, P);
 }
 function loafPose(rig) {
   const P = stand(rig), h = rig.hipH, chestR = rig.chestY - rig.ballH;
@@ -321,8 +340,8 @@ export function lapCycle(u) {
 // to the other and back in - what cats do after eating or drinking.
 export function lipLick(u) {
   return {
-    mouth: K([[0, 0], [.12, .3], [.78, .3], [.92, .02], [1, 0]], u),
-    tongue: K([[0, 0], [.15, .68], [.72, .68], [.86, 0], [1, 0]], u),
+    mouth: K([[0, 0], [.12, .36], [.78, .36], [.92, .02], [1, 0]], u),
+    tongue: K([[0, 0], [.15, .86], [.72, .86], [.86, 0], [1, 0]], u),
     tongueBend: -.25, tongueCurl: K([[0, -.2], [.2, -.75], [.7, -.75], [1, -.2]], u), tongueSpread: .35,
     tongueYaw: K([[0, .7], [.2, .7], [.5, -.75], [.62, -.75], [.72, 0], [1, 0]], u),
     hdPitch: K([[0, 0], [.3, -.05], [.7, -.05], [1, 0]], u),
@@ -331,6 +350,22 @@ export function lipLick(u) {
 const addTongue = (P, c, k = 1) => { for (const key in c) P[key] = key === 'hdPitch' ? P[key] + c[key] * k : lerp(P[key], c[key], k); return P; };
 
 // ------------------------------------------------------------------ clips
+// A grooming bout for the game's behaviour layer: run these in order (head to tail, as cats do), picking how
+// long to stay in each by `share` - the fraction of oral grooming real cats spend on that region (Eckstein &
+// Hart 2000; the anogenital 10 % happens in the leg-up pose and is folded into GroomLeg). `from` is the
+// posture the clip starts and ends in (play SitDown / LieDown first). The last two are scratching and claw
+// care, not licking, and are sprinkled in rather than weighted.
+export const GROOM_ROUTINE = [
+  { clip: 'GroomFace', region: 'face (paw wash)', share: .22, from: 'Sit' },
+  { clip: 'GroomEar', region: 'ears', share: .09, from: 'Sit' },
+  { clip: 'GroomChest', region: 'neck / chest', share: .11, from: 'Sit' },
+  { clip: 'GroomFlank', region: 'shoulder / side', share: .13, from: 'Sit' },
+  { clip: 'GroomLeg', region: 'hind legs (+ anogenital)', share: .31, from: 'Loaf' },
+  { clip: 'GroomBelly', region: 'belly', share: .09, from: 'Loaf' },
+  { clip: 'GroomTail', region: 'tail', share: .05, from: 'Sit' },
+  { clip: 'ScratchEar', region: 'ear (hind-foot scratch)', share: 0, from: 'Sit' },
+  { clip: 'NibbleClaws', region: 'front claws', share: 0, from: 'Sit' },
+];
 export function makeClips(rig) {
   const h = rig.hipH, P0 = stand(rig), clips = [];
   // looping clips are stretched to a whole number of frames so the last frame meets the first exactly
@@ -429,30 +464,247 @@ export function makeClips(rig) {
   add('Loaf', 5, true, t => over(LOAF, { breath: Math.sin(TAU * t / 2.5), blink: .55 + .45 * blinkAt(t, [2]), tailWave: .04, tailWph: t / 2.5 }));
   add('Sleep', 5, true, t => over(SLEEP, { breath: 1.3 * Math.sin(TAU * t / 2.5), tailTip: .05 * Math.sin(TAU * t / 5), earLp: -.25 + .25 * bump(t, 3.2, .06) }));
   add('FallAsleep', 2, false, t => over(transfer(LOAF, SLEEP, t / 2), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }));
-  // grooming: lick the paw three times, then wipe it over the face and ear twice
-  add('Groom', 4.8, true, t => {
-    const P = { ...SIT }, h2 = rig.hipH;
-    // 4 licks up the paw (0.4-2.2 s), then the paw wipes the face and ear
-    const lick = t < 2.2, lu = seg(t, .4, 2.2) * 4, li = Math.floor(lu), lph = lu - li, k = lick && t > .4 ? 1 : 0;
-    const up = ss(seg(t, 0, .35)) * (1 - ss(seg(t, 4.45, 4.8)));
-    P.breath = Math.sin(TAU * t / 2);
-    P.hdPitch = lick ? .45 + .1 * k : .15; P.hdYaw = lick ? -.25 : -.45; P.hdRoll = lick ? -.15 : -.35;
-    P.blink = .85;
-    if (k) addTongue(P, lickCycle(lph));
-    // paw target: in front of the mouth for licking, then circling over the cheek and ear
-    const Hc = rig.d.Hc, HS = rig.d.HS;
-    const ang = TAU * (t - 2.2) / 1.3;
-    // paw held just in front of and below the mouth: the tongue lands on its top and drags up over it
-    const lickPos = V(.12 * HS, Hc.y - .95 * HS + rig.hipY * -.25, Hc.z + 1.0 * HS);
-    const wipePos = V(.55 * HS + .15 * HS * Math.cos(ang), Hc.y - .25 * HS + .35 * HS * Math.sin(ang) + rig.hipY * -.25, Hc.z + .35 * HS - .1 * HS * Math.cos(ang));
-    // the paw also rises a little into each stroke, meeting the tongue (a lick is the two moving together)
-    const tp = lick ? lickPos.clone().add(V(0, .04 * HS * Math.sin(Math.PI * clamp((lph - .3) / .4, 0, 1)) * k, 0)) : wipePos;
-    const ground = V(P.FLx, P.FLy, P.FLz);
-    const tgt = ground.lerp(tp, up);
-    P.FLx = tgt.x; P.FLy = tgt.y; P.FLz = tgt.z; P.FLa = lerp(P.FLa, -1.5, up); P.FLt = lerp(0, 1.2, up);
-    P.scapL = -.35 * up; P.scapLy = .01 * up * h2;
-    if (!lick) { P.hdPitch = .2 + .12 * Math.sin(ang); P.earLp = -.3 * (.5 + .5 * Math.sin(ang)); }
-    P.tailWave = .05; P.tailWph = t / 2;
+  // ---------------------------------------------------------------- grooming
+  // Cats groom sitting or lying, never standing, and a grooming bout runs head to tail (cephalocaudal):
+  // lick the paw and wash the face and ears with it, then chest, shoulders and flanks, hind legs (the leg-up
+  // "cello" pose), belly, tail; scratching an ear with a hind foot and nibbling the claws are part of it too.
+  // Share of oral grooming by region: face 31 %, hind legs 21 %, sides/back 13 %, neck/chest 11 %,
+  // anogenital 10 %, belly 9 %, tail 5 % (Eckstein & Hart 2000, Appl. Anim. Behav. Sci. 68:131).
+  // Each clip starts and ends in its base posture (sit or lie), so the game can chain them in that order.
+  const HS = rig.d.HS, d = rig.d;
+  const headLocal = v => v.clone().add(d.Hc).sub(d.joints.Head);                  // head-space point -> Head bone local
+  const mouthLocal = d.mouth.clone().sub(d.joints.Head);
+  const atHead = (P, off) => { applyPose(rig, P); return rig.B.Head.localToWorld(headLocal(off)); };
+  const mouthAt = P => { applyPose(rig, P); return rig.B.Head.localToWorld(mouthLocal.clone()); };
+  // bring a head-space spot (default: the mouth) to `target` (world) by adjusting pose channels
+  // (damped least squares on finite differences); returns the remaining distance
+  const spotAt = (P, off) => { applyPose(rig, P); return off ? rig.B.Head.localToWorld(headLocal(off)) : rig.B.Head.localToWorld(mouthLocal.clone()); };
+  function reach(P, target, keys, iters = 10, off = null, lim = .3, bounds = {}) {
+    let err = 0;
+    for (let it = 0; it < iters; it++) {
+      const m0 = spotAt(P, off), e = target.clone().sub(m0); err = e.length(); if (err < .0015) break;
+      const Jc = keys.map(k => spotAt({ ...P, [k]: P[k] + .02 }, off).sub(m0).multiplyScalar(1 / .02));
+      const n = keys.length, A = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => Jc[i].dot(Jc[j]) + (i === j ? 2e-4 : 0))), bv = Jc.map(j => j.dot(e));
+      for (let i = 0; i < n; i++) for (let k = i + 1; k < n; k++) { const f = A[k][i] / A[i][i]; for (let j = i; j < n; j++) A[k][j] -= f * A[i][j]; bv[k] -= f * bv[i]; }
+      const x = new Array(n).fill(0);
+      for (let i = n - 1; i >= 0; i--) { let sum = bv[i]; for (let j = i + 1; j < n; j++) sum -= A[i][j] * x[j]; x[i] = sum / A[i][i]; }
+      keys.forEach((k, i) => { P[k] += clamp(x[i], -lim, lim); if (bounds[k]) P[k] = clamp(P[k], bounds[k][0], bounds[k][1]); });
+    }
+    reach.last = target.distanceTo(spotAt(P, off));
+    return P;
+  }
+  // multi-start: the head can come at a spot from either side, so try several starting guesses, keep the best
+  function reachBest(P, target, keys, starts, off = null, bounds = {}) {
+    let best = null, bestErr = Infinity;
+    for (const s0 of [{}, ...starts]) {
+      const Q = reach({ ...P, ...s0 }, target, keys, 30, off, .25, bounds);
+      if (reach.last < bestErr - 1e-4) { bestErr = reach.last; best = Q; }
+    }
+    Object.assign(P, best); reach.last = bestErr;
+    return P;
+  }
+  const report = {};
+  // a point on the coat: bone-local offset, pushed out along its own direction by `stand` (tongue reach)
+  const surf = (P, bone, off, standoff) => { applyPose(rig, P); const c = rig.B[bone].getWorldPosition(new THREE.Vector3()), p = rig.B[bone].localToWorld(off.clone()); return p.add(p.clone().sub(c).normalize().multiplyScalar(standoff)); };
+  // with the big toy head the face cannot touch the body without passing into it: the mouth stops a head's
+  // depth away and the extended tongue bridges the rest (how stylised games stage contact)
+  const reachTongue = .3 * HS, farStand = .3 * HS + .35 * HS;
+  // a run of licks on a solved base pose; `stroke(P, k)` moves the head along the fur for stroke amount k
+  const licking = (P, t, t0, n, rate, stroke) => {
+    const u = (t - t0) * rate, i = Math.floor(u);
+    if (u < 0 || i >= n) return P;
+    const c = lickCycle(u - i); const k = c.hdPitch / .1;        // -1 .. +1 over the stroke
+    delete c.hdPitch; addTongue(P, c); stroke(P, k);
+    return P;
+  };
+  const SITG = over(SIT, { tailWave: .05 });
+
+  // The toy head is as big as the body, so a head turned more than ~70 degrees or rolled flat hides the face and
+  // wrings the neck. Every solve keeps the head inside these limits; where a real cat would bury its face in
+  // its fur, this one brings the part up to the face instead (leg raised high, tail lifted, paw to the cheek)
+  // and the tongue bridges the rest.
+  const HB = { hdPitch: [-.3, 1.2], hdYaw: [-1.25, 1.25], hdRoll: [-.7, .7], nkPitch: [-.5, 1.3], nkYaw: [-.7, .7], nkRoll: [-.5, .5], spPitch: [-.35, 1], spYaw: [-.5, .5] };
+  const solve = (P, target, keys, starts = [], off = null) => reachBest(P, target, keys, starts, off, HB);
+  const BODYK = ['spPitch', 'spYaw', 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'];
+  const bodyStarts = [{ nkPitch: .6, hdPitch: .8, hdYaw: .6, nkYaw: .4 }, { nkPitch: .6, hdPitch: .8, hdYaw: -.6, nkYaw: -.4 }, { spPitch: .5, nkPitch: 1, hdPitch: .9, hdYaw: 1, nkYaw: .6, spYaw: .3 }];
+  // front paw: the furthest it can go from the shoulder (a paw target out of reach would straighten the arm
+  // and leave the paw short of where the head is solved to meet it)
+  const armReach = (rig.L.F[0] + rig.L.F[1] + rig.L.F[2]) * .9;
+  const pawClamp = (P, p) => { applyPose(rig, P); const sh = worldOf(rig, 'UpperArm_L'), v = p.clone().sub(sh); return v.length() > armReach ? sh.add(v.setLength(armReach)) : p.clone(); };
+  const setPaw = (P, p, up, a, toe) => { const g2 = V(P.FLx, P.FLy, P.FLz).lerp(p, up); P.FLx = g2.x; P.FLy = g2.y; P.FLz = g2.z; P.FLa = lerp(P.FLa, a, up); P.FLt = lerp(0, toe, up); };
+  const HEADK = ['nkPitch', 'nkYaw', 'nkRoll', 'hdPitch', 'hdYaw', 'hdRoll'];
+  // a paw touching a face spot: its centre sits a paw's radius out from the fur
+  const pawOut = off => off.clone().multiplyScalar(1 + .11 * HS / off.length());
+  // washing keeps the head up: it tips and ducks into the paw but never noses down to the ground
+  const HBW = { ...HB, hdPitch: [-.3, .65], nkPitch: [-.4, .7] };
+  const pawPose = (P0, off, B = HBW) => { const P = { ...P0 }, o = pawOut(off), paw = pawClamp(P, spotAt(P, o)); reach(P, paw, HEADK, 16, o, .3, B); return { P, paw, err: reach.last }; };
+
+  // 1. GroomFace: lift a front paw, lick it, then wash: the paw strokes over the face while the head ducks and
+  //    rolls INTO it (cats move the head to the paw as much as the paw to the head), ear -> eye -> cheek ->
+  //    muzzle; lick again, paw down.
+  const sx = 1;
+  const UPP = { scapL: -.4, scapLy: .012 * rig.hipH, hipRoll: -.04, hipX: -.008 };              // paw-up support
+  const lickP = over(SITG, UPP, { hdPitch: .3, hdYaw: .15 * sx, hdRoll: .1 * sx });
+  const lickSpot = pawClamp(lickP, spotAt(lickP, V(.15 * HS * sx, -.75 * HS, .95 * HS)));
+  // face spots in head space, in wash order: over the ear -> brow -> eye -> cheek -> muzzle
+  const WASH = [V(.7 * sx, .42, .1), V(.6 * sx, .35, .5), V(.52 * sx, .12, .7), V(.55 * sx, -.2, .66), V(.35 * sx, -.45, .82)].map(v => v.multiplyScalar(HS));
+  const washPoses = WASH.map(off => pawPose(over(SITG, UPP, { hdRoll: .35 * sx, hdPitch: .25, hdYaw: .25 * sx, nkRoll: .1 * sx }), off));
+  report.wash = Math.max(...washPoses.map(w => w.err));
+  add('GroomFace', 6.6, true, t => {
+    const P = { ...SITG };
+    P.breath = Math.sin(TAU * t / 2.2);
+    const up = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 6.1, 6.6)));
+    const lickA = t >= .45 && t < 2.25, lickB = t >= 5.15 && t < 6.05;
+    for (const [key, v] of Object.entries(UPP)) P[key] = (P[key] || 0) * (1 - up) + v * up;
+    P.hdPitch = lerp(.02, .3, up); P.hdYaw = lerp(0, .15 * sx, up); P.hdRoll = lerp(0, .1 * sx, up);
+    let paw = lickSpot;
+    if (t >= 2.05 && t < 5.3) {
+      // two wash strokes; each runs ear -> muzzle, then the head lifts back out for the next
+      const k = mj(seg(t, 2.05, 2.45)) * (1 - mj(seg(t, 4.9, 5.3)));
+      const w = frac(seg(t, 2.25, 5.05) * 2), q = w < .78 ? mj(w / .78) : 1 - mj((w - .78) / .22);
+      const f = q * (WASH.length - 1), i = Math.min(WASH.length - 2, Math.floor(f)), u = f - i;
+      for (const key of HEADK) P[key] = lerp(P[key], lerp(washPoses[i].P[key], washPoses[i + 1].P[key], u), k);
+      paw = lickSpot.clone().lerp(washPoses[i].paw.clone().lerp(washPoses[i + 1].paw, u), k);
+      P.earLp = -.45 * k * (1 - Math.min(1, f)); P.earLy = -.3 * k;
+      P.blink = Math.max(.6, k);
+    } else P.blink = up > .5 ? .75 : blinkAt(t, [.2]);
+    if (lickA) licking(P, t, .45, 4, 2.2, (Q, s2) => { Q.hdPitch += .08 * s2; });
+    if (lickB) licking(P, t, 5.15, 2, 2.2, (Q, s2) => { Q.hdPitch += .08 * s2; });
+    setPaw(P, paw, up, -1.7, 1.2);
+    return P;
+  });
+
+  // 2. GroomEar: the paw held up beside the head, the head tipped over and rubbed against it so the paw runs
+  //    over and behind the ear, eyes shut, ear flattened
+  const EAR = [V(.75 * sx, .4, -.1), V(.7 * sx, .55, .12), V(.68 * sx, .3, .28)].map(v => v.multiplyScalar(HS));
+  const earPoses = EAR.map(off => pawPose(over(SITG, UPP, { hdRoll: .6 * sx, hdPitch: .3, hdYaw: .3 * sx, nkRoll: .25 * sx }), off, { ...HBW, hdPitch: [-.3, .45], nkPitch: [-.4, .4] }));
+  report.ear = Math.max(...earPoses.map(w => w.err));
+  add('GroomEar', 4, true, t => {
+    const P = { ...SITG }, up = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 3.5, 4)));
+    for (const [key, v] of Object.entries(UPP)) P[key] = (P[key] || 0) * (1 - up) + v * up;
+    const w = frac(seg(t, .5, 3.4) * 3), q = .5 - .5 * Math.cos(TAU * w), f = q * 2, i = Math.min(1, Math.floor(f)), u = f - i;
+    for (const key of HEADK) P[key] = lerp(P[key], lerp(earPoses[i].P[key], earPoses[i + 1].P[key], u), up);
+    P.blink = up; P.breath = Math.sin(TAU * t / 2.2);
+    P.earLp = -.55 * up; P.earLy = -.45 * up;
+    setPaw(P, earPoses[i].paw.clone().lerp(earPoses[i + 1].paw, u), up, -1.9, .6);
+    return P;
+  });
+
+  // 3. GroomChest: sitting, chin tucked down to the chest, long strokes up the bib
+  {
+    const base = over(SITG, { hdPitch: .9, nkPitch: SITG.nkPitch + .5 });
+    const tgt = surf(base, 'Chest', V(0, -.15 * d.chestR, .42 * d.BLm), reachTongue);
+    reach(base, tgt, ['nkPitch', 'hdPitch', 'spPitch'], 10, null, .3, HB); report.chest = reach.last;
+    add('GroomChest', 4.2, true, t => {
+      const P = { ...SITG }, k = mj(seg(t, 0, .5)) * (1 - mj(seg(t, 3.7, 4.2)));
+      Object.assign(P, mix(SITG, base, k)); P.blink = .8 * k + blinkAt(t, [.1]) * (1 - k); P.breath = Math.sin(TAU * t / 2.2);
+      return licking(P, t, .55, 7, 2.2, (Q, s) => { Q.hdPitch += .1 * s; Q.nkPitch += .05 * s; });
+    });
+  }
+
+  // 4. GroomFlank: head turned round over the shoulder to lick the shoulder and side, strokes running forward
+  //    along the fur; the spine twists to help and the body leans away
+  {
+    const base = over(SITG, { spYaw: .4, spRoll: .05, nkYaw: .5, hdYaw: 1.1, hdPitch: .55, hdRoll: .2, hipRoll: -.06 });
+    const tgt = surf(base, 'Chest', V(.9 * d.chestR, .2 * d.chestR, -.12 * d.BLm), reachTongue);
+    solve(base, tgt, BODYK, [{ spYaw: .5, nkYaw: .7, hdYaw: 1.25, hdPitch: .8 }]); report.flank = reach.last;
+    add('GroomFlank', 4.6, true, t => {
+      const P = { ...SITG }, k = mj(seg(t, 0, .6)) * (1 - mj(seg(t, 4, 4.6)));
+      Object.assign(P, mix(SITG, base, k)); P.blink = .85 * k; P.breath = Math.sin(TAU * t / 2.2);
+      P.earLy = .3 * k;
+      return licking(P, t, .65, 7, 2, (Q, s) => { Q.nkYaw -= .08 * s; Q.hdYaw -= .1 * s; Q.hdPitch += .04 * s; });
+    });
+  }
+
+  // lying on the right side, curled round (belly and leg grooming start from here)
+  const LIE = over(LOAF, { hipRoll: 1.3, hipY: -.6 * rig.hipY, spRoll: .1, spPitch: .25, nkPitch: .3, hdRoll: .4, hdPitch: .3, hdYaw: -.2, tailBase: -1.2, tailBend: .03, tailCurl: .15, tailYaw: 0 });
+  for (const f of FOOT_KEYS) {
+    const fr = f[0] === 'F', top = f[1] === 'L';
+    Object.assign(LIE, { [f + 'fk']: 1, [f + 'k1']: fr ? .5 : (top ? -1.5 : -.3), [f + 'k2']: fr ? -.6 : .6, [f + 'k3']: fr ? .6 : -.4, [f + 'k4']: .3, [f + 'kz']: top ? .25 : -.05 });
+  }
+  // lying on its side: an authored head curl (face turned up toward the camera side, the toy head cannot
+  // reach the belly anyway) and a small bounded solve around it that brings the mouth as near as it goes
+  const LIEHEAD = { spPitch: .3, spYaw: .2, nkPitch: .2, nkYaw: .6, nkRoll: 0, hdPitch: .1, hdYaw: 1, hdRoll: .45 };
+  const LIEB = Object.fromEntries(Object.entries(LIEHEAD).map(([k, v]) => [k, [v - .3, v + .3]]));
+  let legHead;
+  // 5. GroomLeg: lying on its side, the top hind leg raised straight up in the air, the head curled round to
+  //    it licking the inside of the thigh, strokes up toward the foot (the lying form of the "cello" pose -
+  //    with the toy proportions a sitting cello hides the short leg behind the head)
+  {
+    const base = over(LIE, LIEHEAD, { HLk1: -2.5, HLk2: .2, HLk3: -.6, HLk4: .2, HLkz: .9 });
+    applyPose(rig, base);
+    const knee = worldOf(rig, 'Shin_L'), hock = worldOf(rig, 'Foot_L'), mid = knee.clone().lerp(hock, .3);
+    const tgt = mid.clone().add(worldOf(rig, 'Head').sub(mid).setLength(reachTongue));
+    reach(base, tgt, ['spPitch', 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw'], 12, null, .1, LIEB); report.leg = reach.last; legHead = Object.fromEntries([...BODYK, 'nkRoll'].map(k => [k, base[k]]));
+    add('GroomLeg', 5.6, true, t => {
+      const k = mj(seg(t, 0, 1)) * (1 - mj(seg(t, 4.8, 5.6)));
+      const P = mix(LOAF, base, k); P.blink = .8 * k + .5 * (1 - k); P.breath = 1.1 * Math.sin(TAU * t / 2.4);
+      for (const f of FOOT_KEYS) P[f + 'fk'] = k;
+      P.HLk3 += .25 * Math.sin(TAU * t / 1.3) * k;                                // toes flex while licked
+      return licking(P, t, 1.1, 8, 2.1, (Q, s) => { Q.nkPitch += .06 * s; Q.hdPitch += .06 * s; });
+    });
+  }
+
+  // 6. GroomBelly: lying on its side, curled round to lick the belly, top hind leg lifted out of the way
+  {
+    // the head curled round to the belly from the same side it reaches the raised leg (any deeper and the toy
+    // head turns face-down into the ground); a short bounded solve then closes in on the belly
+    const base = over(LIE, legHead, { HLk1: -2.1, HLkz: .6 });
+    applyPose(rig, base);
+    const bp = surf(base, 'Spine2', V(0, -.9 * d.chestR, -.1 * d.BLm), 0);
+    const tgt = bp.add(worldOf(rig, 'Head').sub(bp).setLength(reachTongue));
+    reach(base, tgt, ['spPitch', 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw'], 12, null, .1, LIEB); report.belly = reach.last;
+    add('GroomBelly', 5, true, t => {
+      const k = mj(seg(t, 0, 1)) * (1 - mj(seg(t, 4.2, 5)));
+      const P = mix(LOAF, base, k); P.blink = .85 * k + .5 * (1 - k); P.breath = 1.1 * Math.sin(TAU * t / 2.4);
+      for (const f of FOOT_KEYS) P[f + 'fk'] = k;
+      return licking(P, t, 1.1, 7, 2, (Q, s) => { Q.nkPitch += .06 * s; Q.hdPitch += .05 * s; });
+    });
+  }
+
+  // 7. GroomTail: sitting with the tail wrapped round the side to the front, the end held up off the ground
+  //    under a paw, the head bent down to it licking toward the tip
+  {
+    const base = over(SITG, { tailBase: -1.3, tailYaw: -1.7, tailCurl: -.2, tailBend: .03, tailTip: -.5, hipRoll: -.05, spPitch: SITG.spPitch + .15 });
+    applyPose(rig, base);
+    const t8 = worldOf(rig, 'Tail8'), t10 = worldOf(rig, 'Tail10');
+    setPaw(base, t10.clone().add(V(0, .02, .01)), 1, .2, 0);                        // paw pinning the tip
+    const on = t8.clone().lerp(t10, .5);
+    const tgt = on.clone().add(worldOf(rig, 'Head').sub(on).setLength(reachTongue));
+    reachBest(base, tgt, BODYK, bodyStarts, null, { ...HB, hdPitch: [-.3, 1] }); report.tail = reach.last;
+    add('GroomTail', 4.6, true, t => {
+      const k = mj(seg(t, 0, .8)) * (1 - mj(seg(t, 3.9, 4.6)));
+      const P = mix(SITG, base, k); P.blink = .8 * k; P.breath = Math.sin(TAU * t / 2.5);
+      P.tailWave = .05 * (1 - k);
+      return licking(P, t, .9, 6, 2, (Q, s) => { Q.nkPitch += .05 * s; Q.hdPitch += .05 * s; });
+    });
+  }
+
+  // 8. ScratchEar: sitting, a hind foot comes up behind the ear and scratches fast (~7 strokes/s), head tipped
+  //    into the foot, eyes squeezed, that ear flattened; the body leans away to balance on three legs
+  {
+    const base = over(SITG, { hipRoll: -.32, hipPitch: SITG.hipPitch - .12, spRoll: .2, nkRoll: .25, hdRoll: .55, hdPitch: .35, hdYaw: .3, blink: 1, earLp: -.6, earLy: -.5 });
+    Object.assign(base, { HLfk: 1, HLk1: -2.3, HLk2: 1.1, HLk3: -.9, HLk4: .4, HLkz: .55 });
+    base.FRx *= 1.25;
+    add('ScratchEar', 3, true, t => {
+      const k = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 2.5, 3)));
+      const P = mix(SITG, base, k); P.HLfk = k;
+      const sc = Math.sin(TAU * 7 * t) * (t > .45 && t < 2.5 ? 1 : 0);
+      P.HLk2 += .35 * sc * k; P.HLk3 -= .3 * sc * k;                              // the scratching stroke
+      P.hdRoll += .03 * sc * k; P.mouth = .15 * k;                                  // head jiggles with it
+      return P;
+    });
+  }
+
+  // 9. NibbleClaws: sitting, a front paw lifted with toes spread, head turned sideways chewing at the claws
+  add('NibbleClaws', 3.4, true, t => {
+    const P = { ...SITG }, sx = 1, up = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 2.9, 3.4)));
+    P.hdRoll = .75 * sx * up; P.hdPitch = .45 * up; P.hdYaw = .2 * sx * up; P.blink = .7 * up;
+    const chew = (t > .5 && t < 2.8) ? .5 + .5 * Math.sin(TAU * 4 * t) : 0;
+    P.mouth = (.15 + .45 * chew) * up; P.hdPitch += .03 * chew;
+    const tgt = atHead(P, V(.32 * sx * HS, -.62 * HS, .8 * HS)), g2 = V(P.FLx, P.FLy, P.FLz).lerp(tgt, up);
+    P.FLx = g2.x; P.FLy = g2.y; P.FLz = g2.z; P.FLa = lerp(P.FLa, -1.2, up); P.FLt = lerp(0, -.6, up);   // toes spread back
+    P.scapL = -.35 * up;
     return P;
   });
   // stretch: play-bow with a big yawn, then each hind leg stretched out behind
@@ -529,6 +781,7 @@ export function makeClips(rig) {
     P.tailBase = -.2; P.tailWave = .2; P.tailWph = u * 2; P.earLp = P.earRp = .12;
     return P;
   });
+  clips.groomReport = report;
   return clips;
 }
 
