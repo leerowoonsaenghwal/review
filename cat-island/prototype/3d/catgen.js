@@ -76,6 +76,7 @@ export function makeCoat(spec) {
     if (part === 'nose') return C(spec.nose || '#e9837a');
     if (part === 'innerEar') return C(spec.innerEar || '#f2b0be');
     if (part === 'eye') return C(spec.eye || '#c9a227');
+    if (part === 'eye2') return C(spec.eye2 || spec.eye || '#c9a227');   // odd-eyed cats (white Turkish Angora / Van)
     if (part === 'pad') return C(spec.pad || '#e9a3a3');
 
     // --- colourpoint (Siamese, Himalayan, Birman, Ragdoll): dark mask, ears, legs, tail
@@ -139,8 +140,14 @@ export function makeCoat(spec) {
         const r = Math.hypot(nz + .15, (ny - .1) * 1.3);
         s = Math.max(spine, sstep(.1, .5, Math.sin(r * 12)) * sstep(-.5, -.2, ny) * sstep(.2, .5, Math.abs(nx)) * poleFade);
       } else if (P === 'spotted') {
-        const n = vnoise(p.x * 9 + 11, p.y * 9, p.z * 9 + seed);
-        s = Math.max(spine * .6, sstep(.62, .7, n) * sstep(-.5, -.2, ny) * poleFade);
+        const f = 9 / (spec.spotSize || 1);   // spotSize > 1: bigger, bolder spots (Savannah)
+        const n = vnoise(p.x * f + 11, p.y * f, p.z * f + seed), side = sstep(-.5, -.2, ny) * poleFade;
+        if (spec.rosette) {
+          // Bengal rosettes: a dark rim around a warmer, mid-tone centre
+          const rim = sstep(.58, .62, n) * (1 - sstep(.66, .7, n)), inner = sstep(.66, .7, n);
+          c.lerp(dark, .45 * inner * side).lerp(C(spec.rosetteFill || '#a8642c'), .35 * inner * side);
+          s = Math.max(spine * .5, rim * side);
+        } else s = Math.max(spine * .6, sstep(.62, .7, n) * side);
       } else if (P === 'ticked') {
         s = spine * .7;
         c.lerp(dark, vnoise(p.x * 40, p.y * 40, p.z * 40) * .22);
@@ -254,7 +261,7 @@ export const SHAPE_DEFAULT = {
   fur: 'short', furAmount: 1, ruff: 0,
   faceFluff: .55,    // long fur on the cheeks/chin: Persian types 1.2, semi-longhairs (Maine Coon ...) keep a short face
   tail: 'normal', tailLen: 1, tailFluff: 0, tailThick: 1,
-  wrinkles: 0,
+  wrinkles: 0, pawTuft: 0,
   // silhouette shaping
   wedge: 0,          // 0 round ... 1 Siamese/Oriental wedge (narrow chin, long muzzle)
   headTri: 0,        // triangular head with straight profile (Norwegian, Japanese Bobtail)
@@ -277,7 +284,8 @@ export function buildCat(shapeIn, coatSpec) {
   const colorAt = makeCoat(coatSpec);
   const fur = { type: s.fur, amount: s.furAmount };
   const hairless = s.fur === 'none';
-  const bodyMat = hairless ? MAT_SKIN : MAT;
+  // coat sheen: Bombay's patent-leather black, Russian Blue's silvery shimmer
+  const bodyMat = hairless ? MAT_SKIN : coatSpec.sheen ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .9 - .5 * coatSpec.sheen, metalness: 0 }) : MAT;
   const L = s.legLen * .8, B = s.bodyBulk, BL = s.bodyLen * .82;
 
   const root = new THREE.Group();
@@ -400,6 +408,12 @@ export function buildCat(shapeIn, coatSpec) {
         // flat face: lower front pushed in, domed forehead (Persian / Exotic)
         z -= HS * s.faceFlat * .07 * sstep(.4, 1, nz) * sstep(.5, -.5, ny);
         y += HS * s.faceFlat * .05 * sstep(.2, 1, ny);
+        // Sphynx: a few soft horizontal forehead wrinkles (raised ridges, not grooves)
+        if (s.wrinkles) {
+          const nx = x / (HS * s.headW), m = sstep(.2, .35, ny) * sstep(.85, .6, ny) * sstep(.1, .35, nz) * sstep(.55, .3, Math.abs(nx));
+          const k = 1 + s.wrinkles * .025 * m * Math.pow(.5 + .5 * Math.sin(ny * 34 - 1), 2);
+          x *= k; y *= k; z *= k;
+        }
         pos.setXYZ(i, x, y, z);
       }
       g.computeVertexNormals();
@@ -474,15 +488,15 @@ export function buildCat(shapeIn, coatSpec) {
         for (let i = 0; i < q.count; i++) { const u = q.getX(i) / (er * sx * 1.1); q.setY(i, q.getY(i) * (1 - sharp * u * u)); }
         g.computeVertexNormals(); return g;
       };
-      eye.add(mk(pinch(ellipsoid(er, sx, sy, sz, 48)), 'eye', { cy: 0, er: er * sy }, MAT_GLOSS));
+      eye.add(mk(pinch(ellipsoid(er, sx, sy, sz, 48)), 'eye', { cy: 0, er: er * sy, side: x }, MAT_GLOSS));
       // upper lid: a cap of the eye shape in coat colour, cut by a straight lid line
       const lidY = 1 - 2 * s.eyeLid;
       if (s.eyeLid > 0) {
         const lg = new THREE.SphereGeometry(er * 1.06, 40, 18, 0, Math.PI * 2, 0, Math.acos(lidY));
         lg.scale(sx, sy, sz * 1.3); pinch(lg);
-        // keep the lid line level (inner end a touch higher) even on a slanted eye; a lid that follows the
-        // slant drops at the inner corner and reads as a frown
-        lg.rotateZ(-x * s.eyeTilt * 1.3);
+        // keep the lid line level even on a slanted eye: following the slant drops the inner corner (a frown),
+        // over-correcting lifts it (a worried look)
+        lg.rotateZ(-x * s.eyeTilt);
         eye.add(mk(lg, 'head', 'headDir', bodyMat));
       }
       if (s.eyeLiner) {
@@ -540,6 +554,11 @@ export function buildCat(shapeIn, coatSpec) {
       const k = (i - 2) / (rig.tail.length - 2);
       placeTuft(rig.tail[i], T((.1 + .1 * k) * Math.max(.6, s.tailFluff), .075, .5), V(x * .04, .05, 0), V(x, .7, .1), V(0, 1, 0), 'tail', { t0: (i + .5) / rig.tail.length, t1: (i + .5) / rig.tail.length, len: 0 }, bodyMat);
     }
+    // toe tufts ('snowshoes', Maine Coon / Norwegian Forest): fur sticking out between the toes
+    if (s.pawTuft) for (const name of ['frontL', 'frontR', 'hindL', 'hindR']) {
+      const paw = rig.legs[name].chain.at(-1);
+      for (const f of [-1, 0, 1]) placeTuft(paw, T(pawR * .9 * s.pawTuft, pawR * .3, .2), V(f * pawR * .55, -pawR * .25, pawR * 1.25), V(f * .3, -.25, 1), V(0, -1, 0), 'leg', { kind: 'front', t0: 1, t1: 1, len: 0 }, bodyMat);
+    }
     // ear furnishings: pale wisps from the inner ear
     if (!curly && s.ear !== 'fold') for (const ear of earGroups) placeTuft(ear, tuftGeo(.13 * ear.userData.es, .025 * ear.userData.es, .4, 0), V(0, .02, .03), V(-ear.userData.x * .25, 1, .55), V(0, 0, 1), 'furnish', null);
   }
@@ -569,10 +588,14 @@ export function buildCat(shapeIn, coatSpec) {
         const outer = colorAt('ear', p, { dir: v.clone().applyMatrix4(mh).normalize() });
         const w = sstep(.62, .82, v.z / rr) * sstep(.55, .38, Math.abs(v.x) / rr) * sstep(.28, .38, y) * sstep(.78, .66, y);
         c = outer.lerp(colorAt('innerEar'), .8 * w);
+        if (coatSpec.earSpot) {   // ocelli: white thumbprint on the back of the ear (Savannah / serval)
+          const b = sstep(-.45, -.75, v.z / rr) * sstep(.45, .2, Math.abs(v.x) / rr) * sstep(.25, .35, y) * sstep(.62, .5, y);
+          c.lerp(C('#f4efe4'), .9 * b);
+        }
       }
       else if (o.userData.part === 'eye') {
         const t = (v.y - info.cy) / info.er;
-        c = C('#271c18').lerp(colorAt('eye'), .72 * sstep(.1, -.85, t));   // breed eye colour fills the lower half
+        c = C('#271c18').lerp(colorAt(info.side > 0 ? 'eye2' : 'eye'), .72 * sstep(.1, -.85, t));   // breed eye colour fills the lower half
       } else {
         if (info === 'bodyNorm') info = bodyNorm(p);
         else if (info === 'headDir') info = { dir: v.clone().applyMatrix4(mh).normalize() };
@@ -641,7 +664,7 @@ export function setPose(cat, mode = 'walk', phase = 0) {
 const SH = (o) => o;
 export const BREEDS = [
   { id: 'korean_shorthair', ko: '코리안 숏헤어', shape: { earSet: 'mid', eyeShape: 'round', eyeTilt: .06 }, coat: { pattern: 'mackerel', base: '#a39d93', dark: '#57514a' } },
-  { id: 'russian_blue', ko: '러시안 블루', shape: { eyeShape: 'oval', earSize: 1.12, bodyBulk: .92, legLen: 1.08, wedge: .35, earSet: 'high', neckLen: 1.1, tailThick: .85, eyeTilt: .12, eyeSpace: 1.06 }, coat: { pattern: 'solid', base: '#8794a3', eye: '#5fae6a', lightMuzzle: false, nose: '#7d8794' } },
+  { id: 'russian_blue', ko: '러시안 블루', shape: { eyeShape: 'oval', earSize: 1.12, bodyBulk: .92, legLen: 1.08, wedge: .35, earSet: 'high', neckLen: 1.1, tailThick: .85, eyeTilt: .12, eyeSpace: 1.06 }, coat: { pattern: 'solid', base: '#8794a3', eye: '#5fae6a', lightMuzzle: false, nose: '#7d8794', sheen: .45 } },
   { id: 'persian', ko: '페르시안', shape: { faceFlat: 1, ear: 'small', fur: 'long', ruff: 1, tailFluff: 1, cheek: 1, eyeSize: 1.15, legLen: .78, bodyBulk: 1.15, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85, faceFluff: 1.2, eyeShape: 'round', eyeSpace: 1.1 }, coat: { pattern: 'solid', base: '#f4efe6', eye: '#d7902f' } },
   { id: 'himalayan', ko: '히말라얀', shape: { faceFlat: 1, ear: 'small', fur: 'long', ruff: 1, tailFluff: 1, cheek: 1, legLen: .78, bodyBulk: 1.15, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85, faceFluff: 1.2, eyeShape: 'round', eyeSpace: 1.1 }, coat: { pattern: 'point', base: '#f2e8d8', point: '#6b4f40', eye: '#4f8fd8' } },
   { id: 'chinchilla_persian', ko: '친칠라 페르시안', shape: { faceFlat: 1, ear: 'small', fur: 'long', ruff: 1.1, tailFluff: 1.1, cheek: 1, eyeSize: 1.18, legLen: .78, bodyBulk: 1.12, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85, faceFluff: 1.2, eyeShape: 'round', eyeSpace: 1.1, eyeLiner: 1 }, coat: { pattern: 'shaded', base: '#f7f5f0', white: '#f8f6f2', dark: '#55565e', eye: '#3fae6a', nose: '#e0857f' } },
@@ -652,17 +675,17 @@ export const BREEDS = [
   { id: 'ragdoll', ko: '랙돌', shape: { fur: 'long', furAmount: .8, ruff: .8, tailFluff: 1, eyeSize: 1.1, bodyBulk: 1.1, size: 1.1, bodyLen: 1.12, tailThick: 1.1, eyeShape: 'oval', eyeTilt: .06 }, coat: { pattern: 'mitted', base: '#f3ece2', point: '#6b5a52', eye: '#4f8fd8' } },
   { id: 'birman', ko: '버먼', shape: { fur: 'long', furAmount: .7, ruff: .6, tailFluff: .8, bodyLen: 1.05, eyeShape: 'round', eyeTilt: .04 }, coat: { pattern: 'mitted', base: '#efe3cc', point: '#4e3a2f', eye: '#4f8fd8' } },
   { id: 'american_shorthair', ko: '아메리칸 숏헤어', shape: { cheek: .5, bodyBulk: 1.05, legBulk: 1.1, muzzleW: 1.2, chest: 1.1, tailThick: 1.1, eyeShape: 'oval', eyeTilt: .05, eyeLid: .1 }, coat: { pattern: 'classic', base: '#c9c9c4', dark: '#3d3d3d' } },
-  { id: 'norwegian_forest', ko: '노르웨이 숲', shape: { fur: 'long', ruff: 1, tailFluff: 1.2, earTuft: 1, earSize: 1.1, size: 1.12, headTri: 1, earSet: 'high', rumpHigh: .12, eyeShape: 'almond', eyeTilt: .22, eyeLid: .12 }, coat: { pattern: 'mackerel', base: '#b8a68e', dark: '#6e5b45', eye: '#9db24a', whiteLevel: .25 } },
-  { id: 'maine_coon', ko: '메인쿤', shape: { fur: 'long', ruff: 1.2, tailFluff: 1.2, earTuft: 1, earSize: 1.25, bodyLen: 1.2, size: 1.22, muzzleLen: 1.2, muzzleW: 1.35, earSet: 'high', chest: 1.1, eyeShape: 'oval', eyeTilt: .18, eyeLid: .12, eyeSpace: 1.06 }, coat: { pattern: 'classic', base: '#8a6a4f', dark: '#3e2d22', whiteLevel: .2 } },
-  { id: 'siberian', ko: '시베리안', shape: { fur: 'long', ruff: 1, tailFluff: 1, cheek: .5, size: 1.1, earRound: .3, chest: 1.1, eyeShape: 'oval', eyeTilt: .12 }, coat: { pattern: 'mackerel', base: '#c9c4bb', dark: '#5d5850', eye: '#9db24a' } },
-  { id: 'bengal', ko: '벵갈', shape: { bodyBulk: .95, eyeShape: 'oval', legLen: 1.08, pouch: .5, bodyLen: 1.1, chest: 1.1, tailThick: 1.1, eyeTilt: .1, eyeLid: .22, eyeLiner: 1 }, coat: { pattern: 'spotted', base: '#d9a95c', dark: '#4a3322', eye: '#7cae3d' } },
+  { id: 'norwegian_forest', ko: '노르웨이 숲', shape: { fur: 'long', ruff: 1, tailFluff: 1.2, earTuft: 1, earSize: 1.1, size: 1.12, headTri: 1, earSet: 'high', rumpHigh: .12, eyeShape: 'almond', eyeTilt: .22, eyeLid: .12, pawTuft: .8 }, coat: { pattern: 'mackerel', base: '#b8a68e', dark: '#6e5b45', eye: '#9db24a', whiteLevel: .25 } },
+  { id: 'maine_coon', ko: '메인쿤', shape: { fur: 'long', ruff: 1.2, tailFluff: 1.2, earTuft: 1, earSize: 1.25, bodyLen: 1.2, size: 1.22, muzzleLen: 1.2, muzzleW: 1.35, earSet: 'high', chest: 1.1, eyeShape: 'oval', eyeTilt: .18, eyeLid: .12, eyeSpace: 1.06, pawTuft: 1 }, coat: { pattern: 'classic', base: '#8a6a4f', dark: '#3e2d22', whiteLevel: .2 } },
+  { id: 'siberian', ko: '시베리안', shape: { fur: 'long', ruff: 1, tailFluff: 1, cheek: .5, size: 1.1, earRound: .3, chest: 1.1, eyeShape: 'oval', eyeTilt: .12, pawTuft: .5 }, coat: { pattern: 'mackerel', base: '#c9c4bb', dark: '#5d5850', eye: '#9db24a' } },
+  { id: 'bengal', ko: '벵갈', shape: { bodyBulk: .95, eyeShape: 'oval', legLen: 1.08, pouch: .5, bodyLen: 1.1, chest: 1.1, tailThick: 1.1, eyeTilt: .1, eyeLid: .22, eyeLiner: 1, earSize: .85, earRound: .4 }, coat: { pattern: 'spotted', base: '#d9a95c', dark: '#4a3322', eye: '#7cae3d', rosette: 1, rosetteFill: '#b0662a', sheen: .35 } },
   { id: 'egyptian_mau', ko: '이집션 마우', shape: { bodyBulk: .9, legLen: 1.1, eyeSize: 1.15, pouch: 1, rumpHigh: .2, wedge: .25, earSet: 'high', eyeShape: 'round', eyeTilt: .14, eyeLiner: 1 }, coat: { pattern: 'spotted', base: '#d4d1c8', dark: '#3c3a36', eye: '#9cc04a', seed: 4 } },
   { id: 'abyssinian', ko: '아비시니안', shape: { earSize: 1.3, eyeShape: 'almond', bodyBulk: .86, legLen: 1.1, wedge: .4, earSet: 'high', earWide: 1.1, tailLen: 1.1, tailThick: .85, eyeTilt: .13, eyeLiner: 1 }, coat: { pattern: 'ticked', base: '#c98a52', dark: '#7a4a28', eye: '#b8a03a' } },
   { id: 'somali', ko: '소말리', shape: { earSize: 1.25, fur: 'long', furAmount: .6, tailFluff: 1.2, bodyBulk: .9, wedge: .35, earSet: 'high', earWide: 1.1, eyeShape: 'almond', eyeTilt: .13, eyeLiner: 1 }, coat: { pattern: 'ticked', base: '#c47a45', dark: '#7a4a28', eye: '#b8a03a' } },
-  { id: 'savannah', ko: '사바나', shape: { ear: 'large', earSize: 1.45, legLen: 1.35, bodyBulk: .85, bodyLen: 1.1, size: 1.15, tailLen: .9, neckLen: 1.3, earSet: 'high', wedge: .3, tailThick: .9, eyeShape: 'oval', eyeTilt: .1, eyeLid: .25 }, coat: { pattern: 'spotted', base: '#d8b46f', dark: '#2c241c', eye: '#c9a227', seed: 7 } },
+  { id: 'savannah', ko: '사바나', shape: { ear: 'large', earSize: 1.45, legLen: 1.35, bodyBulk: .85, bodyLen: 1.1, size: 1.15, tailLen: .9, neckLen: 1.3, earSet: 'high', wedge: .3, tailThick: .9, eyeShape: 'oval', eyeTilt: .1, eyeLid: .15 }, coat: { pattern: 'spotted', base: '#d8b46f', dark: '#2c241c', eye: '#c9a227', seed: 7, earSpot: 1 , spotSize: 1.5 } },
   { id: 'oriental', ko: '오리엔탈', shape: { ear: 'large', earSize: 1.35, bodyBulk: .78, legLen: 1.25, headW: .9, muzzleLen: 1.3, eyeShape: 'almond', tailLen: 1.4, wedge: 1, earSet: 'low', earWide: 1.05, bodyLen: 1.2, tailThick: .6, neckLen: 1.2, tuck: .45, eyeTilt: .4, eyeSpace: .94, eyeLid: .08 }, coat: { pattern: 'solid', base: '#3a3432', eye: '#7cae3d', lightMuzzle: false } },
   { id: 'sphynx', ko: '스핑크스', shape: { ear: 'large', earSize: 1.55, fur: 'none', wrinkles: 1, bodyBulk: .9, eyeShape: 'lemon', tailLen: 1.1, potBelly: 1, earSet: 'low', earWide: 1.15, wedge: .3, tailThick: .6, chest: 1.1, eyeTilt: .28 }, coat: { pattern: 'calico', base: '#efc4b6', second: '#b5a2a4', white: '#f6d6cc', whiteLevel: 0, eye: '#9cb84a', innerEar: '#eba8a0', seed: 3 } },
-  { id: 'turkish_angora', ko: '터키시 앙고라', shape: { fur: 'long', furAmount: .6, tailFluff: 1.2, earSize: 1.15, bodyBulk: .88, legLen: 1.08, wedge: .35, earSet: 'high', neckLen: 1.15, tailThick: .9, eyeShape: 'almond', eyeTilt: .18 }, coat: { pattern: 'solid', base: '#fbf8f2', eye: '#7fb6ea' } },
+  { id: 'turkish_angora', ko: '터키시 앙고라', shape: { fur: 'long', furAmount: .6, tailFluff: 1.2, earSize: 1.15, bodyBulk: .88, legLen: 1.08, wedge: .35, earSet: 'high', neckLen: 1.15, tailThick: .9, eyeShape: 'almond', eyeTilt: .18 }, coat: { pattern: 'solid', base: '#fbf8f2', eye: '#7fb6ea', eye2: '#d9a52c' } },
   { id: 'turkish_van', ko: '터키시 반', shape: { fur: 'long', furAmount: .4, tailFluff: .8, size: 1.08, bodyLen: 1.1, chest: 1.1, eyeShape: 'oval', eyeTilt: .12 }, coat: { pattern: 'van', base: '#d9853c' } },
   { id: 'exotic_shorthair', ko: '엑조틱 숏헤어', shape: { faceFlat: 1, ear: 'small', cheek: 1, eyeSize: 1.2, bodyBulk: 1.12, legLen: .85, earSet: 'low', earRound: .8, bodyLen: .82, neckLen: .75, tailThick: 1.2, tailLen: .85, eyeShape: 'round', eyeSpace: 1.1 }, coat: { pattern: 'classic', base: '#e2a35e', dark: '#b06a2d', eye: '#d7902f' } },
   { id: 'american_curl', ko: '아메리칸 컬', shape: { ear: 'curl', earSize: 1.15, eyeShape: 'oval', eyeTilt: .14 }, coat: { pattern: 'bicolor', base: '#55504c' } },
@@ -672,7 +695,7 @@ export const BREEDS = [
   { id: 'laperm', ko: '라팜', shape: { fur: 'curly', furAmount: .8, earSize: 1.15, bodyBulk: .9, tailFluff: .5, wedge: .3, earSet: 'high', eyeShape: 'almond', eyeTilt: .16 }, coat: { pattern: 'tortie', base: '#3a2e29', second: '#c4773a', seed: 2 } },
   { id: 'manx', ko: '맹크스 (꼬리 없음)', shape: { tail: 'none', bodyBulk: 1.08, bodyLen: .85, legLen: 1.0, rumpHigh: .3, earRound: .4, eyeShape: 'round', eyeTilt: .04 }, coat: { pattern: 'mackerel', base: '#bfa486', dark: '#6e5640' } },
   { id: 'japanese_bobtail', ko: '재패니즈 밥테일', shape: { tail: 'bob', earSize: 1.15, bodyBulk: .9, legLen: 1.15, headTri: 1, earSet: 'high', rumpHigh: .1, eyeShape: 'oval', eyeTilt: .3 }, coat: { pattern: 'calico', base: '#2f2c2c', second: '#df8d3d', whiteLevel: .6, seed: 9 } },
-  { id: 'bombay', ko: '봄베이', shape: { eyeSize: 1.2, bodyBulk: 1.0, bodyLen: .95, earRound: .3, chest: 1.1, eyeShape: 'round' }, coat: { pattern: 'solid', base: '#232125', eye: '#d9a52c', lightMuzzle: false, nose: '#2d2a2e' } },
+  { id: 'bombay', ko: '봄베이', shape: { eyeSize: 1.2, bodyBulk: 1.0, bodyLen: .95, earRound: .3, chest: 1.1, eyeShape: 'round' }, coat: { pattern: 'solid', base: '#232125', eye: '#d9a52c', lightMuzzle: false, nose: '#2d2a2e', sheen: .8 } },
 ];
 
 export const KOREAN_COATS = [

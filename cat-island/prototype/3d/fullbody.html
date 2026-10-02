@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #f6f1e3; font-family: Jua, sans-serif; color: #6f5a40; width: 1680px; }
+  h1 { margin: 18px 24px 2px; font-size: 30px; font-weight: normal; }
+  p.sub { margin: 0 24px 12px; font-size: 15px; color: #a08a6a; }
+  #grid { position: relative; display: grid; grid-template-columns: repeat(3, 540px); gap: 12px; padding: 0 12px 16px; }
+  .card { background: #fbf6e6; border-radius: 22px; padding: 0 0 12px; }
+  .views { height: 250px; } .views canvas { display: block; border-radius: 22px 22px 0 0; }
+  .card b { display: block; font-weight: normal; font-size: 22px; margin: 2px 18px 4px; }
+  .card b small { font-size: 13px; color: #a08a6a; margin-left: 6px; }
+  .card ul { margin: 0 18px; padding: 0; list-style: none; font-size: 14px; line-height: 1.55; }
+  .card li i { font-style: normal; display: inline-block; width: 18px; text-align: center; margin-right: 4px; border-radius: 50%; color: #fff; font-size: 11px; line-height: 18px; }
+  .o { background: #8fc96b; } .p { background: #e3b04b; } .x { background: #d9a7a0; }
+  .legend { margin: 0 24px 12px; font-size: 14px; }
+  .legend i { font-style: normal; display: inline-block; width: 18px; text-align: center; border-radius: 50%; color: #fff; font-size: 11px; line-height: 18px; margin: 0 4px 0 12px; }
+</style>
+</head>
+<body>
+<h1>품종별 전신 · 실제 품종 특징 점검</h1>
+<p class="sub">왼쪽: 측면 · 오른쪽: 3/4 정면 · 아래: 품종 표준(CFA·TICA)의 대표 특징과 구현 상태</p>
+<div class="legend"><i class="o">✓</i>구현 <i class="p">△</i>장난감 스타일로 단순화 <i class="x">✗</i>아직 없음</div>
+<div id="grid"></div>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+import { buildCat, setPose, BREEDS } from './catgen.js';
+import { TRAITS } from './breed_traits.js';
+
+const q = new URLSearchParams(location.search);
+const list = q.get('ids') ? q.get('ids').split(',').map(id => BREEDS.find(b => b.id === id)) : BREEDS;
+const MARK = { o: '✓', p: '△', x: '✗' };
+for (const b of list) {
+  const t = TRAITS[b.id] || [];
+  grid.insertAdjacentHTML('beforeend', `<div class="card"><div class="views"></div><b>${b.ko}<small>${b.id.replace(/_/g, ' ')}</small></b>
+    <ul>${t.map(([s, k]) => `<li><i class="${k}">${MARK[k]}</i>${s}</li>`).join('')}</ul></div>`);
+}
+// One small renderer; each view is copied into a canvas inside its card. (A single page-sized WebGL
+// canvas would exceed the browser's max drawing-buffer size on this tall sheet and get scaled down.)
+const vw = 270, vh = 250;
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setPixelRatio(2); r.setSize(vw, vh);
+r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1;
+
+[...document.querySelectorAll('.views')].forEach((el, i) => {
+  const b = list[i];
+  const out = document.createElement('canvas'); out.width = vw * 4; out.height = vh * 2;
+  out.style.width = vw * 2 + 'px'; out.style.height = vh + 'px'; el.append(out);
+  const ctx = out.getContext('2d');
+  // two views per card: side, then 3/4 front; the camera is fitted to the whole cat so nothing is cropped
+  for (const [k, view] of [[0, 'side'], [1, 'front34']]) {
+    const scene = new THREE.Scene();
+    scene.add(new THREE.HemisphereLight('#f2fbff', '#c9b892', 1.35));
+    const sun = new THREE.DirectionalLight('#fff4dc', 2); sun.position.set(-3, 6, 5); sun.castShadow = true;
+    sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03; sun.shadow.radius = 4; sun.shadow.mapSize.set(1024, 1024);
+    Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3 });
+    scene.add(sun);
+    const g = new THREE.Mesh(new THREE.CircleGeometry(2.2, 48), new THREE.MeshStandardMaterial({ color: '#a8db84', roughness: 1 }));
+    g.rotation.x = -Math.PI / 2; g.receiveShadow = true; scene.add(g);
+    const cat = buildCat(b.shape, b.coat); setPose(cat, 'stand', 0); scene.add(cat);
+    const box = new THREE.Box3().setFromObject(cat), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+    const cam = new THREE.PerspectiveCamera(22, vw / vh, .1, 60);
+    const dir = view === 'side' ? new THREE.Vector3(1, .18, .02) : new THREE.Vector3(.62, .3, .8);
+    const span = Math.max(sz.y * 1.18, (view === 'side' ? sz.z : Math.max(sz.x, sz.z) * .9) * vh / vw * 1.12);
+    cam.position.copy(c).addScaledVector(dir.normalize(), span / 2 / Math.tan(THREE.MathUtils.degToRad(11)));
+    cam.lookAt(c);
+    r.render(scene, cam);
+    ctx.drawImage(r.domElement, k * vw * 2, 0);
+  }
+});
+window.__done = true;
+</script>
+</body>
+</html>
