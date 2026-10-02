@@ -44,9 +44,24 @@ if (jump) { const bx = new THREE.Mesh(new THREE.BoxGeometry(.55, jump.H, .7), ne
 const mixer = new THREE.AnimationMixer(cat), action = mixer.clipAction(clip);
 action.play();
 const root = cat.getObjectByName('Root'), hips = cat.getObjectByName('Hips');
+// Drink: a bowl of milk placed where the tongue tip touches, plus the liquid column the tongue pulls up
+let drink = null;
+if (clipName === 'Drink') {
+  const t3 = cat.getObjectByName('Tongue3'), tip = () => { const p = t3.getWorldPosition(new THREE.Vector3()), q = t3.getWorldQuaternion(new THREE.Quaternion()); return p.add(new THREE.Vector3(0, 0, .02).applyQuaternion(q)); };
+  mixer.setTime(.44 / 3.5); cat.updateMatrixWorld(true);
+  const touch = tip(), surf = touch.y - .002;
+  const bowl = new THREE.Mesh(new THREE.CylinderGeometry(.075, .06, surf + .006, 40), new THREE.MeshStandardMaterial({ color: '#7fb0d8', roughness: .45 }));
+  bowl.position.set(touch.x, (surf + .006) / 2, touch.z + .01); bowl.castShadow = bowl.receiveShadow = true; sc.add(bowl);
+  const milk = new THREE.Mesh(new THREE.CircleGeometry(.066, 40), new THREE.MeshStandardMaterial({ color: '#fbf8f0', roughness: .25 }));
+  milk.rotation.x = -Math.PI / 2; milk.position.set(touch.x, surf, touch.z + .01); sc.add(milk);
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 16), new THREE.MeshStandardMaterial({ color: '#fbf8f0', roughness: .25 }));
+  sc.add(col);
+  drink = { tip, surf, col, touch };
+  mixer.setTime(0);
+}
 const view = q.get('view') || 'side';
 const cam = new THREE.PerspectiveCamera(26, W / H, .01, 30);
-const camDir = new THREE.Vector3(...({ side: [1, .14, .06], '34': [.85, .32, .7], front: [.2, .2, 1], back: [-.5, .3, -1] }[view])).normalize();
+const camDir = new THREE.Vector3(...({ side: [1, .14, .06], '34': [.85, .32, .7], low: [.75, .12, .65], mouth: [.95, .02, .3], front: [.2, .2, 1], back: [-.5, .3, -1] }[view])).normalize();
 const dist = +(q.get('dist') || 2.3);
 const smooth = new THREE.Vector3(); let first = true;
 // looping root-motion clips: carry the distance travelled into the next loop (what Unity's Apply Root Motion does)
@@ -62,9 +77,19 @@ window.frame = i => {
   const hd = cat.getObjectByName('Head').getWorldPosition(new THREE.Vector3());
   const follow = new THREE.Vector3(c.x, (hp.y + hd.y) / 2 + .02, c.z + .1);   // frames body and head   // camera rides along with the cat, like a game camera
   if (q.has('fixed')) follow.set(0, .3, jump ? jump.D / 2 : 0);
+  if (drink && q.has('mouth')) follow.copy(drink.touch).add(new THREE.Vector3(0, .035, 0));   // steady shot of the mouth and bowl
   smooth.copy(follow);
   cam.position.copy(smooth).addScaledVector(camDir, dist); cam.lookAt(smooth);
   sun.position.copy(smooth).add(new THREE.Vector3(-1, 2.2, 1.6)); sun.target.position.copy(smooth);
+  if (drink) {                       // liquid column: rises with the tongue after the touch, thins, then pinches off
+    const u = ((i / FPS) * 3.5) % 1, lapping = (i / FPS) < 8 / 3.5;
+    const on = lapping && u > .44 && u < .8, tp = drink.tip();
+    drink.col.visible = on;
+    if (on) {
+      const hgt = Math.max(.001, tp.y - drink.surf), thin = 1 - (u - .44) / .36;
+      drink.col.scale.set(.006 * thin + .001, hgt, .006 * thin + .001); drink.col.position.set(tp.x, drink.surf + hgt / 2, tp.z);
+    }
+  }
   r.render(sc, cam);
 };
 window.__frames = Math.round(clip.duration * FPS);

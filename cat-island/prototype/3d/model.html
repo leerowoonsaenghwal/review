@@ -23,7 +23,7 @@ sub.textContent = `${cat.userData.tris.toLocaleString()} 삼각형 · 뼈 ${cat.
 const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 r.setPixelRatio(2); r.setSize(CW, CH); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
 r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1;
-const LABEL = { front: '정면', '34': '3/4', side: '측면', back: '뒷면', top: '위', wire: '와이어프레임', bend: '변형 테스트: 척추·목·꼬리', legs: '변형 테스트: 다리' };
+const LABEL = { front: '정면', '34': '3/4', side: '측면', back: '뒷면', top: '위', wire: '와이어프레임', bend: '변형 테스트: 척추·목·꼬리', legs: '변형 테스트: 다리', paws: '발바닥 젤리' };
 const reset = () => { for (const bn of Object.values(bones)) bn.rotation.set(0, 0, 0); };
 for (const v of views) {
   reset();
@@ -31,6 +31,10 @@ for (const v of views) {
     for (const n of ['Spine1', 'Spine2', 'Chest']) bones[n].rotation.set(-.12, .22, 0);
     bones.Neck.rotation.set(.2, .3, 0); bones.Head.rotation.set(0, .3, .2);
     for (let i = 1; i <= 10; i++) bones['Tail' + i].rotation.set(i === 1 ? -.6 : -.18, .1, 0);
+  }
+  if (v === 'paws') {          // lying on its side, soles to the camera, to show the beans
+    bones.Root.rotation.z = Math.PI / 2; bones.Root.position.set(.16, .2, 0);
+    bones.Fingers_L.rotation.x = .15; bones.Toes_L.rotation.x = .15;
   }
   if (v === 'legs' || v === 'legs2') {
     bones.UpperArm_L.rotation.x = -1.0; bones.Forearm_L.rotation.x = -1.2; bones.Hand_L.rotation.x = 1.4; bones.Fingers_L.rotation.x = .6;
@@ -48,9 +52,10 @@ for (const v of views) {
   const wire = v === 'wire';
   cat.userData.meshes.body.material.wireframe = wire;
   const box = new THREE.Box3().setFromObject(cat), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3()).length();
-  const dir = { front: [0, .15, 1], '34': [.75, .3, .7], side: [1, .12, 0], back: [-.3, .35, -1], top: [0, 1, .05], wire: [.75, .3, .7], bend: [.6, .5, .8], legs: [.85, .2, .6], legs2: [1, .15, -.05] }[v];
+  if (v === 'paws') { cat.updateMatrixWorld(true); c.copy(bones.Fingers_L.getWorldPosition(new THREE.Vector3())).lerp(bones.Toes_L.getWorldPosition(new THREE.Vector3()), .5); }
+  const dir = { front: [0, .15, 1], '34': [.75, .3, .7], side: [1, .12, 0], back: [-.3, .35, -1], top: [0, 1, .05], wire: [.75, .3, .7], bend: [.6, .5, .8], legs: [.85, .2, .6], legs2: [1, .15, -.05], paws: [1, .05, .05] }[v];
   const cam = new THREE.PerspectiveCamera(26, CW / CH, .01, 20);
-  cam.position.copy(c).add(new THREE.Vector3(...dir).normalize().multiplyScalar(sz * 1.9)); cam.lookAt(c);
+  cam.position.copy(c).add(new THREE.Vector3(...dir).normalize().multiplyScalar(v === 'paws' ? .55 : sz * 1.9)); cam.lookAt(c);
   r.render(sc, cam);
   const cell = document.createElement('div'); cell.className = 'c';
   const cv = document.createElement('canvas'); cv.width = CW * 2; cv.height = CH * 2; cv.style.width = CW + 'px'; cv.style.height = CH + 'px';

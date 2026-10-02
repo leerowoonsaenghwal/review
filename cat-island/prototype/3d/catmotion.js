@@ -72,7 +72,7 @@ export function stand(rig) {
     scapL: 0, scapR: 0, scapLy: 0, scapRy: 0,
     tailBase: 0, tailYaw: 0, tailBend: .04, tailCurl: 0, tailTip: 0, tailWave: 0, tailWph: 0,
     earLp: 0, earLy: 0, earLr: 0, earRp: 0, earRy: 0, earRr: 0,
-    blink: 0, mouth: 0, tongue: 0, breath: 0,
+    blink: 0, mouth: 0, tongue: 0, tongueCurl: 0, tongueLift: 0, breath: 0,
   };
   for (const f of FOOT_KEYS) {
     const r = rig.restFoot[f];
@@ -111,6 +111,13 @@ export function applyPose(rig, P, lag = {}) {
   B.Scapula_L.quaternion.setFromAxisAngle(V(1, 0, 0), P.scapL); B.Scapula_L.position.y += P.scapLy;
   B.Scapula_R.quaternion.setFromAxisAngle(V(1, 0, 0), P.scapR); B.Scapula_R.position.y += P.scapRy;
   B.Belly.scale.set(1 + .05 * P.breath, 1 + .09 * P.breath, 1 + .03 * P.breath);
+  // tongue: slides out of the mouth (tongue 0..1), tilts down (tongueLift), and curls: + = tip folded under
+  // into the J-shape cats lap with, - = tip curled up (yawning, scooping)
+  const ext = clamp(P.tongue, 0, 1.2), HS = rig.d.HS;
+  B.Tongue1.position.add(V(0, -.05 * HS * ext, .5 * HS * ext));
+  // the root stays level inside the mouth; the tongue bends down just past the lips (Tongue2), the tip curls (Tongue3)
+  qe(.15 * P.tongueLift, 0, 0, B.Tongue1.quaternion);
+  qe(.75 * P.tongueLift + .35 * P.tongueCurl, 0, 0, B.Tongue2.quaternion); qe(.1 * P.tongueLift + .95 * P.tongueCurl, 0, 0, B.Tongue3.quaternion);
   // tail (each joint may come from a slightly earlier pose: overlapping action / follow-through)
   for (let i = 1; i <= 10; i++) {
     const T = lag.tail ? lag.tail[i - 1] : P, k = (i - 1) / 9;
@@ -152,7 +159,7 @@ export function applyPose(rig, P, lag = {}) {
       chain.forEach((b, j) => { qe(ks[j], 0, j === 0 ? P[f + 'kz'] : 0, _q2); b.quaternion.slerp(_q2, fk); b.updateMatrixWorld(true); });
     }
   }
-  const m = rig.face.morphTargetInfluences; m[0] = clamp(P.blink, 0, 1); m[1] = clamp(P.mouth, 0, 1); m[2] = clamp(P.tongue, 0, 1);
+  const m = rig.face.morphTargetInfluences; m[0] = clamp(P.blink, 0, 1); m[1] = clamp(P.mouth, 0, 1);
 }
 
 // ------------------------------------------------------------------ gaits (foot placement with planted paws)
@@ -382,7 +389,7 @@ export function makeClips(rig) {
     const up = ss(seg(t, 0, .35)) * (1 - ss(seg(t, 4.45, 4.8)));
     P.breath = Math.sin(TAU * t / 2);
     P.hdPitch = lick ? .45 + .1 * k : .15; P.hdYaw = lick ? -.25 : -.45; P.hdRoll = lick ? -.15 : -.35;
-    P.blink = .85; P.mouth = lick ? .35 * k : 0; P.tongue = lick ? k : 0;
+    P.blink = .85; P.mouth = lick ? .4 * k : 0; P.tongue = lick ? .75 * k : 0; P.tongueLift = -.1; P.tongueCurl = -.45;   // flat tongue sweeps up the paw
     // paw target: in front of the mouth for licking, then circling over the cheek and ear
     const Hc = rig.d.Hc, HS = rig.d.HS;
     const ang = TAU * (t - 2.2) / 1.3;
@@ -406,7 +413,7 @@ export function makeClips(rig) {
     for (const f of ['FL', 'FR']) { P[f + 'z'] += .55 * h * bow; P[f + 'a'] = lerp(.3, 1.25, bow); P[f + 't'] = -.25 * bow; }
     for (const f of ['HL', 'HR']) { P[f + 'a'] = lerp(.2, .45, bow); }
     const yawn = bump(t, 1.35, .32);
-    P.mouth = yawn; P.tongue = .5 * yawn; P.blink = .2 + .75 * yawn; P.hdPitch -= .25 * yawn;
+    P.mouth = yawn; P.tongue = .32 * yawn; P.tongueLift = .25; P.tongueCurl = -.9; P.blink = .2 + .75 * yawn; P.hdPitch -= .25 * yawn;   // tongue curls up in the yawn
     P.earLp = P.earRp = -.35 * yawn;
     P.tailBase = lerp(-.3, 1.0, bow); P.tailBend = .06; P.tailTip = .15 * bow; P.tailWave = .1; P.tailWph = t / 2;
     // hind-leg stretches: body shifts forward, one leg extends back and up, toes spread
@@ -418,6 +425,33 @@ export function makeClips(rig) {
     P.blink = Math.max(P.blink, blinkAt(t, [2.5]));
     return P;
   });
+  // drinking: crouched over the bowl, lapping ~3.5 times a second. Like real cats (Reis et al. 2010, Science):
+  // the tongue tip curls under into a J so only its top touches the surface, then whips back up, pulling a
+  // column of liquid that the jaw snaps shut on. Every 8 laps a short pause to swallow.
+  {
+    const f = 3.5, laps = 8, lapT = 1 / f, dur = laps * lapT + .5;
+    add('Drink', dur, true, t => {
+      const P = { ...P0 };
+      P.hipY = -.07 * h; P.hipPitch = .06; P.spPitch = .18; P.nkPitch = .4; P.hdPitch = .5;
+      for (const ff of ['FL', 'FR']) { P[ff + 'z'] += .02 * h; P[ff + 'a'] = .55; }
+      for (const ff of ['HL', 'HR']) P[ff + 'a'] = -.1;
+      P.scapL = P.scapR = .15; P.blink = .45 + .55 * blinkAt(t, [dur - .3]);
+      P.tailBase = -.4; P.tailBend = .06; P.tailWave = .08; P.tailWph = t / 2;
+      P.earLp = P.earRp = .1;
+      if (t < laps * lapT) {
+        const u = frac(t * f);
+        P.tongue = K([[0, .3], [.3, .92], [.44, .92], [.72, .3], [1, .3]], u);
+        P.tongueCurl = K([[0, .2], [.28, 1.1], [.5, 1.05], [.78, .4], [1, .2]], u);
+        P.tongueLift = K([[0, .3], [.3, 1.0], [.44, 1.0], [.72, .3], [1, .3]], u);
+        P.mouth = K([[0, .2], [.22, .62], [.6, .62], [.8, .08], [1, .2]], u);
+        P.hdPitch += .035 * Math.sin(TAU * u - .6);
+      } else {                                                     // swallow: mouth shut, head lifts a little
+        const v = seg(t, laps * lapT, dur), lift = Math.sin(Math.PI * v);
+        P.hdPitch -= .12 * lift; P.nkPitch -= .05 * lift; P.mouth = .2 * (1 - lift);
+      }
+      return P;
+    }, { drink: { laps, rate: f } });
+  }
   // flop: rolls onto its side and relaxes (Ragdoll); then breathing with lazy tail flicks
   {
     const FLOP = over(LOAF, { hipRoll: 1.38, hipY: -.62 * rig.hipY, spRoll: .1, hdRoll: .9, hdPitch: .05, nkPitch: .05, blink: .55, tailBase: -1.2, tailBend: .03, tailCurl: 0, tailYaw: 0, earLp: -.2, earRp: -.2 });
@@ -463,7 +497,7 @@ export function solveAt(rig, clip, t) {
 }
 export function bakeClip(rig, clip) {
   const n = Math.round(clip.dur * FPS), times = [], names = Object.keys(rig.B);
-  const q = Object.fromEntries(names.map(k => [k, []])), pos = { Root: [], Hips: [], Scapula_L: [], Scapula_R: [] }, belly = [], morph = [];
+  const q = Object.fromEntries(names.map(k => [k, []])), pos = { Root: [], Hips: [], Scapula_L: [], Scapula_R: [], Tongue1: [] }, belly = [], morph = [];
   for (let i = 0; i <= n; i++) {
     const t = i / FPS;
     times.push(t);

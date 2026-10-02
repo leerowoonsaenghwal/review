@@ -14,7 +14,8 @@
 //                 smoothed across the surface so joints bend softly
 //   5. paint      coat colours from catgen.makeCoat (same breed coats as the catalogue), toe beans, blush
 //   6. face       glossy AC eyes, nose, mouth, whiskers on a second mesh with blendshapes:
-//                 Blink, MouthOpen, Tongue
+//                 Blink, MouthOpen; the tongue has its own 3 bones (lick, lap, yawn curl)
+//   7. paws       raised toe beans (4 toe pads + 3-lobed main pad) riding on the paw bones
 // All bones have identity rest rotations (pose maths stay simple); the whole cat is scaled to metres.
 import * as THREE from 'three';
 import { makeCoat, SHAPE_DEFAULT, NOISE } from './catgen.js';
@@ -27,7 +28,7 @@ export const METERS = .39;      // model units -> metres: shoulder height about 
 
 export const BONE_PARENTS = {
   Root: null, Hips: 'Root', Spine1: 'Hips', Spine2: 'Spine1', Chest: 'Spine2', Neck: 'Chest', Head: 'Neck',
-  Ear_L: 'Head', Ear_R: 'Head', Belly: 'Spine1',
+  Ear_L: 'Head', Ear_R: 'Head', Belly: 'Spine1', Tongue1: 'Head', Tongue2: 'Tongue1', Tongue3: 'Tongue2',
   Scapula_L: 'Chest', UpperArm_L: 'Scapula_L', Forearm_L: 'UpperArm_L', Hand_L: 'Forearm_L', Fingers_L: 'Hand_L',
   Scapula_R: 'Chest', UpperArm_R: 'Scapula_R', Forearm_R: 'UpperArm_R', Hand_R: 'Forearm_R', Fingers_R: 'Hand_R',
   Thigh_L: 'Hips', Shin_L: 'Thigh_L', Foot_L: 'Shin_L', Toes_L: 'Foot_L',
@@ -74,6 +75,11 @@ export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
   const Hc = at(0, .2 + .26 * s.headSize + (s.neckLen - 1) * .3, .6 * BL + .16 * s.headSize + (s.neckLen - 1) * .12);
   J.Head = Hc.clone().add(V(0, -.25 * HS, -.25 * HS));
   J.Belly = at(0, -.18 * B, -.05 * BL);
+  // tongue: 3 joints, resting fully inside the muzzle; the clips slide it out and curl it
+  const mY = -HS * .2 + flat * HS * .1, mZ = HS * (.93 - flat * .14), tongueLen = HS * .44;
+  J.Tongue1 = Hc.clone().add(V(0, mY - HS * .05, mZ - HS * .5));
+  J.Tongue2 = J.Tongue1.clone().add(V(0, 0, tongueLen * .36));
+  J.Tongue3 = J.Tongue1.clone().add(V(0, 0, tongueLen * .68));
   for (const [S, x] of SIDES) {
     J[`Scapula_${S}`] = at(x * .11 * B, .2, .42 * BL);
     const sh = J[`UpperArm_${S}`] = at(x * .19 * B, -.06, .5 * BL);
@@ -156,6 +162,7 @@ export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
   ELL(mzC, mzR, .035, { part: 'muzzle', bones: () => [['Head', 1]] });
   if (s.cheek) for (const [, x] of SIDES) ELL(Hc.clone().add(V(x * HS * .5 * s.headW, -HS * .3, HS * (.36 - .06 * flat))), [HS * .38 * s.cheek ** .3, HS * .3, HS * .32], .06, HEAD);
   // legs
+  const paws = [];
   const legMeta = (kind, bone, t0, t1, a, b) => ({ part: 'leg', kind, t0, t1, bones: () => [[bone, 1]] });
   for (const [S, x] of SIDES) {
     const sh = J[`UpperArm_${S}`], el = J[`Forearm_${S}`], wr = J[`Hand_${S}`], ball = J[`Fingers_${S}`];
@@ -172,6 +179,7 @@ export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
     for (const [kind, b0, pre, tip] of [['front', ball, `Hand_${S}`, `Fingers_${S}`], ['hind', hb, `Foot_${S}`, `Toes_${S}`]]) {
       const pc = b0.clone().add(V(0, -.02 * pawR, .45 * pawR)), len = kind === 'hind' ? 1.35 : 1.25;
       const PAW = { part: 'paw', kind, pc, bones: p => { const f = sstep(-.3 * pawR, .25 * pawR, p.z - b0.z); return [[pre, 1 - f], [tip, f]]; } };
+      paws.push({ pc, len, bones: PAW.bones });
       ELL(pc, [pawR, pawR * .62, pawR * len], .03, PAW);
       for (const [tx, tz] of [[-.42, .85], [-.14, 1], [.14, 1], [.42, .85]]) ELL(pc.clone().add(V(tx * pawR, .12 * pawR, tz * pawR * len * .75)), [pawR * .3, pawR * .32, pawR * .34], .02, PAW);
     }
@@ -254,11 +262,6 @@ export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
     if (meta.part === 'leg') return colorAt('leg', p, { kind: meta.kind, t: meta.a ? meta.t0 + (meta.t1 - meta.t0) * segT(p, meta.a, meta.b) : meta.t0 });
     if (meta.part === 'paw') {
       const q = p.clone().sub(meta.pc);
-      if (q.y < -.3 * pawR) {                                           // toe beans and the main pad underneath
-        const bean = [[-.45, .7], [-.15, .95], [.15, .95], [.45, .7]].some(([bx, bz]) => Math.hypot(q.x - bx * pawR, q.z - bz * pawR) < .19 * pawR);
-        const main = Math.hypot(q.x / (.5 * pawR), (q.z + .05 * pawR) / (.38 * pawR)) < 1;
-        if (bean || main) return colorAt('pad');
-      }
       return colorAt('leg', p, { kind: meta.kind, t: 1 });
     }
     if (meta.part === 'tail') return colorAt('tail', p, { t: meta.a ? meta.t0 + (meta.t1 - meta.t0) * segT(p, meta.a, meta.b) : meta.t0 });
@@ -344,14 +347,14 @@ export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
   }
 
   // ------------------------------------------------------------------ 6. face mesh (Head bone) with blendshapes
-  const face = { pos: [], col: [], uv: [], idx: [[], [], []], blink: [], mouth: [], tongue: [] };
+  const face = { pos: [], col: [], uv: [], idx: [[], [], []], blink: [], mouth: [], si: [], sw: [] };
   // face texture atlas: a 4x4 grid of colour slots (flat colours, or a vertical gradient for the eyes), so every
   // face part has clean texture space - an automatic unwrap shreds thin whiskers into thousands of islands
   const atlas = { slots: [], keys: new Map() };
   const slotOf = (key, spec) => { if (!atlas.keys.has(key)) { atlas.keys.set(key, atlas.slots.length); atlas.slots.push(spec); } return atlas.keys.get(key); };
   const slotUV = (i, v = .5) => [((i % 4) + .5) / 4, 1 - (Math.floor(i / 4) + .12 + .76 * v) / 4];
   // add geometry in a local frame given by matrix M; morph(fnLocal) returns the target position in the same frame
-  const faceAdd = (g, color, M, group, morphs = {}, grad = null) => {
+  const faceAdd = (g, color, M, group, morphs = {}, grad = null, skin = null) => {
     const slot = grad ? slotOf('g' + grad.color.getHexString(), { grad: grad.color }) : slotOf('f' + color.getHexString(), { flat: color });
     const base = face.pos.length / 3, q = g.attributes.position, lst = g.index ? g.index.array : Array.from({ length: q.count }, (_, i) => i);
     for (let i = 0; i < q.count; i++) {
@@ -359,10 +362,12 @@ export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
       face.pos.push(wv.x, wv.y, wv.z);
       face.col.push(color.r, color.g, color.b);
       face.uv.push(...slotUV(slot, grad ? clampV((1 - lv.y / grad.h) / 2) : .5));
-      for (const key of ['blink', 'mouth', 'tongue']) {
+      for (const key of ['blink', 'mouth']) {
         const t = morphs[key] ? morphs[key](lv.clone()).applyMatrix4(M).sub(wv) : V();
         face[key].push(t.x, t.y, t.z);
       }
+      const sk = skin ? skin(wv) : [['Head', 1]];
+      for (let j = 0; j < 4; j++) { face.si.push(sk[j] ? BI[sk[j][0]] : 0); face.sw.push(sk[j] ? sk[j][1] : 0); }
     }
     for (const k of lst) face.idx[group].push(base + k);
   };
@@ -405,30 +410,39 @@ export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
     faceAdd(ng, colorAt('nose'), HM, 0);
     for (const [, x] of SIDES) {
       const m = new THREE.TorusGeometry(HS * .055, HS * .014, 8, 20, Math.PI); m.rotateZ(Math.PI); m.translate(x * HS * .055, my, mz);
-      faceAdd(m, C('#3a2a24'), HM, 0, { mouth: v => v.add(V(x * HS * .03, -HS * .07, -HS * .01)), tongue: v => v.add(V(0, -HS * .015, 0)) });
+      faceAdd(m, C('#3a2a24'), HM, 0, { mouth: v => v.add(V(x * HS * .03, -HS * .07, -HS * .01)) });
     }
     const cav = ell(HS * .1, 1, .85, .45, 16); const cavC = V(0, my - HS * .1, mz - HS * .03);
-    faceAdd(cav, C('#5a2b2e'), HM, 0, { mouth: v => v.add(cavC), tongue: v => v.multiplyScalar(.45).add(cavC).add(V(0, HS * .03, 0)) });
+    faceAdd(cav, C('#5a2b2e'), HM, 0, { mouth: v => v.add(cavC) });
     // the cavity sits collapsed inside the muzzle until MouthOpen / Tongue push it out: base = one hidden point,
     // morph targets = the full shape (the deltas computed above are re-based on that point)
     {
       const a0 = face.pos.length / 3 - cav.attributes.position.count, hp = V(0, my, mz - HS * .2).applyMatrix4(HM);
       for (let i = a0; i < face.pos.length / 3; i++) {
         const k = i * 3, wv = V(face.pos[k], face.pos[k + 1], face.pos[k + 2]);
-        for (const key of ['mouth', 'tongue']) { face[key][k] += wv.x - hp.x; face[key][k + 1] += wv.y - hp.y; face[key][k + 2] += wv.z - hp.z; }
+        face.mouth[k] += wv.x - hp.x; face.mouth[k + 1] += wv.y - hp.y; face.mouth[k + 2] += wv.z - hp.z;
         face.pos[k] = hp.x; face.pos[k + 1] = hp.y; face.pos[k + 2] = hp.z;
       }
     }
-    const tg = ell(HS * .075, 1, .42, 1.1, 14); tg.translate(0, -HS * .05, HS * .04);
+    // tongue: flat, rounded tip, a groove down the middle (cats' tongues are long and spoon-like);
+    // built along +z from the Tongue1 joint and skinned to the three tongue bones
     {
-      const a = face.pos.length / 3;
-      faceAdd(tg, C('#ef8c98'), HM.clone().multiply(new THREE.Matrix4().makeTranslation(0, my, mz)), 0);
-      const hidden = V(0, my, mz - HS * .2).applyMatrix4(HM);
-      for (let i = a; i < face.pos.length / 3; i++) {
-        const k = i * 3, wv = V(face.pos[k], face.pos[k + 1], face.pos[k + 2]);
-        face.tongue[k] = wv.x - hidden.x; face.tongue[k + 1] = wv.y - hidden.y; face.tongue[k + 2] = wv.z - hidden.z;
-        face.pos[k] = hidden.x; face.pos[k + 1] = hidden.y; face.pos[k + 2] = hidden.z;
+      const tw = HS * .09, tt = HS * .03, g = new THREE.SphereGeometry(1, 20, 14);
+      const q = g.attributes.position;
+      for (let i = 0; i < q.count; i++) {
+        let x = q.getX(i), y = q.getY(i), z = q.getZ(i);
+        const u = (z + 1) / 2;                                   // 0 root .. 1 tip
+        const w = tw * (.75 + .3 * Math.sin(Math.PI * Math.min(1, u * 1.15)));
+        x *= w; y *= tt; z = u * tongueLen;
+        if (y > 0) y -= HS * .012 * Math.exp(-((x / (HS * .022)) ** 2));   // the central groove
+        q.setXYZ(i, x, y, z);
       }
+      g.computeVertexNormals();
+      const TM = new THREE.Matrix4().makeTranslation(J.Tongue1.x, J.Tongue1.y, J.Tongue1.z);
+      faceAdd(g, C('#ee8996'), TM, 0, {}, null, wv => {
+        const u = (wv.z - J.Tongue1.z) / tongueLen, a = sstep(.22, .45, u), b = sstep(.55, .8, u);
+        return [['Tongue1', 1 - a], ['Tongue2', a - b], ['Tongue3', b]].filter(e => e[1] > 1e-3);
+      });
     }
     if (s.whisker !== 'none') for (const [, x] of SIDES) for (let w = 0; w < 3; w++) {
       const pts = [], a = (w - 1) * .22, cw = s.whisker === 'curly', Lw = HS * (cw ? .6 : .85);
@@ -437,6 +451,33 @@ export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
         pts.push(V(x * (HS * .28 + t * Lw), -HS * (.24 - Math.sin(a) * .6 * t) - t * t * HS * .12 + wob, HS * (.86 - flat * .14) - t * HS * .35));
       }
       faceAdd(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 12, HS * .012, 4, false), C(coatSpec.whiskerColor || '#fbf8f2'), HM, 0);
+    }
+  }
+
+  // ------------------------------------------------------------------ 7. toe beans (raised pads under every paw)
+  {
+    const base = C(coatSpec.base || '#999999'), lum = .2126 * base.r + .7152 * base.g + .0722 * base.b;
+    const padC = C(coatSpec.pad || (lum < .03 ? '#5b4349' : '#f2a0ae'));   // pink beans; dusky beans on black cats
+    for (const { pc, len, bones: pb } of paws) {
+      // each pad is found on the real sculpted underside (search upward from below the paw for the surface),
+      // turned to the surface normal and pressed half into it, so it reads as a soft raised bean
+      const pads = [[-.5, .62, .25, .22], [-.18, .8, .26, .23], [.18, .8, .26, .23], [.5, .62, .25, .22],   // 4 toe beans
+        [0, -.02, .4, .3]];                                                                                   // main (palm) pad
+      for (const [bx, bz, rx, rz] of pads) {
+        const x = pc.x + bx * pawR, z = pc.z + bz * pawR * len;
+        let lo = pc.y - pawR * 2, hi = pc.y;
+        if (F.eval(x, lo, z) <= 0 || F.eval(x, hi, z) > 0) continue;
+        for (let it = 0; it < 30; it++) { const m = (lo + hi) / 2; if (F.eval(x, m, z) > 0) lo = m; else hi = m; }
+        const c = V(x, hi, z), n = V(...F.grad(x, hi, z)).normalize();
+        if (n.y > -.3) continue;                                         // not on the underside
+        const M = new THREE.Matrix4().compose(c.clone().addScaledVector(n, pawR * .03), new THREE.Quaternion().setFromUnitVectors(V(0, -1, 0), n), V(1, 1, 1));
+        const g = ell(pawR, rx, .13, rz, 10);
+        if (bz < .3) {                                                   // the palm pad is a soft three-lobed shape
+          const q = g.attributes.position;
+          for (let i = 0; i < q.count; i++) { const px = q.getX(i) / (pawR * rx), pz = q.getZ(i) / (pawR * rz); q.setZ(i, q.getZ(i) * (1 - .3 * Math.exp(-((px / .25) ** 2)) * Math.max(0, -pz))); }   // notch at the back
+        }
+        faceAdd(g, padC, M, 0, {}, null, () => pb(c).filter(e => e[1] > 1e-3));
+      }
     }
   }
 
@@ -463,7 +504,7 @@ export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
   const bodyGeo = mkGeo(bodyPos, bodyCol, bodyIdx, bodySI, bodySW);
   const nf = face.pos.length / 3;
   const faceIdx = face.idx[0].concat(face.idx[1], face.idx[2]);
-  const faceGeo = mkGeo(face.pos, face.col, faceIdx, Array.from({ length: nf * 4 }, (_, i) => i % 4 ? 0 : BI.Head), Array.from({ length: nf * 4 }, (_, i) => i % 4 ? 0 : 1));
+  const faceGeo = mkGeo(face.pos, face.col, faceIdx, face.si, face.sw);
   faceGeo.setAttribute('uv', new THREE.Float32BufferAttribute(face.uv, 2));
   let faceMap = null;
   if (typeof document !== 'undefined') {
@@ -481,7 +522,7 @@ export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
     faceGeo.deleteAttribute('color');              // the atlas carries the colours now
   }
   faceGeo.morphTargetsRelative = true;
-  faceGeo.morphAttributes.position = ['blink', 'mouth', 'tongue'].map(k => new THREE.Float32BufferAttribute(face[k].map(v => v * S), 3));
+  faceGeo.morphAttributes.position = ['blink', 'mouth'].map(k => new THREE.Float32BufferAttribute(face[k].map(v => v * S), 3));
   faceGeo.addGroup(0, face.idx[0].length, 0); faceGeo.addGroup(face.idx[0].length, face.idx[1].length, 1); faceGeo.addGroup(face.idx[0].length + face.idx[1].length, face.idx[2].length, 2);
   const coatMat = new THREE.MeshStandardMaterial({ name: 'Coat', vertexColors: true, roughness: hairless ? .55 : coatSpec.sheen ? .9 - .5 * coatSpec.sheen : .9, metalness: 0 });
   const faceMats = [
@@ -491,8 +532,8 @@ export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
   ];
   const body = new THREE.SkinnedMesh(bodyGeo, coatMat); body.name = 'Body';
   const faceMesh = new THREE.SkinnedMesh(faceGeo, faceMats); faceMesh.name = 'Face';
-  faceMesh.morphTargetDictionary = { Blink: 0, MouthOpen: 1, Tongue: 2 };
-  faceMesh.morphTargetInfluences = [0, 0, 0];
+  faceMesh.morphTargetDictionary = { Blink: 0, MouthOpen: 1 };
+  faceMesh.morphTargetInfluences = [0, 0];
   const group = new THREE.Group(); group.name = opts.name || 'Cat';
   group.add(bones.Root, body, faceMesh);
   group.updateMatrixWorld(true);              // bones need their rest world matrices before the bind inverses are taken
@@ -505,7 +546,7 @@ export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
     S, pawR: pawR * S, ballH: ballH * S, bodyY: bodyY * S, HS: HS * S, Hc: toM(Hc), toeLen: pawR * 1.25 * S,
     joints: Object.fromEntries(Object.entries(J).map(([k, v]) => [k, toM(v)])),
     len: { lH: lH * S, lR: lR * S, lMc: lMc * S, lF: lF * S, lT: lT * S, lMt: lMt * S },
-    shoulderH: shoulderH * S, hipH: hipH * S, tail: s.tail, shape: s,
+    shoulderH: shoulderH * S, hipH: hipH * S, tongueLen: tongueLen * S, mouth: toM(Hc.clone().add(V(0, mY, mZ))), tail: s.tail, shape: s,
   };
   group.userData = { dims, bones, skeleton, meshes: { body, face: faceMesh }, tris: (bodyIdx.length + faceIdx.length) / 3 };
   return group;

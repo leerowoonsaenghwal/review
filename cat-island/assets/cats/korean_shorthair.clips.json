@@ -1,7 +1,7 @@
 {
  "id": "korean_shorthair",
  "ko": "코리안 숏헤어",
- "bones": 38,
+ "bones": 41,
  "clips": [
   {
    "name": "Idle",
@@ -133,6 +133,15 @@
    "jump": null
   },
   {
+   "name": "Drink",
+   "dur": 2.8,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null
+  },
+  {
    "name": "Flop",
    "dur": 1.6,
    "loop": false,
@@ -160,15 +169,19 @@
    "jump": null
   }
  ],
- "sculpt_tris": 100256,
+ "sculpt_tris": 102924,
  "game_tris": {
   "Body": 14000,
-  "Face": 6074
+  "Face": "~9000 (eyes, nose, mouth, tongue, whiskers, toe beans)"
  },
  "units": "metres, +Z forward, Y up (glTF); clips sampled at 30 fps",
  "blendshapes": [
   "Blink",
-  "MouthOpen",
-  "Tongue"
+  "MouthOpen"
+ ],
+ "tongue_bones": [
+  "Tongue1",
+  "Tongue2",
+  "Tongue3"
  ]
 }
