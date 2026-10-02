@@ -28,6 +28,14 @@ const b = BREEDS.find(x => x.id === id), cat = buildCat(b.shape, b.coat); sc.add
 const cam = new THREE.PerspectiveCamera(24, W / H, .1, 60);
 
 const rings = [];
+const JUMP = { dist: 2.1, up: .55 };      // onto a box: 2.1 forward, .55 up
+if (clip === 'jump') {
+  const box = new THREE.Mesh(new THREE.BoxGeometry(1.5, JUMP.up, 1.7), new THREE.MeshStandardMaterial({ color: '#d9b48a', roughness: .8 }));
+  box.position.set(0, JUMP.up / 2, JUMP.dist + .15); box.castShadow = box.receiveShadow = true; sc.add(box);
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(1.56, .05, 1.76), new THREE.MeshStandardMaterial({ color: '#c79a6a', roughness: .8 }));
+  lid.position.set(0, JUMP.up, JUMP.dist + .15); lid.castShadow = lid.receiveShadow = true; sc.add(lid);
+  cam.position.set(8.8, 2.5, 1.4); cam.lookAt(0, .95, 1.25);
+} else if (clip === 'run') { cam.position.set(5.6, 1.9, 2.6); cam.lookAt(0, .6, .2); }
 if (clip === 'paw') {
   const bowl = new THREE.Mesh(new THREE.CylinderGeometry(.42, .34, .16, 48), new THREE.MeshStandardMaterial({ color: '#7fb0d8', roughness: .5 }));
   bowl.position.set(.3, .08, 1.05); bowl.castShadow = bowl.receiveShadow = true; sc.add(bowl);
@@ -38,7 +46,7 @@ if (clip === 'paw') {
     ring.rotation.x = -Math.PI / 2; ring.position.set(.26, .17, .98); sc.add(ring); rings.push(ring);
   }
   cam.position.set(5.6, 2.4, 4.4); cam.lookAt(0, .75, .4);
-} else if (clip === 'liedown') { cam.position.set(4.2, 3.0, 5.6); cam.lookAt(-.3, .6, .1); }
+} else if (clip === 'jump' || clip === 'run') {} else if (clip === 'liedown') { cam.position.set(4.2, 3.0, 5.6); cam.lookAt(-.3, .6, .1); }
 else { cam.position.set(4.9, 2.4, 4.6); cam.lookAt(0, .62, .1); }
 
 // clip timelines: (t 0..1) -> pose. Transitions cross-fade two poses with setPose(..., { from, blend }).
@@ -47,6 +55,8 @@ const there = (t, a, b) => seg(t, a, b) - seg(t, 1 - b, 1 - a);   // 0 -> 1 (in)
 const CLIPS = {
   idle: t => t < .45 || t > .9 ? setPose(cat, 'stand', t * 2 % 1) : setPose(cat, 'look', 0, { from: { mode: 'stand' }, blend: seg(t, .45, .55) - seg(t, .8, .9) }),
   walk: t => setPose(cat, 'walk', t),
+  run: t => setPose(cat, 'run', t * 2 % 1),
+  jump: t => setPose(cat, 'jump', t, { jump: JUMP }),
   sit: t => setPose(cat, 'sit', t * 2 % 1, { from: { mode: 'stand' }, blend: there(t, 0, .22) }),
   loaf: t => setPose(cat, 'loaf', t * 2 % 1, { from: { mode: 'stand' }, blend: there(t, 0, .25) }),
   groom: t => t < .2 || t > .85 ? setPose(cat, 'sit', 0, { from: { mode: 'stand' }, blend: there(t, 0, .15) })

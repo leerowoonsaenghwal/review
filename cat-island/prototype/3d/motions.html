@@ -12,7 +12,7 @@ import { buildCat, setPose, BREEDS } from './catgen.js';
 const q = new URLSearchParams(location.search);
 const b = BREEDS.find(x => x.id === (q.get('id') || 'korean_shorthair'));
 t.textContent = `${b.ko} · 기본 동작`;
-const M = [['stand', .3, '서기'], ['walk', 0, '걷기 0'], ['walk', .25, '걷기 ¼'], ['walk', .5, '걷기 ½'], ['walk', .75, '걷기 ¾'], ['sit', .3, '앉기'], ['loaf', .3, '식빵'], ['groom', .1, '그루밍'], ['sleep', .3, '잠자기'], ['stretch', .3, '기지개'], ['flop', .3, '발라당 (flop)'], ['paw', .35, '앞발 톡톡 (paw)']];
+const M = [['stand', .3, '서기'], ['walk', 0, '걷기 0'], ['walk', .25, '걷기 ¼'], ['walk', .5, '걷기 ½'], ['walk', .75, '걷기 ¾'], ['run', .05, '뛰기 (웅크림)'], ['run', .3, '뛰기 (뻗음)'], ['run', .55, '뛰기 (앞발 착지)'], ['run', .85, '뛰기 (모음)'], ['jump', .2, '점프 준비'], ['jump', .32, '점프 도약'], ['jump', .5, '점프 공중'], ['jump', .66, '점프 착지'], ['sit', .3, '앉기'], ['loaf', .3, '식빵'], ['groom', .1, '그루밍'], ['sleep', .3, '잠자기'], ['stretch', .3, '기지개'], ['flop', .3, '발라당 (flop)'], ['paw', .35, '앞발 톡톡 (paw)']];
 const CW = +(q.get('cw') || 230), CH = +(q.get('ch') || 190), cols = +(q.get('cols') || 6);
 const only = q.get('modes') ? q.get('modes').split(',') : null;
 g.style.gridTemplateColumns = `repeat(${cols}, ${CW}px)`;
@@ -29,9 +29,11 @@ for (const [mode, ph, label] of M.filter(m => !only || only.includes(m[2]) || on
     Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3 }); sc.add(sun);
     const gr = new THREE.Mesh(new THREE.CircleGeometry(2.4, 48), new THREE.MeshStandardMaterial({ color: '#a8db84', roughness: 1 }));
     gr.rotation.x = -Math.PI / 2; gr.receiveShadow = true; sc.add(gr);
-    const cat = buildCat(b.shape, b.coat); setPose(cat, mode, ph); sc.add(cat);
+    const cat = buildCat(b.shape, b.coat); setPose(cat, mode, ph, { jump: { dist: 1.2, up: 0 } }); sc.add(cat);
+    const ctr = new THREE.Box3().setFromObject(cat).getCenter(new THREE.Vector3());   // follow the cat (jump arc)
     const cam = new THREE.PerspectiveCamera(24, CW / CH, .1, 60);
-    if (view === '34') { cam.position.set(4.6, 2.5, 4.6); cam.lookAt(0, .6, 0); } else { cam.position.set(6.6, 1.1, 0); cam.lookAt(0, .62, 0); }
+    if (view === '34') { cam.position.set(ctr.x + 4.6, ctr.y + 1.9, ctr.z + 4.6); } else { cam.position.set(ctr.x + 6.6, ctr.y + .45, ctr.z); }
+    cam.lookAt(ctr.x, Math.max(.6, ctr.y), ctr.z); gr.position.x = ctr.x; gr.position.z = ctr.z;
     r.render(sc, cam);
     const cv = document.createElement('canvas'); cv.width = CW * 2; cv.height = CH * 2; cv.style.width = CW + 'px'; cv.style.height = CH + 'px';
     cv.getContext('2d').drawImage(r.domElement, 0, 0); cell.append(cv);

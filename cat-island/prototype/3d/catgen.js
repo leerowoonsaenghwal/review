@@ -312,7 +312,10 @@ export function buildCat(shapeIn, coatSpec) {
   const hindExtra = (hTh + hSh + hHo) * (1 - 1 / RH) * .8;
   const bodyY = shoulderY + .06 + hindExtra / 2;
 
-  const body = new THREE.Group(); body.position.y = bodyY; root.add(body); rig.body = body;
+  // `move` carries whole-body motion (jump arc, rolling onto the side); the root itself stays free for the game
+  // to place and turn the cat
+  const move = new THREE.Group(); root.add(move); rig.move = move;
+  const body = new THREE.Group(); body.position.y = bodyY; move.add(body); rig.body = body;
   // spine: two bones pivoting at mid-body, so the torso can arch (stretch), curl (sleep) and tuck (sit).
   // Front legs, neck and ruff ride on the chest bone; hind legs and tail on the hip bone.
   const chest = new THREE.Bone(), hip = new THREE.Bone(); body.add(chest, hip); rig.chest = chest; rig.hip = hip;
@@ -676,6 +679,8 @@ export function buildCat(shapeIn, coatSpec) {
   root.userData.rig = rig;
   root.userData.shape = s;
   setPose(root, 'stand', 0);
+  // where each paw rests when standing (root space): jump/landing spots are planted relative to these
+  rig.restFeet = Object.fromEntries(Object.entries(rig.legs).map(([n, leg]) => { const p = root.worldToLocal(leg.chain.at(-1).getWorldPosition(new THREE.Vector3())); return [n, p]; }));
   return root;
 }
 
@@ -687,13 +692,15 @@ export function buildCat(shapeIn, coatSpec) {
 //   hind leg:  knee (stifle) forward, hock (heel) back, metatarsus near-vertical; the hock angle is set
 //              per pose (flat on the ground when sitting or loafing)
 // setPose(cat, mode, phase, opts)
-//   mode  'stand' | 'walk' | 'sit' | 'loaf' | 'groom' | 'sleep' | 'stretch' | 'flop' | 'paw' | 'look'
+//   mode  'stand' | 'walk' | 'run' | 'jump' | 'sit' | 'loaf' | 'groom' | 'sleep' | 'stretch' | 'flop' | 'paw' | 'look'
+//   opts.jump = { dist, up }: how far forward / how high the jump lands (root units)
 //   phase 0..1 inside the motion's loop (gait cycle, breath, lick ...)
 //   opts.from = { mode, phase } and opts.blend 0..1: cross-fade between two poses (stand -> sit, ...)
 // The same joint maths ports to Unity as a small procedural animator (or baked into clips).
 const TAU = Math.PI * 2;
 const easeIO = t => t * t * (3 - 2 * t);
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const lerpN = (a, b, t) => a + (b - a) * t;
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _qx = new THREE.Quaternion();
 const AX = new THREE.Vector3(1, 0, 0);
 const pulse = (t, a, b) => sstep(a, (a + b) / 2, t) * sstep(b, (a + b) / 2, t);   // 0 -> 1 -> 0 between a and b
@@ -736,7 +743,7 @@ function setEyes(r, closed) {
 
 function resetRig(cat) {
   const r = cat.userData.rig, d = r.dims;
-  cat.rotation.set(0, 0, 0); cat.position.set(0, 0, 0);
+  r.move.rotation.set(0, 0, 0); r.move.position.set(0, 0, 0);
   r.body.position.set(0, d.bodyY, 0); r.body.rotation.set(r.pitch || 0, 0, 0); r.body.scale.set(1, 1, 1);
   r.chest.rotation.set(0, 0, 0); r.hip.rotation.set(0, 0, 0);
   r.neck.rotation.set(-.15 - (r.pitch || 0), 0, 0);       // the neck cancels the body pitch: head stays level
@@ -863,9 +870,74 @@ function posePure(cat, mode, phase) {
     cat.updateMatrixWorld(true);
     for (const n of ['frontL', 'frontR']) under(n, .8 * L, 0, { flex: -.2 });      // reach far forward
     for (const n of ['hindL', 'hindR']) under(n, -.04, 0, { hock: .2 });           // hind legs straight, rump up
+  } else if (mode === 'run') {
+    // rotary gallop (how cats run fast): hind-left, hind-right land close together, then fore-right, fore-left.
+    // The spine does the work: it curls when the hind feet swing forward under the chest (gathered) and
+    // stretches out when the front legs reach and the hind legs push back (extended). Two airborne moments:
+    // one stretched out, one bunched up.
+    const offs = { hindL: 0, hindR: .07, frontR: .42, frontL: .5 }, duty = .3, S = 1.15 * L;
+    const flex = Math.cos(TAU * (phase - .97));                               // +1 gathered .. -1 extended
+    r.chest.rotation.x = .17 * flex; r.hip.rotation.x = -.22 * flex;
+    r.body.position.y += .045 * L * Math.cos(TAU * 2 * (phase - .35)) - .02 * L;   // highest in both flights
+    const dp = .09 * Math.sin(TAU * (phase - .3));                            // nose dips while the fronts are down
+    r.body.rotation.x += dp; r.body.rotation.z = .02 * Math.sin(TAU * phase);
+    r.neck.rotation.x -= dp + .17 * flex * .6; r.head.rotation.x = .05;     // head stays level, eyes on the target
+    for (const e of r.ears) e.rotation.x = e.userData.base.x - .4;          // ears swept back
+    poseTail(cat, -1.62, .02, 0, .1, phase + .2);                            // tail straight back: counterbalance
+    cat.updateMatrixWorld(true);
+    for (const [name, leg] of Object.entries(legs)) {
+      const ph = ((phase - offs[name]) % 1 + 1) % 1, fr = leg.kind === 'front';
+      let dz, dy = 0, o;
+      if (ph < duty) { const u = ph / duty; dz = S * (.5 - u); o = fr ? { flex: -.15 * u } : { hock: .05 + .75 * u }; }   // push off
+      else {
+        const u = (ph - duty) / (1 - duty), arc = Math.sin(Math.PI * u);
+        dz = -S / 2 + S * easeIO(u); dy = (fr ? .32 : .26) * L * Math.pow(arc, .8);
+        o = fr ? { flex: 1.7 * arc } : { hock: .8 + .5 * arc - .75 * u, flex: .8 * arc };   // paws tucked in flight
+      }
+      under(name, dz + (fr ? .12 : .02) * L, dy, o);
+    }
+  } else if (mode === 'jump') {
+    // a real cat's jump onto something (opts via setPose: dist forward, up = landing height):
+    // crouch + bum wiggle (0-.27) -> hind legs fire, front lifts (.27-.36) -> flight, body arcs from nose-up to
+    // nose-down, front legs reach for the landing (.36-.64) -> front paws land, hind paws follow (.64-.74)
+    // -> absorb in a crouch (.74-.9) -> stand
+    const o = r.jumpOpts || {}, D = o.dist ?? 1.5 * d.BL / .82, U = o.up ?? 0, t = phase;
+    const seg = (a, b) => clamp((t - a) / (b - a), 0, 1);
+    const fly = seg(.3, .68), Hx = .32 + U * .35;
+    r.move.position.set(0, U * fly + 4 * Hx * fly * (1 - fly), D * fly);
+    const crouch = easeIO(seg(0, .12)) * (1 - easeIO(seg(.27, .33))) + .7 * easeIO(seg(.68, .76)) * (1 - easeIO(seg(.8, .92)));
+    r.body.position.y = d.bodyY * (1 - .3 * crouch);
+    const pitch = t < .27 ? .1 * crouch : t < .36 ? -.55 * easeIO(seg(.27, .33)) : t < .64 ? -.55 + .9 * easeIO(seg(.36, .64)) : .35 * (1 - easeIO(seg(.66, .9)));
+    r.body.rotation.x = (r.pitch || 0) + pitch;
+    const sp = t < .36 ? -easeIO(seg(.27, .33)) : t < .64 ? -1 + 1.5 * Math.sin(Math.PI * seg(.36, .64)) : -.5 * (1 - seg(.64, .8));   // spine: - stretched, + tucked
+    r.chest.rotation.x = .12 * sp; r.hip.rotation.x = -.16 * sp;
+    const wig = Math.sin(TAU * 6 * t) * sstep(.06, .12, t) * (1 - sstep(.22, .27, t));
+    r.hip.rotation.y = .14 * wig;                                                     // the famous bum wiggle
+    r.neck.rotation.x = -.15 - (r.pitch || 0) - pitch * .8 + .25 * crouch;            // eyes fixed on the target
+    for (const e of r.ears) e.rotation.x = e.userData.base.x + (t < .3 ? .12 : -.3 * Math.sin(Math.PI * fly));
+    // crouched: tail low behind, only the tip twitching; in the air it lifts as a counterweight/rudder
+    poseTail(cat, t < .3 ? -1.68 : -1.55 - .45 * Math.sin(Math.PI * fly), t < .3 ? .02 : -.02, 0, t < .3 ? .3 : .06, t * 4);
+    cat.updateMatrixWorld(true);
+    // planted paws stay put on the ground (launch spot, then landing spot) while the body moves
+    // (root space: `move` carries the body through the air, the ground spots stay where they are)
+    const planted = (name, land) => { const f = r.restFeet[name]; return new THREE.Vector3(f.x, P + (land ? U : 0), f.z + (land ? D : 0)); };
+    for (const [name, leg] of Object.entries(legs)) {
+      const fr = leg.kind === 'front', step = !fr ? .02 * Math.max(0, Math.sin(TAU * 6 * t + (leg.side > 0 ? 0 : Math.PI))) * (wig ? 1 : 0) : 0;
+      const liftOff = fr ? .28 : .34, touch = fr ? .64 : .73;
+      if (t < liftOff) { const p = planted(name, false); if (fr) p.z += .06 * crouch; p.y += step; feet[name] = [p, fr ? {} : { hock: .1 - .35 * crouch }]; }
+      else if (t >= touch) feet[name] = [planted(name, true), fr ? {} : { hock: .1 - .35 * crouch }];
+      else {
+        const u = (t - liftOff) / (touch - liftOff), top = rootPos(cat, leg.top);
+        // fronts: tuck to the chest, then reach forward-down for the landing; hinds: trail stretched, then tuck under
+        const rel = fr ? new THREE.Vector3(top.x, top.y - lerpN(.35, .55, u) * L - .1 * L * Math.sin(Math.PI * u), top.z + lerpN(.15, .5, u) * L)
+                       : new THREE.Vector3(top.x, top.y - lerpN(.85, .55, Math.sin(Math.PI * u)) * L * .8, top.z + lerpN(-.5, .15, easeIO(u)) * L);
+        const k = sstep(.7, 1, u);                                                   // home in on the landing spot
+        feet[name] = [rel.lerp(planted(name, true), k), fr ? { flex: 1.4 * (1 - u) - .1 } : { hock: .9 - .7 * u, flex: .5 * (1 - u) }];
+      }
+    }
   } else if (mode === 'flop') {
     // lying on its side, fully relaxed (Ragdoll); limbs loose, upper legs draped towards the ground
-    cat.rotation.z = 1.42; cat.position.y = .3 * s.bodyBulk * (s.fur === 'long' ? 1.12 : 1);
+    r.move.rotation.z = 1.42; r.move.position.y = .3 * s.bodyBulk * (s.fur === 'long' ? 1.12 : 1);
     r.body.scale.set(1 + .018 * breath, 1 + .025 * breath, 1);
     r.head.rotation.set(-.1, 0, -.35 + .02 * breath); r.hip.rotation.y = -.12;
     setEyes(r, .6);
@@ -887,7 +959,7 @@ function posePure(cat, mode, phase) {
 function rigChannels(cat) {
   const r = cat.userData.rig, out = [];
   const rot = (o, axes = 'xyz') => { for (const a of axes) out.push([o.rotation, a]); };
-  out.push([cat.position, 'y']); rot(cat, 'z');
+  out.push([r.move.position, 'y'], [r.move.position, 'z']); rot(r.move, 'z');
   out.push([r.body.position, 'y'], [r.body.scale, 'x'], [r.body.scale, 'y']); rot(r.body, 'xz');
   rot(r.chest); rot(r.hip); rot(r.neck); rot(r.head);
   for (const j of r.tail) rot(j, 'xz');
@@ -899,6 +971,7 @@ function rigChannels(cat) {
 }
 
 export function setPose(cat, mode = 'stand', phase = 0, opts = {}) {
+  cat.userData.rig.jumpOpts = opts.jump;   // { dist, up } for 'jump'
   let from = opts.from;
   if (!from && mode === 'flop' && opts.blend != null) from = { mode: 'stand', phase: 0 };
   if (!from) { posePure(cat, mode, phase); return; }
