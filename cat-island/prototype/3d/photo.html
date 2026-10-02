@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #f6f1e3; font-family: Jua, sans-serif; color: #6f5a40; width: 1180px; }
+  h1 { margin: 18px 24px 2px; font-size: 30px; font-weight: normal; }
+  p.sub { margin: 0 24px 12px; font-size: 15px; color: #a08a6a; }
+  #rows { position: relative; }
+  #gl { position: absolute; left: 0; top: 0; pointer-events: none; }
+  .row { display: grid; grid-template-columns: 330px 160px 360px 300px; height: 300px; margin: 0 12px 10px; background: #fbf6e6; border-radius: 22px; overflow: hidden; }
+  .ph { position: relative; display: flex; align-items: center; justify-content: center; background: #efe6cf; }
+  .ph canvas { max-width: 330px; max-height: 300px; }
+  .arrow { display: flex; align-items: center; justify-content: center; font-size: 46px; color: #c9b892; flex-direction: column; }
+  .arrow small { font-size: 13px; margin-top: 4px; color: #a08a6a; }
+  .info { padding: 18px 16px; font-size: 15px; line-height: 1.5; }
+  .info b { font-weight: normal; font-size: 21px; color: #6f5a40; }
+  .sw { display: inline-flex; align-items: center; margin: 4px 10px 2px 0; font-size: 13px; }
+  .sw i { width: 22px; height: 22px; border-radius: 50%; margin-right: 5px; box-shadow: inset 0 0 0 2px rgba(0,0,0,.08); }
+  .chips span { display: inline-block; border-radius: 999px; padding: 2px 11px; margin: 3px 4px 0 0; background: #efe6cf; font-size: 14px; }
+  .chips span.on { background: #8fc96b; color: #fff; }
+  .why { color: #a08a6a; font-size: 13px; }
+  .cat3d { position: relative; }
+</style>
+</head>
+<body>
+<h1>사진으로 우리 고양이 만들기</h1>
+<p class="sub">사진 → 고양이 영역 분리 → 털색·무늬·눈 색 추출 → 품종 체형 추천 → 3D 고양이 (모두 기기 안에서 처리)</p>
+<div id="rows"></div>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+import { FilesetResolver, ImageSegmenter } from './node_modules/@mediapipe/tasks-vision/vision_bundle.mjs';
+import { buildCat, setPose, BREEDS } from './catgen.js';
+import { analyzeCoat, suggestBreeds } from './photo2cat.js';
+
+// ?items=name:eyeX1,eyeY1,eyeX2,eyeY2:ear=fold,fur=long:breed ; ...   (eye coords 0..1, all parts optional)
+// Eye points stand in for iOS Vision's animal body pose landmarks.
+const q = new URLSearchParams(location.search);
+const items = (q.get('items') || 'siamese:.41,.234,.47,.22;black:.187,.326,.294,.33;russian:.288,.28,.465,.31;tabby:.353,.32,.479,.32;persian:.53,.504,.706,.516:fur=long').split(';').map(s => {
+  const [name, eyes = '', tg = '', breed = ''] = s.split(':');
+  const e = eyes ? eyes.split(',').map(Number) : null;
+  const toggles = Object.fromEntries(tg ? tg.split(',').map(kv => kv.split('=')) : []);
+  return { name, eyes: e && e.length === 4 ? [{ x: e[0], y: e[1] }, { x: e[2], y: e[3] }] : null, toggles, breed };
+});
+
+const fs = await FilesetResolver.forVisionTasks('./node_modules/@mediapipe/tasks-vision/wasm');
+const seg = await ImageSegmenter.createFromOptions(fs, {
+  baseOptions: { modelAssetPath: './models/deeplab_v3.tflite', delegate: 'CPU' },
+  runningMode: 'IMAGE', outputConfidenceMasks: true, outputCategoryMask: false,
+});
+const labels = seg.getLabels();
+const CAT = labels.indexOf('cat'), DOG = labels.indexOf('dog');   // DeepLab sometimes calls a fluffy cat a dog
+
+const loadImg = src => new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = src; });
+const results = [];
+for (const it of items) {
+  const im = await loadImg(`photos/${it.name}.jpg`);
+  const S = 360 / Math.max(im.width, im.height);
+  const w = Math.round(im.width * S), h = Math.round(im.height * S);
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const cx = cv.getContext('2d', { willReadFrequently: true }); cx.drawImage(im, 0, 0, w, h);
+  const img = cx.getImageData(0, 0, w, h);
+  const res = seg.segment(cv);
+  const a = res.confidenceMasks[CAT].getAsFloat32Array(), b = DOG >= 0 ? res.confidenceMasks[DOG].getAsFloat32Array() : null;
+  const mask = new Float32Array(w * h); for (let i = 0; i < w * h; i++) mask[i] = a[i] + (b ? b[i] : 0);
+  res.close?.();
+  const eyes = it.eyes && it.eyes.map(e => ({ x: e.x * w, y: e.y * h }));
+  const t0 = performance.now();
+  const out = analyzeCoat(img, mask, { eyes, debug: q.has('debug') });
+  const ms = Math.round(performance.now() - t0);
+  const sugg = out.ok ? suggestBreeds(out.coat, it.toggles) : [{ id: 'korean_shorthair', reason: '' }];
+  const breedId = it.breed || sugg[0].id;
+  results.push({ it, cv, mask, eyes, out, sugg, breedId, ms });
+  console.log(it.name, JSON.stringify(out.coat), JSON.stringify(out.report), ms + 'ms');
+}
+
+// ---- layout
+for (const r of results) {
+  const row = document.createElement('div'); row.className = 'row';
+  const ph = document.createElement('div'); ph.className = 'ph';
+  // photo with the cat outline and eye points
+  const c2 = document.createElement('canvas'); c2.width = r.cv.width; c2.height = r.cv.height;
+  const g = c2.getContext('2d'); g.drawImage(r.cv, 0, 0);
+  const ov = g.createImageData(c2.width, c2.height);
+  for (let i = 0; i < r.mask.length; i++) {
+    const x = i % c2.width, y = (i / c2.width) | 0, on = r.mask[i] > .5;
+    const edge = on && (x === 0 || y === 0 || r.mask[i - 1] <= .5 || r.mask[i + 1] <= .5 || r.mask[i - c2.width] <= .5 || r.mask[i + c2.width] <= .5);
+    if (edge) { ov.data[i * 4] = 255; ov.data[i * 4 + 1] = 214; ov.data[i * 4 + 2] = 80; ov.data[i * 4 + 3] = 255; }
+    else if (!on) { ov.data[i * 4 + 3] = 120; ov.data[i * 4] = ov.data[i * 4 + 1] = ov.data[i * 4 + 2] = 246; }
+  }
+  const tmp = document.createElement('canvas'); tmp.width = c2.width; tmp.height = c2.height; tmp.getContext('2d').putImageData(ov, 0, 0);
+  g.drawImage(tmp, 0, 0);
+  if (r.eyes) for (const e of r.eyes) { g.strokeStyle = '#ff7aa8'; g.lineWidth = 2.5; g.beginPath(); g.arc(e.x, e.y, 7, 0, 7); g.stroke(); }
+  if (r.out.debug) {   // ?debug: show the band-passed luminance instead of the photo (grey = 0, white = lighter)
+    const dd = g.createImageData(c2.width, c2.height);
+    for (let i = 0; i < r.mask.length; i++) { const v = r.mask[i] > .5 ? 128 + r.out.debug[i] * 8 : 40; dd.data[i * 4] = dd.data[i * 4 + 1] = dd.data[i * 4 + 2] = v; dd.data[i * 4 + 3] = 255; }
+    g.putImageData(dd, 0, 0);
+  }
+  ph.append(c2); row.append(ph);
+  row.insertAdjacentHTML('beforeend', `<div class="arrow">➜<small>${r.ms}ms</small></div>`);
+  const co = r.out.coat || {};
+  const sw = (k, label) => co[k] ? `<span class="sw"><i style="background:${co[k]}"></i>${label}</span>` : '';
+  const PAT = { solid: '단색', mackerel: '고등어 태비', classic: '클래식 태비', spotted: '점박이', tuxedo: '턱시도', cow: '젖소', van: '반', calico: '삼색이', tortie: '카오스', point: '포인트' };
+  const tgl = Object.entries(r.it.toggles).map(([k, v]) => ({ 'ear=fold': '접힌 귀', 'ear=curl': '말린 귀', 'fur=long': '장모', 'fur=curly': '곱슬', 'legs=short': '짧은 다리' }[`${k}=${v}`] || '')).filter(Boolean);
+  row.insertAdjacentHTML('beforeend', `<div class="info">
+    <b>${PAT[co.pattern] || '분석 실패'}</b>${co.whiteLevel ? ` · 흰 털 ${Math.round(co.whiteLevel * 100)}%` : ''}${co.lightMuzzle ? ' · 흰 주둥이' : ''}<br>
+    ${sw('base', '바탕')}${sw('dark', '줄무늬')}${sw('second', '두번째')}${sw('point', '포인트')}${sw('eye', '눈')}<br>
+    <span class="why">${(r.out.report?.why || []).join(' · ')}</span><br>
+    ${r.out.uncertain ? '<span class="why" style="color:#d9822b">애매함 → "줄무늬가 있나요?" 확인 질문</span><br>' : ''}
+    <span class="why">사용자 선택: ${tgl.length ? tgl.join(', ') : '없음'}</span>
+    <div class="chips">${r.sugg.map(s => `<span class="${s.id === r.breedId ? 'on' : ''}">${BREEDS.find(b => b.id === s.id).ko}</span>`).join('')}</div>
+  </div>`);
+  const c3 = document.createElement('div'); c3.className = 'cat3d'; row.append(c3);
+  rows.append(row);
+}
+
+// ---- 3D cats (one renderer, scissored into each row's last cell)
+const W = document.body.clientWidth, H = rows.clientHeight;
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(2); renderer.setSize(W, H); renderer.domElement.id = 'gl';
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+renderer.setScissorTest(true);
+rows.prepend(renderer.domElement);
+const top0 = rows.getBoundingClientRect().top;
+[...document.querySelectorAll('.cat3d')].forEach((el, i) => {
+  const r = results[i], bd = BREEDS.find(b => b.id === r.breedId);
+  const coat = { ...r.out.coat, eye: r.out.coat?.eye || bd.coat.eye };
+  const scene = new THREE.Scene();
+  scene.add(new THREE.HemisphereLight('#f2fbff', '#c9b892', 1.35));
+  const sun = new THREE.DirectionalLight('#fff4dc', 2.0); sun.position.set(-3, 6, 5); sun.castShadow = true; sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
+  sun.shadow.mapSize.set(1024, 1024); sun.shadow.radius = 5; Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3 });
+  scene.add(sun);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(1.7, 48), new THREE.MeshStandardMaterial({ color: '#a8db84', roughness: 1 }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  const cat = buildCat(bd.shape, coat); setPose(cat, 'walk', .12); cat.rotation.y = .55; scene.add(cat);
+  const k = Math.max(1, new THREE.Box3().setFromObject(cat).max.y / 2.0);
+  const rc = el.getBoundingClientRect();
+  const cam = new THREE.PerspectiveCamera(24, rc.width / rc.height, .1, 50);
+  cam.position.set(6.4 * k, 2.5 * k, 2.6 * k); cam.lookAt(0, .9 * k, .05);
+  const x = rc.left, y = H - (rc.top - top0) - rc.height;
+  renderer.setViewport(x, y, rc.width, rc.height); renderer.setScissor(x, y, rc.width, rc.height);
+  renderer.render(scene, cam);
+});
+window.__done = true;
+</script>
+</body>
+</html>

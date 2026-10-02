@@ -9,5 +9,8 @@
   - 네 발 보행 리그(걷기 동작 포함)
   - 품종 32종과 털 무늬 12종 카탈로그
   - 마을 그래픽 시안
+  - 사진 → 고양이 변환 (`photo.html`, `photo2cat.js`)
+
+![로꼬 사진 → 3D](docs/images/rocco_photo_to_3d.png)
 
 ![마을 시안](docs/images/ac3d.png)

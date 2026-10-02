@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import { buildCat, setPose, BREEDS } from './catgen.js';
 const q = new URLSearchParams(location.search);
 const ids = (q.get('ids') || 'scottish_fold').split(',');
+// ?coat={...} overrides the breed coat (e.g. a coat extracted from a photo by photo2cat.js)
+const coatOverride = q.get('coat') ? JSON.parse(q.get('coat')) : null;
 const CW = 420, CH = 420, W = CW * ids.length;
 const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 r.setPixelRatio(2); r.setSize(W, CH); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -17,7 +19,7 @@ ids.forEach((id, i) => {
   scene.add(new THREE.HemisphereLight('#f2fbff', '#c9b892', 1.35));
   const sun = new THREE.DirectionalLight('#fff4dc', 2); sun.position.set(-3, 6, 5); sun.castShadow = true; sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03; sun.shadow.radius = 4; scene.add(sun);
   const g = new THREE.Mesh(new THREE.CircleGeometry(2, 48), new THREE.MeshStandardMaterial({ color: '#a8db84' })); g.rotation.x = -Math.PI / 2; g.receiveShadow = true; scene.add(g);
-  const cat = buildCat(b.shape, b.coat); setPose(cat, 'walk', .1); cat.rotation.y = .6; scene.add(cat);
+  const cat = buildCat(b.shape, coatOverride ? { eye: b.coat.eye, ...coatOverride } : b.coat); setPose(cat, 'walk', .1); cat.rotation.y = .6; scene.add(cat);
   const cam = new THREE.PerspectiveCamera(22, 1, .1, 50); cam.position.set(4.4, 2.3, 3.4); cam.lookAt(0, .85, .2);
   r.setViewport(i * CW, 0, CW, CH); r.setScissor(i * CW, 0, CW, CH); r.render(scene, cam);
 });
