@@ -136,7 +136,7 @@ export function makeCoat(spec) {
     if (part === 'head') {
       const d = info.dir;
       if (d.y > .3 && d.z > 0 && Math.abs(d.x) < .42) s = sstep(.35, .75, Math.sin(d.x * 24));      // forehead "M"
-      if (Math.abs(d.x) > .62 && Math.abs(d.x) < .86 && d.z > .42 && d.y > -.3 && d.y < .02) s = Math.max(s, sstep(.55, .85, Math.sin(d.y * 26 + 1.2)) * .75);  // whisker-cheek lines
+      if (Math.abs(d.x) > .6 && Math.abs(d.x) < .88 && d.z > .38) s = Math.max(s, sstep(.06, .0, Math.abs(d.y + .1)) * sstep(.6, .7, Math.abs(d.x)) * sstep(.88, .78, Math.abs(d.x)) * .65);   // one soft cheek stripe, wide enough not to break into dashes on a game mesh  // whisker-cheek lines
       if (P === 'ticked' || P === 'spotted') s *= .8;
     } else if (part === 'tail') {
       s = P === 'ticked' ? Math.max(sstep(.75, .95, info.t), .3) : sstep(.1, .6, Math.sin(info.t * 34)) * .85;
@@ -1035,3 +1035,4 @@ export const KOREAN_COATS = [
   { id: 'silver_classic', ko: '은색 클래식 태비', coat: { pattern: 'classic', base: '#d6d6d2', dark: '#3a3a3a' } },
   { id: 'van', ko: '반 (머리·꼬리만)', coat: { pattern: 'van', base: '#e2903f' } },
 ];
+export const NOISE = { vnoise, fbm, sstep, worley2 };

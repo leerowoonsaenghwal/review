@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#f6f1e3;font-family:Jua,sans-serif;color:#6f5a40}h1{margin:14px 20px 2px;font-size:26px;font-weight:normal}
+p{margin:0 20px 8px;color:#a08a6a;font-size:14px}#g{display:grid;gap:6px;padding:0 10px 12px}.c{background:#fbf6e6;border-radius:14px;overflow:hidden}
+.c canvas{display:block}.c b{display:block;font-weight:normal;font-size:14px;margin:2px 10px 6px}</style></head>
+<body><h1 id="ttl"></h1><p id="sub"></p><div id="g"></div>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js" } }</script>
+<script type="module">
+// motion review sheet: ?id=breed&clip=Walk&n=8&view=side|34|front&cw=&ch=   (n frames spread over the clip)
+import * as THREE from 'three';
+import { BREEDS } from './catgen.js';
+import { buildCatModel } from './catmodel.js';
+import { makeRig, makeClips, solveAt } from './catmotion.js';
+const q = new URLSearchParams(location.search);
+const b = BREEDS.find(x => x.id === (q.get('id') || 'korean_shorthair'));
+const clipNames = (q.get('clip') || 'Walk').split(','), n = +(q.get('n') || 8), views = (q.get('view') || 'side').split(',');
+const CW = +(q.get('cw') || 240), CH = +(q.get('ch') || 200);
+const cat = buildCatModel(b.shape, b.coat, { res: +(q.get('res') || .02) });
+const rig = makeRig(cat), clips = makeClips(rig);
+ttl.textContent = `${b.ko} · ${clipNames.join(', ')}`;
+sub.textContent = clips.filter(c => clipNames.includes(c.name)).map(c => `${c.name} ${c.dur.toFixed(2)}s${c.speed ? ` · ${c.speed.toFixed(2)} m/s · 보폭 ${(c.stride * 100).toFixed(0)}cm` : ''}`).join('  |  ');
+g.style.gridTemplateColumns = `repeat(${n}, ${CW}px)`;
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setPixelRatio(2); r.setSize(CW, CH); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1;
+const sc = new THREE.Scene();
+sc.add(new THREE.HemisphereLight('#f2fbff', '#c9b892', 1.35));
+const sun = new THREE.DirectionalLight('#fff4dc', 2); sun.castShadow = true; sun.shadow.bias = -.0002; sun.shadow.normalBias = .01; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -1, right: 1, top: 1, bottom: -1 }); sc.add(sun, sun.target);
+const gr = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ color: '#a8db84', roughness: 1 }));
+gr.rotation.x = -Math.PI / 2; gr.receiveShadow = true; sc.add(gr);
+// floor marks so planted paws (no sliding) are easy to judge
+for (let z = -2; z < 12; z += .1) { const m = new THREE.Mesh(new THREE.PlaneGeometry(.6, .006), new THREE.MeshBasicMaterial({ color: '#94c870' })); m.rotation.x = -Math.PI / 2; m.position.set(0, .001, z); sc.add(m); }
+sc.add(cat);
+for (const cn of clipNames) {
+  const clip = clips.find(c => c.name === cn);
+  if (clip.jump) { const bx = new THREE.Mesh(new THREE.BoxGeometry(.5, clip.jump.H, .6), new THREE.MeshStandardMaterial({ color: '#d9b48a', roughness: .8 })); bx.position.set(0, clip.jump.H / 2, clip.jump.D + .05); bx.castShadow = bx.receiveShadow = true; sc.add(bx); }
+  for (const view of views) for (let i = 0; i < n; i++) {
+    const t = clip.loop ? clip.dur * i / n : clip.dur * i / (n - 1);
+    solveAt(rig, clip, t);
+    const c = rig.B.Hips.getWorldPosition(new THREE.Vector3()).lerp(rig.B.Head.getWorldPosition(new THREE.Vector3()), .45);   // frame body and head
+    const dir = { side: [1, .12, 0], '34': [.8, .35, .75], front: [.15, .2, 1], back: [-.4, .3, -1] }[view];
+    const cam = new THREE.PerspectiveCamera(26, CW / CH, .01, 20);
+    cam.position.copy(c).add(new THREE.Vector3(...dir).normalize().multiplyScalar(+(q.get('dist') || 2.3))); cam.lookAt(c.x, c.y, c.z);
+    sun.position.copy(c).add(new THREE.Vector3(-1, 2, 1.6)); sun.target.position.copy(c);
+    r.render(sc, cam);
+    const cell = document.createElement('div'); cell.className = 'c';
+    const cv = document.createElement('canvas'); cv.width = CW * 2; cv.height = CH * 2; cv.style.width = CW + 'px'; cv.style.height = CH + 'px';
+    cv.getContext('2d').drawImage(r.domElement, 0, 0); cell.append(cv);
+    cell.insertAdjacentHTML('beforeend', `<b>${cn} ${t.toFixed(2)}s</b>`); g.append(cell);
+  }
+}
+window.__done = true;
+</script></body></html>

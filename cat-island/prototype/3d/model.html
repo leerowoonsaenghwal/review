@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#f6f1e3;font-family:Jua,sans-serif;color:#6f5a40}h1{margin:14px 20px 2px;font-size:26px;font-weight:normal}
+p{margin:0 20px 8px;color:#a08a6a;font-size:14px}#g{display:grid;gap:8px;padding:0 10px 12px}.c{background:#fbf6e6;border-radius:16px;overflow:hidden}
+.c canvas{display:block}.c b{display:block;font-weight:normal;font-size:15px;margin:3px 10px 7px}</style></head>
+<body><h1 id="t"></h1><p id="sub"></p><div id="g"></div>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js" } }</script>
+<script type="module">
+// v2 model review: ?id=breed&views=front,34,side,back,top,wire,bend,legs&cw=&ch=
+import * as THREE from 'three';
+import { BREEDS } from './catgen.js';
+import { buildCatModel } from './catmodel.js';
+const q = new URLSearchParams(location.search);
+const b = BREEDS.find(x => x.id === (q.get('id') || 'korean_shorthair'));
+const views = (q.get('views') || 'front,34,side,back,bend,legs,wire').split(',');
+const CW = +(q.get('cw') || 300), CH = +(q.get('ch') || 280);
+g.style.gridTemplateColumns = `repeat(${Math.min(views.length, +(q.get('cols') || 7))}, ${CW}px)`;
+const cat = buildCatModel(b.shape, b.coat);
+const { bones, dims } = cat.userData;
+t.textContent = `${b.ko} · 게임 모델 v2`;
+sub.textContent = `${cat.userData.tris.toLocaleString()} 삼각형 · 뼈 ${cat.userData.skeleton.bones.length}개 · 어깨 높이 ${(dims.shoulderH * 100).toFixed(1)}cm`;
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setPixelRatio(2); r.setSize(CW, CH); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1;
+const LABEL = { front: '정면', '34': '3/4', side: '측면', back: '뒷면', top: '위', wire: '와이어프레임', bend: '변형 테스트: 척추·목·꼬리', legs: '변형 테스트: 다리' };
+const reset = () => { for (const bn of Object.values(bones)) bn.rotation.set(0, 0, 0); };
+for (const v of views) {
+  reset();
+  if (v === 'bend') {
+    for (const n of ['Spine1', 'Spine2', 'Chest']) bones[n].rotation.set(-.12, .22, 0);
+    bones.Neck.rotation.set(.2, .3, 0); bones.Head.rotation.set(0, .3, .2);
+    for (let i = 1; i <= 10; i++) bones['Tail' + i].rotation.set(i === 1 ? -.6 : -.18, .1, 0);
+  }
+  if (v === 'legs' || v === 'legs2') {
+    bones.UpperArm_L.rotation.x = -1.0; bones.Forearm_L.rotation.x = -1.2; bones.Hand_L.rotation.x = 1.4; bones.Fingers_L.rotation.x = .6;
+    bones.Thigh_R.rotation.x = -.6; bones.Shin_R.rotation.x = -.5; bones.Foot_R.rotation.x = 1.1; bones.Scapula_L.rotation.x = -.25;
+    bones.Ear_L.rotation.x = -.6; bones.Ear_R.rotation.z = -.4;
+  }
+  const sc = new THREE.Scene();
+  sc.add(new THREE.HemisphereLight('#f2fbff', '#c9b892', 1.35));
+  const sun = new THREE.DirectionalLight('#fff4dc', 2); sun.position.set(-1.2, 2.4, 2); sun.castShadow = true;
+  sun.shadow.bias = -.0002; sun.shadow.normalBias = .01; sun.shadow.radius = 4; sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -1, right: 1, top: 1, bottom: -1 }); sc.add(sun);
+  const gr = new THREE.Mesh(new THREE.CircleGeometry(.9, 64), new THREE.MeshStandardMaterial({ color: '#a8db84', roughness: 1 }));
+  gr.rotation.x = -Math.PI / 2; gr.receiveShadow = true; sc.add(gr);
+  sc.add(cat);
+  const wire = v === 'wire';
+  cat.userData.meshes.body.material.wireframe = wire;
+  const box = new THREE.Box3().setFromObject(cat), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3()).length();
+  const dir = { front: [0, .15, 1], '34': [.75, .3, .7], side: [1, .12, 0], back: [-.3, .35, -1], top: [0, 1, .05], wire: [.75, .3, .7], bend: [.6, .5, .8], legs: [.85, .2, .6], legs2: [1, .15, -.05] }[v];
+  const cam = new THREE.PerspectiveCamera(26, CW / CH, .01, 20);
+  cam.position.copy(c).add(new THREE.Vector3(...dir).normalize().multiplyScalar(sz * 1.9)); cam.lookAt(c);
+  r.render(sc, cam);
+  const cell = document.createElement('div'); cell.className = 'c';
+  const cv = document.createElement('canvas'); cv.width = CW * 2; cv.height = CH * 2; cv.style.width = CW + 'px'; cv.style.height = CH + 'px';
+  cv.getContext('2d').drawImage(r.domElement, 0, 0); cell.append(cv);
+  cell.insertAdjacentHTML('beforeend', `<b>${LABEL[v] || v}</b>`); g.append(cell);
+  cat.userData.meshes.body.material.wireframe = false;
+}
+window.__done = true;
+</script></body></html>

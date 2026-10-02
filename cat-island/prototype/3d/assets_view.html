@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#f6f1e3;font-family:Jua,sans-serif;color:#6f5a40}h1{margin:14px 20px 2px;font-size:26px;font-weight:normal}
+p{margin:0 20px 8px;color:#a08a6a;font-size:14px}#g{display:grid;gap:8px;padding:0 10px 12px}.c{background:#fbf6e6;border-radius:16px;overflow:hidden}
+.c canvas{display:block}.c b{display:block;font-weight:normal;font-size:15px;margin:3px 10px 7px}</style></head>
+<body><h1>게임용 고양이 에셋 (Blender 최종본)</h1><p id="sub">assets/cats/*.glb · 몸 14,000 + 얼굴 6,000 삼각형 · 뼈 38개 · 코트 텍스처 2048px + 노멀맵 · 블렌드셰이프 3개 · 동작 17개</p><div id="g"></div>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const q = new URLSearchParams(location.search);
+const ids = (q.get('ids') || 'korean_shorthair,scottish_fold,persian').split(','), views = (q.get('views') || '34,front,wire').split(',');
+const CW = +(q.get('cw') || 300), CH = +(q.get('ch') || 280);
+g.style.gridTemplateColumns = `repeat(${views.length}, ${CW}px)`;
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setPixelRatio(2); r.setSize(CW, CH); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1;
+const LABEL = { '34': '3/4 (Idle 첫 프레임)', front: '정면', side: '측면', wire: '와이어프레임 (게임 메시)' };
+for (const id of ids) {
+  const gltf = await new GLTFLoader().loadAsync(`out/${id}.glb`);
+  const cat = gltf.scene, mixer = new THREE.AnimationMixer(cat);
+  mixer.clipAction(gltf.animations.find(a => a.name === 'Idle')).play(); mixer.setTime(.5);
+  cat.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.frustumCulled = false; } });
+  for (const v of views) {
+    const sc = new THREE.Scene();
+    sc.add(new THREE.HemisphereLight('#f2fbff', '#c9b892', 1.35));
+    const sun = new THREE.DirectionalLight('#fff4dc', 2); sun.position.set(-1.2, 2.4, 2); sun.castShadow = true; sun.shadow.bias = -.0002; sun.shadow.normalBias = .01; sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(sun.shadow.camera, { left: -1, right: 1, top: 1, bottom: -1 }); sc.add(sun);
+    const gr = new THREE.Mesh(new THREE.CircleGeometry(.7, 64), new THREE.MeshStandardMaterial({ color: '#a8db84', roughness: 1 }));
+    gr.rotation.x = -Math.PI / 2; gr.receiveShadow = true; sc.add(gr); sc.add(cat);
+    const wire = v === 'wire';
+    cat.traverse(o => { if (o.isMesh) [].concat(o.material).forEach(m => { m.wireframe = wire; }); });
+    const dir = { '34': [.8, .3, .75], front: [0, .12, 1], side: [1, .1, 0], wire: [.8, .3, .75] }[v];
+    const cam = new THREE.PerspectiveCamera(26, CW / CH, .01, 20);
+    const c = new THREE.Vector3(0, .3, .06);
+    cam.position.copy(c).add(new THREE.Vector3(...dir).normalize().multiplyScalar(2.15)); cam.lookAt(c);
+    r.render(sc, cam);
+    const cell = document.createElement('div'); cell.className = 'c';
+    const cv = document.createElement('canvas'); cv.width = CW * 2; cv.height = CH * 2; cv.style.width = CW + 'px'; cv.style.height = CH + 'px';
+    cv.getContext('2d').drawImage(r.domElement, 0, 0); cell.append(cv);
+    cell.insertAdjacentHTML('beforeend', `<b>${id.replace(/_/g, ' ')} · ${LABEL[v]}</b>`); g.append(cell);
+    cat.traverse(o => { if (o.isMesh) [].concat(o.material).forEach(m => { m.wireframe = false; }); });
+  }
+}
+window.__done = true;
+</script></body></html>

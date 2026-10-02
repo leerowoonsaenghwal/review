@@ -6,7 +6,7 @@ with sync_playwright() as p:
     pg=b.new_page(viewport={"width":w,"height":400}, device_scale_factor=1)
     logs=[]; pg.on("console", lambda m: logs.append(m.text)); pg.on("pageerror", lambda e: logs.append("ERR "+str(e)))
     pg.goto("http://localhost:8766/"+sys.argv[2])
-    try: pg.wait_for_function("window.__done === true", timeout=90000)
+    try: pg.wait_for_function("window.__done === true", timeout=240000)
     except Exception as e: print("TIMEOUT", e)
     pg.wait_for_timeout(500)
     pg.screenshot(path=sys.argv[1], full_page=True); b.close()

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<style>body{margin:0;background:#fbf6e6}canvas{display:block}</style></head>
+<body><canvas id="cv"></canvas>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+<script type="module">
+// Plays baked animation clips with THREE.AnimationMixer (the same data a game engine gets).
+//   ?id=breed&clip=Walk           build the model in the page and bake the clip
+//   ?glb=../../assets/cats/x.glb  or load a finished asset file instead
+//   &live  real-time loop;  otherwise make_gif2.py steps window.frame(i)
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { BREEDS } from './catgen.js';
+import { buildCatModel } from './catmodel.js';
+import { makeRig, makeClips, bakeClip, FPS } from './catmotion.js';
+const q = new URLSearchParams(location.search);
+const W = +(q.get('w') || 480), H = +(q.get('h') || 360), clipName = q.get('clip') || 'Walk';
+const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true });
+r.setPixelRatio(1); r.setSize(W, H); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1;
+const sc = new THREE.Scene(); sc.background = new THREE.Color('#fbf6e6');
+sc.add(new THREE.HemisphereLight('#f2fbff', '#c9b892', 1.35));
+const sun = new THREE.DirectionalLight('#fff4dc', 2); sun.castShadow = true; sun.shadow.bias = -.0002; sun.shadow.normalBias = .01; sun.shadow.radius = 3; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -1, right: 1, top: 1, bottom: -1 }); sc.add(sun, sun.target);
+const gr = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: '#a8db84', roughness: 1 }));
+gr.rotation.x = -Math.PI / 2; gr.receiveShadow = true; sc.add(gr);
+for (let z = -3; z < 20; z += .15) { const m = new THREE.Mesh(new THREE.PlaneGeometry(1.2, .008), new THREE.MeshBasicMaterial({ color: '#97cb73' })); m.rotation.x = -Math.PI / 2; m.position.set(0, .001, z); sc.add(m); }
+
+let cat, clip;
+if (q.get('glb')) {
+  const gltf = await new GLTFLoader().loadAsync(q.get('glb'));
+  cat = gltf.scene; clip = gltf.animations.find(a => a.name === clipName);
+  cat.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.frustumCulled = false; } });
+} else {
+  const b = BREEDS.find(x => x.id === (q.get('id') || 'korean_shorthair'));
+  cat = buildCatModel(b.shape, b.coat, { res: +(q.get('res') || .018) });
+  const rig = makeRig(cat), def = makeClips(rig).find(c => c.name === clipName);
+  clip = bakeClip(rig, def);
+  window.__clipInfo = { name: def.name, dur: def.dur, loop: def.loop, speed: def.speed, stride: def.stride, jump: def.jump };
+}
+sc.add(cat);
+const jump = clip.userData?.jump || window.__clipInfo?.jump || (clipName === 'JumpUp' ? { D: .78, H: .2 } : null);
+if (jump) { const bx = new THREE.Mesh(new THREE.BoxGeometry(.55, jump.H, .7), new THREE.MeshStandardMaterial({ color: '#d9b48a', roughness: .8 })); bx.position.set(0, jump.H / 2, jump.D + .08); bx.castShadow = bx.receiveShadow = true; sc.add(bx); }
+const mixer = new THREE.AnimationMixer(cat), action = mixer.clipAction(clip);
+action.play();
+const root = cat.getObjectByName('Root'), hips = cat.getObjectByName('Hips');
+const view = q.get('view') || 'side';
+const cam = new THREE.PerspectiveCamera(26, W / H, .01, 30);
+const camDir = new THREE.Vector3(...({ side: [1, .14, .06], '34': [.85, .32, .7], front: [.2, .2, 1], back: [-.5, .3, -1] }[view])).normalize();
+const dist = +(q.get('dist') || 2.3);
+const smooth = new THREE.Vector3(); let first = true;
+// looping root-motion clips: carry the distance travelled into the next loop (what Unity's Apply Root Motion does)
+mixer.setTime(clip.duration - 1e-4); cat.updateMatrixWorld(true);
+const loopDelta = clip.duration && root ? root.position.clone() : new THREE.Vector3();
+mixer.setTime(0);
+window.frame = i => {
+  const nf = Math.round(clip.duration * FPS), loops = Math.floor(i / nf);
+  mixer.setTime((i % nf) / FPS);
+  cat.position.set(0, 0, 0).addScaledVector(new THREE.Vector3(loopDelta.x, 0, loopDelta.z), loops);
+  cat.updateMatrixWorld(true);
+  const c = root.getWorldPosition(new THREE.Vector3()), hp = hips.getWorldPosition(new THREE.Vector3());
+  const hd = cat.getObjectByName('Head').getWorldPosition(new THREE.Vector3());
+  const follow = new THREE.Vector3(c.x, (hp.y + hd.y) / 2 + .02, c.z + .1);   // frames body and head   // camera rides along with the cat, like a game camera
+  if (q.has('fixed')) follow.set(0, .3, jump ? jump.D / 2 : 0);
+  smooth.copy(follow);
+  cam.position.copy(smooth).addScaledVector(camDir, dist); cam.lookAt(smooth);
+  sun.position.copy(smooth).add(new THREE.Vector3(-1, 2.2, 1.6)); sun.target.position.copy(smooth);
+  r.render(sc, cam);
+};
+window.__frames = Math.round(clip.duration * FPS);
+if (q.has('live')) { const t0 = performance.now(); const loop = () => { frame(((performance.now() - t0) / 1000 * FPS) % window.__frames); requestAnimationFrame(loop); }; loop(); }
+else frame(0);
+window.__done = true;
+</script></body></html>

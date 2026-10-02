@@ -1,0 +1,174 @@
+{
+ "id": "korean_shorthair",
+ "ko": "코리안 숏헤어",
+ "bones": 38,
+ "clips": [
+  {
+   "name": "Idle",
+   "dur": 6,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null
+  },
+  {
+   "name": "Walk",
+   "dur": 1.5,
+   "loop": true,
+   "rootMotion": true,
+   "speed": 0.4,
+   "stride": 0.307,
+   "jump": null
+  },
+  {
+   "name": "Trot",
+   "dur": 0.8,
+   "loop": true,
+   "rootMotion": true,
+   "speed": 1.06,
+   "stride": 0.42,
+   "jump": null
+  },
+  {
+   "name": "Gallop",
+   "dur": 0.867,
+   "loop": true,
+   "rootMotion": true,
+   "speed": 2.271,
+   "stride": 0.636,
+   "jump": null
+  },
+  {
+   "name": "JumpUp",
+   "dur": 2.4,
+   "loop": false,
+   "rootMotion": true,
+   "speed": null,
+   "stride": null,
+   "jump": {
+    "D": 0.78,
+    "H": 0.2
+   }
+  },
+  {
+   "name": "SitDown",
+   "dur": 0.9,
+   "loop": false,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null
+  },
+  {
+   "name": "Sit",
+   "dur": 4,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null
+  },
+  {
+   "name": "StandUp",
+   "dur": 0.7,
+   "loop": false,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null
+  },
+  {
+   "name": "LieDown",
+   "dur": 1.1,
+   "loop": false,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null
+  },
+  {
+   "name": "Loaf",
+   "dur": 5,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null
+  },
+  {
+   "name": "Sleep",
+   "dur": 5,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null
+  },
+  {
+   "name": "FallAsleep",
+   "dur": 2,
+   "loop": false,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null
+  },
+  {
+   "name": "Groom",
+   "dur": 4.8,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null
+  },
+  {
+   "name": "Stretch",
+   "dur": 4.2,
+   "loop": false,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null
+  },
+  {
+   "name": "Flop",
+   "dur": 1.6,
+   "loop": false,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null
+  },
+  {
+   "name": "FlopIdle",
+   "dur": 4,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null
+  },
+  {
+   "name": "PawBat",
+   "dur": 1.4,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null
+  }
+ ],
+ "sculpt_tris": 100256,
+ "game_tris": {
+  "Body": 14000,
+  "Face": 6074
+ },
+ "units": "metres, +Z forward, Y up (glTF); clips sampled at 30 fps",
+ "blendshapes": [
+  "Blink",
+  "MouthOpen",
+  "Tongue"
+ ]
+}
