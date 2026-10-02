@@ -153,7 +153,9 @@ root
 
 ### 2-4. 실제 품종 특징 점검 (전신)
 
-![품종별 전신과 품종 표준 체크리스트](images/fullbody_audit.png)
+![품종별 전신 1](images/fullbody_1.png)
+![품종별 전신 2](images/fullbody_2.png)
+![품종별 전신 3](images/fullbody_3.png)
 
 품종마다 CFA·TICA 품종 표준의 대표 특징을 `prototype/3d/breed_traits.js`에 정리하고 구현 상태를 표시했다(✓ 구현 / △ 단순화 / ✗ 없음).
 `fullbody.html`이 각 품종의 측면과 3/4 정면 전신을 이 목록과 함께 보여준다. 나중에 게임 속 품종 도감에도 같은 데이터를 쓴다.
