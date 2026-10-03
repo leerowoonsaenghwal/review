@@ -18,7 +18,7 @@ let failed = 0;
 for (const id of breeds) {
   const b = BREEDS.find(x => x.id === id);
   const rig = makeRig(buildCatModel(b.shape, b.coat, { res: RES })), C = makeContact(rig);
-  const longFur = b.shape.fur === 'long';
+  const longFur = b.shape.fur === 'long' || b.shape.fur === 'curly';        // (a curly coat is as deep: Selkirk Rex, LaPerm)
   const allClips = makeClips(rig, { only }), clips = allClips.filter(c => !only || only.includes(c.name)); clips.skipped = allClips.skipped;
   // point sets (every other vertex is plenty at this resolution)
   const limbPts = Object.fromEntries(LIMBS.map(L => [L, C.points(p => p === L, 'body', 2)]));
@@ -65,7 +65,7 @@ for (const id of breeds) {
         if (!r.length || !r[r.length - 1].open) r.push({ open: true, best: Infinity, deep: 0, t0: at });
         const g = C.gap(setOf(c.a), p => c.b.includes(p));
         const run = r[r.length - 1];
-        run.best = Math.min(run.best, Math.abs(g.d)); run.deep = Math.min(run.deep, g.d);
+        run.best = Math.min(run.best, Math.max(0, g.d)); run.deep = Math.min(run.deep, g.d);   // (touching: within 3 mm outside, or pressed in no deeper than LIMIT.deep)
       });
     }
     // per contact: every run (each lick / each stroke) must touch, and must not sink in deeply

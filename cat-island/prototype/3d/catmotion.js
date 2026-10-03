@@ -467,20 +467,38 @@ export function touchBest(rig, P, opts, starts = [], grid = null) {
 // settle a moving clip: settle n+1 sampled frames and blend the corrections in between (cheap at play time)
 export function withSettle(rig, pose, dur, opts = {}, n = 12) {
   // (worked out on first use: a clip nobody samples costs nothing)
-  const keys = new Set(), deltas = [];
-  const build = () => {
-    for (let i = 0; i <= n; i++) {
-      const P = pose(dur * i / n), Q = settle(rig, { ...P }, { iters: 6, ...opts }), dl = {};
-      for (const k in Q) if (typeof Q[k] === 'number' && Math.abs(Q[k] - P[k]) > 1e-6) { dl[k] = Q[k] - P[k]; keys.add(k); }
-      deltas.push(dl);
-    }
-  };
-  return t => {
-    if (!deltas.length) build();
-    const P = pose(t), f = clamp(t / dur, 0, 1) * n, i = Math.min(n - 1, Math.floor(f)), u = f - i;
-    for (const k of keys) P[k] += lerp(deltas[i][k] || 0, deltas[i + 1][k] || 0, u);
+  let keys = null;                                     // [{ t, dl }] sorted by time
+  const fix = (t, o = {}) => { const P = pose(t), Q = settle(rig, { ...P }, { iters: 6, ...opts, ...o }), dl = {}; for (const k in Q) if (typeof Q[k] === 'number' && Math.abs(Q[k] - P[k]) > 1e-6) dl[k] = Q[k] - P[k]; return { t, dl }; };
+  const at = t => {
+    const P = pose(t); let i = 0;
+    while (i < keys.length - 2 && keys[i + 1].t <= t) i++;
+    const a = keys[i], b = keys[i + 1], u = clamp((t - a.t) / Math.max(1e-6, b.t - a.t), 0, 1);
+    for (const k of new Set([...Object.keys(a.dl), ...Object.keys(b.dl)])) P[k] += lerp(a.dl[k] || 0, b.dl[k] || 0, u);
     return P;
   };
+  const build = () => {
+    keys = Array.from({ length: n + 1 }, (_, i) => fix(dur * i / n));
+    // then every frame in between is checked; where a leg still passes into the body (the blend between two
+    // settled points is not itself settled) that frame is settled too
+    const C = contactOf(rig), fk = opts.fk || [], m = Math.max(2, Math.round(2 * dur * FPS)), h = dur / m;   // (half-frame steps: a clip is sampled off this grid)
+    for (let round = 0; round < 2; round++) {
+      const add = [];
+      for (let f = 0; f <= m; f++) {
+        const t = dur * f / m; if (keys.some(k => Math.abs(k.t - t) < 1e-4)) continue;
+        const P = at(t); applyPose(rig, P); C.update({ face: false });
+        for (const L of LIMBS) {
+          if (fk.includes(L) || P[L + 'fk'] > .5) continue;
+          const others = ['torso', 'head', 'tail', ...LIMBS.flatMap(M => M === L ? [] : [M, M + 'u'])];
+          if (C.depth(C.sets[L], p => others.includes(p), C.rest[L], .06).d < -.003) { add.push(t); break; }
+        }
+      }
+      if (!add.length) break;
+      // (settled half a step either side too, so the blend into and out of the fixed frame is clear as well)
+      for (const t of add) for (const tt of [t - h / 2, t, t + h / 2]) if (tt >= 0 && tt <= dur && !keys.some(k => Math.abs(k.t - tt) < 1e-4)) keys.push(fix(tt, { dense: true, iters: 10 }));
+      keys.sort((a, b) => a.t - b.t);
+    }
+  };
+  return t => { if (!keys) build(); return at(t); };
 }
 function sitPose(rig, S = rig) {
   const P = stand(rig);
@@ -568,12 +586,44 @@ export function makeClips(rig, opts = {}) {
   const S = opts.solveRig || rig;
   if (S !== rig) { rig.ballH = S.ballH; rig.floorLift = S.floorLift; }      // one floor height for both builds
   const h = rig.hipH, P0 = stand(rig), clips = [];
+  // last pass on every clip, at every frame: nothing below the floor. (The settle passes run at a dozen or so
+  // points per clip; between them a rolling paw or a turning body can dip a few mm under.) A planted leg's paw
+  // is raised; a body, head or leg posed by joint angles raises the hips. Worked out on first use.
+  const floorFix = (pose, dur) => {
+    let lift = null;
+    const build = () => {
+      const C = contactOf(S), n = Math.max(2, Math.ceil(dur * FPS)), raw = [];
+      for (let i = 0; i <= n; i++) {
+        const P = pose(dur * i / n), e = {};
+        applyPose(S, P); C.update({ face: false });
+        for (const L of LIMBS) {
+          const low = C.lowest(C.sets[L]);
+          if (low < -.0015) { const k = P[L + 'fk'] > .5 ? 'hipY' : L + 'y'; e[k] = Math.max(e[k] || 0, -.0005 - low); }
+        }
+        const low = Math.min(C.lowest(C.sets.trunk), C.lowest(C.sets.head));
+        if (low < -.0015) e.hipY = Math.max(e.hipY || 0, -.0005 - low);
+        raw.push(e);
+      }
+      // (each lift held over the neighbouring frames, so the blend between frames never undershoots)
+      lift = raw.map((e, i) => {
+        const o = {};
+        for (const q of [raw[i - 1], e, raw[i + 1]]) if (q) for (const k in q) o[k] = Math.max(o[k] || 0, q[k]);
+        return o;
+      });
+    };
+    return t => {
+      if (!lift) build();
+      const P = pose(t), f = clamp(t / dur, 0, 1) * (lift.length - 1), i = Math.min(lift.length - 2, Math.floor(f)), u = f - i;
+      for (const k of new Set([...Object.keys(lift[i]), ...Object.keys(lift[i + 1])])) P[k] += lerp(lift[i][k] || 0, lift[i + 1][k] || 0, u);
+      return P;
+    };
+  };
   // looping clips are stretched to a whole number of frames so the last frame meets the first exactly
   let tAdd = performance.now();
   const add = (name, dur, loop, pose, extra = {}) => {
     if (globalThis.__timing) { const n = performance.now(); console.log('  ' + name, Math.round(n - tAdd) + 'ms'); tAdd = n; }
     const frames = Math.max(2, Math.round(dur * FPS)), d2 = frames / FPS, f = dur / d2;
-    const clip = { name, dur: d2, loop, pose: f === 1 ? pose : t => pose(t * f), ...extra };
+    const clip = { name, dur: d2, loop, pose: floorFix(f === 1 ? pose : t => pose(t * f), d2), ...extra };
     if (clip.speed) { clip.speed /= f; clip.cycle = clip.cycle / f; }
     clips.push(clip);
   };
@@ -703,13 +753,14 @@ export function makeClips(rig, opts = {}) {
     const u = (t - t0) * rate, i = Math.floor(u);
     if (u < 0 || i >= n) return P;
     const c = lickCycle(u - i); const k = c.hdPitch / .1;        // -1 .. +1 over the stroke
+    P.lickU = u - i;                                             // (lick phase: the QA contact window)
     delete c.hdPitch; addTongue(P, c); groomTongue(P); stroke(P, k);
     if (track) track(P, u - i);
     return P;
   };
   // While the tongue is out it presses on the fur and drags along it: at a few points of the lick cycle the
   // head/neck pitch is solved (on the meshes) so the tongue just touches the surface, and blended in between.
-  const LICK_U = Array.from({ length: 21 }, (_, i) => .22 + .02 * i), LICK_ON = [.18, .66];
+  const LICK_U = Array.from({ length: 36 }, (_, i) => .08 + .02 * i), LICK_ON = [.04, .82];   // (the whole time the tongue is out)
   const lickTrack = (base, stroke, opts) => {
     // only how far the tongue is out is corrected, by bisection (one channel: it always converges), so the
     // tongue just meets the fur mid-lick and never sinks into it before or after
@@ -797,9 +848,12 @@ export function makeClips(rig, opts = {}) {
     const P = { ...SITG };
     P.breath = Math.sin(TAU * t / 2.2);
     const up = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 6.1, 6.6)));
-    for (const [key, v] of Object.entries(UPP)) P[key] = (P[key] || 0) * (1 - up) + v * up;
-    blendFace(P, lickBase, lickBase, 0, up);
-    P.FLy += .02 * Math.sin(Math.PI * up);                                      // the paw lifts clear of the floor on the way
+    // the paw comes up first and the head bends down to it after (and the head lifts before the paw goes
+    // down): moved together, the paw would rise into the chin coming down
+    const upP = mj(seg(t, 0, .3)) * (1 - mj(seg(t, 6.3, 6.6))), upH = mj(seg(t, .12, .45)) * (1 - mj(seg(t, 6.1, 6.42)));
+    for (const [key, v] of Object.entries(UPP)) P[key] = (P[key] || 0) * (1 - upP) + v * upP;
+    for (const key of FACEK) P[key] = lerp(P[key], lickBase[key], HEADK.includes(key) ? upH : upP);
+    P.FLy += .02 * Math.sin(Math.PI * upP);                                     // the paw lifts clear of the floor on the way
     if (t >= 2.05 && t < 5.3) {
       // two wash strokes; each runs whisker pad -> muzzle, then the head lifts back out for the next
       const k = mj(seg(t, 2.05, 2.45)) * (1 - mj(seg(t, 4.9, 5.3)));
@@ -812,7 +866,7 @@ export function makeClips(rig, opts = {}) {
     if (t >= .45 && t < 2.25) licking(P, t, .45, 4, 2.2, faceStroke, faceTrack);
     if (t >= 5.15 && t < 6.05) licking(P, t, 5.15, 2, 2.2, faceStroke, faceTrack);
     return P;
-  }, { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.tongue > .6 }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }] });
+  }, { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.lickU >= .36 && P.lickU <= .5 }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }] });
 
   // 2. GroomChest: sitting, chin tucked down to the chest, the tongue drawn up the bib in long strokes
   {
@@ -829,7 +883,7 @@ export function makeClips(rig, opts = {}) {
       const P = { ...SITG }, k = mj(seg(t, 0, .5)) * (1 - mj(seg(t, 3.7, 4.2)));
       Object.assign(P, mix(SITG, base, k)); P.blink = .8 * k + blinkAt(t, [.1]) * (1 - k); P.breath = Math.sin(TAU * t / 2.2);
       return licking(P, t, .55, 7, 2.2, stroke, track);
-    }, { contacts: [{ a: 'tongue', b: ['torso'], when: P => P.tongue > .6 }] });
+    }, { contacts: [{ a: 'tongue', b: ['torso'], when: P => P.lickU >= .36 && P.lickU <= .5 }] });
   }
 
   // 3. ScratchEar: sitting, a hind foot comes up and scratches fast (~7 strokes/s) on the neck just behind the
@@ -855,16 +909,20 @@ export function makeClips(rig, opts = {}) {
     // getting the foot up: first carried (by IK) up round the outside of the haunch to where the raised foot
     // will be, then the leg takes the raised joint angles; the reverse on the way down
     applyPose(rig, base); const W = worldOf(rig, 'Toes_L');
+    // the raking stroke runs from the contact pose outwards only (raking inwards would push the toes into the
+    // head): try both ways on the mesh and keep the one that opens the gap
+    const rakeGap = sg => { const C = contactOf(S), Q = { ...base, HLk2: base.HLk2 + .04 * sg, HLk3: base.HLk3 - .1 * sg }; applyPose(S, Q); C.update({ face: false }); return C.gap(C.sets.HL, p => p === 'head', .12).d; };
+    const rakeDir = rakeGap(1) > rakeGap(-1) ? 1 : -1;
     add('ScratchEar', 3, true, withSettle(S, t => {
       const k = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 2.5, 3)));
       const P = mix(SITG, base, k);
       const ik = mj(seg(t, 0, .3)) * (1 - mj(seg(t, 2.65, 3))), fk = mj(seg(t, .2, .35)) * (1 - mj(seg(t, 2.5, 2.7)));
       const g = V(SITG.HLx, SITG.HLy, SITG.HLz).lerp(W, ik);
-      const sc = Math.sin(TAU * 7 * t) * (t > .45 && t < 2.5 ? 1 : 0);
+      const sc = rakeDir * .5 * (1 - Math.cos(TAU * 7 * (t - .45))) * ss(seg(t, .45, .6)) * (1 - ss(seg(t, 2.3, 2.5)));
       P.HLx = g.x + .6 * rig.hipH * Math.sin(Math.PI * ik); P.HLy = g.y; P.HLz = g.z; P.HLfk = fk;
       P.HLa = lerp(SITG.HLa, -.6, ik); P.HLt = lerp(0, .6, ik);
       P.HLk2 += .04 * sc * k; P.HLk3 -= .1 * sc * k;                               // the scratching stroke (toes rake the fur)
-      P.hdRoll += .03 * sc * k; P.mouth = .15 * k;                                  // head jiggles with it
+      P.hdRoll += .012 * Math.sin(TAU * 7 * t) * k; P.mouth = .15 * k;            // head jiggles with it
       return P;
     }, 3, {}, 30), { contacts: [{ a: 'HL', b: ['head'], when: (P, t) => t > .45 && t < 2.5 }] });
   }
@@ -879,10 +937,11 @@ export function makeClips(rig, opts = {}) {
     report.nibble = Math.abs(touch.last + .003);
     add('NibbleClaws', 3.4, true, t => {
       const P = { ...SITG }, up = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 2.9, 3.4)));
-      for (const [key, v] of Object.entries(UPP)) P[key] = (P[key] || 0) * (1 - up) + v * up;
-      for (const key of [...FACEK, 'mouth']) P[key] = lerp(P[key], base[key], up);
+      const upP = mj(seg(t, 0, .3)) * (1 - mj(seg(t, 3.1, 3.4))), upH = mj(seg(t, .12, .45)) * (1 - mj(seg(t, 2.9, 3.22)));   // (paw first, head after: see GroomFace)
+      for (const [key, v] of Object.entries(UPP)) P[key] = (P[key] || 0) * (1 - upP) + v * upP;
+      for (const key of [...FACEK, 'mouth']) P[key] = lerp(P[key], base[key], HEADK.includes(key) ? upH : upP);
       const chew = (t > .5 && t < 2.8) ? .5 + .5 * Math.sin(TAU * 4 * t) : 0;
-      P.FLy += .02 * Math.sin(Math.PI * up);                                  // the paw lifts clear of the floor on the way
+      P.FLy += .02 * Math.sin(Math.PI * upP);                                 // the paw lifts clear of the floor on the way
       P.mouth = (.15 + .4 * chew) * up; P.blink = .7 * up;
       return P;
     }, { contacts: [{ a: 'FL', b: ['head'], when: (P, t) => t > .5 && t < 2.8 }] });
