@@ -94,7 +94,8 @@ const sisal = (x, y, z) => { const a = Math.atan2(z, x), b = .5 + .5 * Math.sin(
 const wood = (x, y, z) => mixc(hex('#e3c59b'), hex('#c49a6c'), .5 + .5 * Math.sin(z * 30 + 6 * vnoise(x * 8, y * 8, z * 8)));
 
 // ---- the items (sizes in metres; a cat here stands ~.23-.30 m at the shoulder, its head ~.25 m wide)
-export const BOWL_SURF = .045;            // food / water surface height: the Eat and Drink clips reach exactly here
+export const BOWL_SURF = .03;             // food / water surface height: the Drink clip (also eating) reaches exactly here
+export const TOY_TOP = .038;              // top of the mouse toy: PawBat's tap comes down on it
 export const DECK_STEP = .2, DECK_HOP = .78;   // tower decks: one JumpUp clip up and forward (catmotion JumpUp: H, D)
 
 const kibbleMound = (cx, cz, R, top, n, seed, colA, colB) => {
@@ -110,23 +111,24 @@ const kibbleMound = (cx, cz, R, top, n, seed, colA, colB) => {
 };
 
 function bowl({ color, fill }) {
-  // a heavy round bowl: wide stable foot, rolled lip, hollow with a rounded inside
-  const R = .085, H = .05, inner = .068;
-  const body = leaf((x, y, z) => sdConeCylY(x, y - H / 2, z, .07, R, H / 2, .012), [-R, 0, -R, R, H, R], color);
-  const hollow = leaf((x, y, z) => sdEllipsoid(x, y - (H + .012), z, inner, .045, inner), [-inner, H - .033, -inner, inner, H + .057, inner], color);
-  const lip = leaf((x, y, z) => sdTorusY(x, y - (H - .004), z, R - .009, .009), [-R, H - .013, -R, R, H + .005, R], mixc(color, [1, 1, 1], .25));
-  let shape = U(CUT(body, hollow, .006, mixc(color, [1, 1, 1], .55)), lip);
-  // (kibble pieces melt a hair into each other and the bowl: pieces that only just touch would leave edges shared by 4 faces)
+  // a wide, shallow dish (a saucer more than a bowl): the toy's big head comes down level with the food, so
+  // the rim has to stay below its chin - a deep bowl's rim would cut into the chin while it eats or drinks
+  const R = .1, H = BOWL_SURF + .003, inner = .084;
+  const body = leaf((x, y, z) => sdConeCylY(x, y - H / 2, z, .085, R, H / 2, .01), [-R, 0, -R, R, H, R], color);
+  const hollow = leaf((x, y, z) => sdEllipsoid(x, y - (H + .004), z, inner, .022, inner), [-inner, H - .018, -inner, inner, H + .026, inner], color);
+  const lip = leaf((x, y, z) => sdTorusY(x, y - (H - .002), z, R - .007, .007), [-R, H - .009, -R, R, H + .005, R], mixc(color, [1, 1, 1], .25));
+  let shape = U(CUT(body, hollow, .005, mixc(color, [1, 1, 1], .55)), lip);
   if (fill === 'kibble') {
-    // a bed of kibble under the loose pieces on top, so no gap between pieces shows the empty bowl
-    const bed = leaf((x, y, z) => sdEllipsoid(x, y - (BOWL_SURF - .016), z, .062, .02, .062), [-.062, BOWL_SURF - .036, -.062, .062, BOWL_SURF + .004, .062], grain(hex('#9a5a2c'), .6, 300));
-    shape = SU(.003, shape, bed, ...kibbleMound(0, 0, .055, BOWL_SURF + .01, 70, 3, hex('#b06b35'), hex('#8a4f26')));
+    // a bed of kibble under the loose pieces on top, so no gap between pieces shows the empty dish; the heap
+    // crowns at BOWL_SURF: the same lapping that reaches the water reaches the kibble
+    const bed = leaf((x, y, z) => sdEllipsoid(x, y - (BOWL_SURF - .016), z, .07, .014, .07), [-.07, BOWL_SURF - .03, -.07, .07, BOWL_SURF - .002, .07], grain(hex('#9a5a2c'), .6, 300));
+    shape = SU(.003, shape, bed, ...kibbleMound(0, 0, .062, BOWL_SURF + .002, 80, 3, hex('#b06b35'), hex('#8a4f26')));
   }
   if (fill === 'water' || fill === 'milk') {
     const c = fill === 'water' ? hex('#8fd0ee') : hex('#fbf6ea');
-    shape = U(shape, leaf((x, y, z) => sdCylY(x, y - (BOWL_SURF - .01), z, inner - .004, .01, .003), [-inner, BOWL_SURF - .02, -inner, inner, BOWL_SURF, inner], c));
+    shape = U(shape, leaf((x, y, z) => sdCylY(x, y - (BOWL_SURF - .006), z, inner - .006, .006, .003), [-inner, BOWL_SURF - .012, -inner, inner, BOWL_SURF, inner], c));
   }
-  return { shape, anchors: { surface: { y: BOWL_SURF, r: inner - .01 }, footprint: R } };
+  return { shape, anchors: { surface: { y: BOWL_SURF, r: inner - .012 }, rimTop: H + .005, footprint: R } };
 }
 
 const ITEM_DEFS = {
@@ -298,4 +300,10 @@ export function checkMesh(m) {
   }
   let minY = Infinity; for (let i = 1; i < pos.length; i += 3) minY = Math.min(minY, pos[i]);
   return { open, nonManifold, volume: vol, minY };
+}
+
+// the item's exact signed distance (metres, negative inside) and anchors: for checking a cat against it
+export function itemField(id) {
+  const { shape, anchors } = ITEM_DEFS[id].build();
+  return { d: (x, y, z) => evalNode(shape, x, y, z), anchors, bounds: boundsNode(shape) };
 }

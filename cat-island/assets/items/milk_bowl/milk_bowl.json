@@ -4,16 +4,17 @@
  "units": "metres, Y up, +Z front",
  "anchors": {
   "surface": {
-   "y": 0.045,
-   "r": 0.058
+   "y": 0.03,
+   "r": 0.07200000000000001
   },
-  "footprint": 0.085
+  "rimTop": 0.038,
+  "footprint": 0.1
  },
- "rawTris": 31488,
+ "rawTris": 34840,
  "rawCheck": {
   "open": 0,
-  "nonManifold": 0,
-  "volume": 0.0008881758572324079,
+  "nonManifold": 20,
+  "volume": 0.0008508906555668887,
   "minY": 0
  },
  "game_tris": 2400,

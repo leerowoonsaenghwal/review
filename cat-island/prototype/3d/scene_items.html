@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#f6f1e3;font-family:Jua,sans-serif;color:#6f5a40}h1{margin:14px 20px 2px;font-size:26px;font-weight:normal}
+p{margin:0 20px 8px;color:#a08a6a;font-size:14px}#g{display:grid;gap:8px;padding:0 10px 12px}.c{background:#fbf6e6;border-radius:14px;overflow:hidden}
+.c canvas{display:block}.c b{display:block;font-weight:normal;font-size:15px;margin:2px 10px 6px}</style></head>
+<body><h1 id="ttl">고양이와 용품</h1><p id="sub"></p><div id="g"></div>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+<script type="module">
+// a cat using its items, rendered with the game's shadow setup: ?id=breed&items=out/items&shots=drink,tower,cushion,hideout,toy
+// Shadow setup (the same advice goes into the docs for Unity):
+//   - one directional sun, shadow camera fitted tightly round the cat and item (more texels per cm)
+//   - PCF soft shadows; a small normal offset against stripes of self-shadow on round surfaces (acne) and a
+//     tiny depth bias, so the shadow still starts exactly at the contact (no "floating" gap under paws)
+//   - every mesh casts AND receives (the cat's head shades its own paws, the deck shades the post)
+//   - ambient occlusion is baked into the item textures (inside the dish, under the deck)
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { BREEDS } from './catgen.js';
+import { buildCatModel } from './catmodel.js';
+import { makeRig, makeClips, solveAt, applyPose, stand } from './catmotion.js';
+import { itemField } from './items.js';
+const q = new URLSearchParams(location.search);
+const b = BREEDS.find(x => x.id === (q.get('id') || 'korean_shorthair')), dir = q.get('items') || 'out/items';
+const shots = (q.get('shots') || 'drink,tower,cushion,hideout,toy').split(','), CW = +(q.get('cw') || 330), CH = +(q.get('ch') || 260);
+ttl.textContent = `${b.ko} · 용품과 함께`;
+g.style.gridTemplateColumns = `repeat(${Math.min(+(q.get('cols') || 3), shots.length)}, ${CW}px)`;
+const cat = buildCatModel(b.shape, b.coat, { res: +(q.get('res') || .02) });
+const rig = makeRig(cat), clips = makeClips(rig, { only: ['Drink', 'JumpUp', 'Loaf', 'Sleep', 'PawBat'], solveRig: makeRig(buildCatModel(b.shape, b.coat, { res: .03 })) });
+const clip = n => clips.find(c => c.name === n);
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+r.setPixelRatio(2); r.setSize(CW, CH); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;
+const sc = new THREE.Scene(); sc.background = new THREE.Color('#fbf6e6');
+sc.add(new THREE.HemisphereLight('#f2fbff', '#c9b892', 1.2));
+const sun = new THREE.DirectionalLight('#fff4dc', 2.3); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.bias = -.0001; sun.shadow.normalBias = .004; sun.shadow.radius = 3; sc.add(sun, sun.target);
+const gr = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ color: '#b6dd8f', roughness: 1 }));
+gr.rotation.x = -Math.PI / 2; gr.receiveShadow = true; sc.add(gr);
+cat.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
+sc.add(cat);
+const load = async id => { const gl = await new GLTFLoader().loadAsync(`${dir}/${id}/${id}.glb`); gl.scene.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; }); return gl.scene; };
+applyPose(rig, stand(rig)); cat.updateMatrixWorld(true);
+const mid = rig.B.Hips.getWorldPosition(new THREE.Vector3()).add(rig.B.Chest.getWorldPosition(new THREE.Vector3())).multiplyScalar(.5);
+const lifted = (c, lift) => ({ ...c, pose: t => { const P = c.pose(t); P.rootY = (P.rootY || 0) + lift; return P; } });
+const SHOTS = {
+  drink: async () => { const c = clip('Drink'), it = await load('water_bowl'); it.position.set(c.drink.bowl.x, 0, c.drink.bowl.z); return { items: [it], c, t: .44 / c.drink.rate + 2 / c.drink.rate, label: '물 마시기 · 물그릇', view: [.9, .35, .6], dist: 1.1 }; },
+  food: async () => { const c = clip('Drink'), it = await load('food_bowl'); it.position.set(c.drink.bowl.x, 0, c.drink.bowl.z); return { items: [it], c, t: .44 / c.drink.rate + 3 / c.drink.rate, label: '사료 먹기 · 사료 그릇', view: [.9, .45, .6], dist: 1.1 }; },
+  tower: async () => { const c = clip('JumpUp'), it = await load('cat_tower_1'); it.position.set(0, 0, c.jump.D + .05); return { items: [it], c, t: c.dur * .62, label: '캣타워 오르기 · 캣타워 1단', view: [1, .4, .35], dist: 2.3 }; },
+  cushion: async () => { const c = lifted(clip('Sleep'), itemField('cushion').anchors.top), it = await load('cushion'); it.position.set(mid.x, 0, mid.z); return { items: [it], c, t: 1, label: '잠자기 · 방석', view: [.8, .6, .8], dist: 1.9 }; },
+  hideout: async () => { const c = lifted(clip('Loaf'), itemField('hideout').anchors.floor), it = await load('hideout'); it.position.set(mid.x, 0, mid.z); return { items: [it], c, t: 1, label: '식빵 자세 · 숨숨집', view: [.35, .35, 1], dist: 2.1 }; },
+  toy: async () => { const c = clip('PawBat'); solveAt(rig, c, c.dur * .5); cat.updateMatrixWorld(true); const p = rig.B.Hand_L ? rig.B.Hand_L.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(); const it = await load('mouse_toy'); it.position.set(p.x, 0, p.z + .01); return { items: [it], c, t: c.dur * .5, label: '장난감 치기 · 쥐돌이', view: [1, .35, .7], dist: 1.3 }; },
+};
+for (const s of shots) {
+  const S = await SHOTS[s]();
+  for (const it of S.items) sc.add(it);
+  solveAt(rig, S.c, S.t); cat.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(cat); for (const it of S.items) box.union(new THREE.Box3().setFromObject(it));
+  const c = box.getCenter(new THREE.Vector3()), R = box.getSize(new THREE.Vector3()).length() / 2;
+  const cam = new THREE.PerspectiveCamera(28, CW / CH, .01, 30);
+  cam.position.copy(c).add(new THREE.Vector3(...S.view).normalize().multiplyScalar(S.dist)); cam.lookAt(c);
+  sun.position.copy(c).add(new THREE.Vector3(-.9, 2, 1.3).normalize().multiplyScalar(R * 3 + .5)); sun.target.position.copy(c);
+  Object.assign(sun.shadow.camera, { left: -R * 1.3, right: R * 1.3, top: R * 1.3, bottom: -R * 1.3, near: .01, far: R * 6 + 2 }); sun.shadow.camera.updateProjectionMatrix();
+  r.render(sc, cam);
+  const cell = document.createElement('div'); cell.className = 'c';
+  const cv = document.createElement('canvas'); cv.width = CW * 2; cv.height = CH * 2; cv.style.width = CW + 'px'; cv.style.height = CH + 'px';
+  cv.getContext('2d').drawImage(r.domElement, 0, 0); cell.append(cv);
+  cell.insertAdjacentHTML('beforeend', `<b>${S.label}</b>`); g.append(cell);
+  for (const it of S.items) sc.remove(it);
+}
+window.__done = true;
+</script></body></html>

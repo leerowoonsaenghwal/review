@@ -58,12 +58,14 @@ for (const id of breeds) {
       if (dc.d < -.012) issues.push({ k: `head on ${dc.part} (warn)`, d: dc.d, at, warn: true });
       const who = {}, y = C.lowest(allPts, who);
       if (y < LIMIT.floor) issues.push({ k: `${who.part} below floor`, d: y, at });
+      for (const L of LIMBS) { const yb = C.lowest(beanPts[L]); if (yb < LIMIT.floor) issues.push({ k: `${L} beans below floor`, d: yb, at }); }
       (clip.contacts || []).forEach((c, ci) => {
         const on = c.when(P, t);
         const r = runs[ci];
         if (!on) { if (r.length && r[r.length - 1].open) r[r.length - 1].open = false; return; }
         if (!r.length || !r[r.length - 1].open) r.push({ open: true, best: Infinity, deep: 0, t0: at });
-        const g = C.gap(setOf(c.a), p => c.b.includes(p));
+        let g = C.gap(setOf(c.a), p => c.b.includes(p));
+        if (LIMBS.includes(c.a)) { const gb = C.gap(beanPts[c.a], p => c.b.includes(p)); if (gb.d < g.d) g = gb; }   // (a paw touches with its beans too)
         const run = r[r.length - 1];
         run.best = Math.min(run.best, Math.max(0, g.d)); run.deep = Math.min(run.deep, g.d);   // (touching: within 3 mm outside, or pressed in no deeper than LIMIT.deep)
       });
