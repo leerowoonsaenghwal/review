@@ -4,7 +4,7 @@
 // Prints one line per clip and the worst problems; exits 1 if anything fails.
 import { BREEDS } from './catgen.js';
 import { buildCatModel } from './catmodel.js';
-import { makeRig, makeClips, solveAt } from './catmotion.js';
+import { makeRig, makeClips, solveAt, applyPose, stand } from './catmotion.js';
 import { makeContact, LIMBS } from './catcontact.js';
 
 const args = process.argv.slice(2), opt = (k, d) => args.includes(k) ? +args[args.indexOf(k) + 1] : d;
@@ -27,6 +27,12 @@ for (const id of breeds) {
   const allPts = C.points(() => true, 'body', 3);
   const tongue = C.points(p => p === 'tongue', 'face');
   const setOf = a => a === 'tongue' ? tongue : LIMBS.includes(a) ? { mesh: 'body', ids: [...limbPts[a].ids] } : C.points(p => p === a, 'body', 2);
+  // rest-pose depths: anything already inside in the bind pose (e.g. legs inside a long-haired breed's fur
+  // skirt) is the model, not the motion - only deeper than that counts
+  applyPose(rig, stand(rig)); C.update();
+  const notSelf = L => p => p !== L && p !== L + 'u';
+  const restL = Object.fromEntries(LIMBS.map(L => [L, C.depthEach(limbPts[L], notSelf(L))]));
+  const restB = Object.fromEntries(LIMBS.map(L => [L, C.depthEach(beanPts[L], notSelf(L))]));
   console.log(`\n${b.ko} (${id})`);
   for (const clip of clips) {
     const issues = [], n = Math.max(2, Math.round(clip.dur * FPS));
@@ -35,8 +41,7 @@ for (const id of breeds) {
       const t = Math.min(clip.dur, f / FPS), P = solveAt(rig, clip, t); C.update();
       const at = t.toFixed(2) + 's';
       for (const L of LIMBS) {
-        const notSelf = p => p !== L && p !== L + 'u';
-        const dl = C.depth(limbPts[L], notSelf), db = C.depth(beanPts[L], notSelf);
+        const dl = C.depth(limbPts[L], notSelf(L), restL[L]), db = C.depth(beanPts[L], notSelf(L), restB[L]);
         if (dl.d < -LIMIT.pen) issues.push({ k: `${L} in ${dl.part}`, d: dl.d, at });
         if (db.d < -LIMIT.pen) issues.push({ k: `${L} beans in ${db.part}`, d: db.d, at });
       }
