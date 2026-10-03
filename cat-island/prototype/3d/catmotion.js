@@ -920,9 +920,6 @@ export function makeClips(rig, opts = {}) {
     for (const [key, v] of Object.entries(UPP)) P[key] = (P[key] || 0) * (1 - upP) + v * upP;
     for (const key of FACEK) P[key] = lerp(P[key], lickBase[key], HEADK.includes(key) ? upH : upP);
     P.FLy += .02 * Math.sin(Math.PI * upP);                                     // the paw lifts clear of the floor on the way
-    // (while the head comes down the paw waits a little low and forward, then comes in to the mouth)
-    const wait = upP * (1 - mj(seg(t, .42, .56)));
-    P.FLy -= .03 * wait; P.FLz += .025 * wait;
     if (t >= 2.05 && t < 5.3) {
       // two wash strokes; each runs whisker pad -> muzzle, then the head lifts back out for the next
       const k = mj(seg(t, 2.05, 2.45)) * (1 - mj(seg(t, 4.9, 5.3)));
@@ -930,7 +927,7 @@ export function makeClips(rig, opts = {}) {
       const f = clamp(q, 0, 1) * (WASH.length - 1), i = clamp(Math.floor(f), 0, WASH.length - 2), u = f - i;
       blendFace(P, washPoses[i].P, washPoses[i + 1].P, u, k);
       const tr = Math.sin(Math.PI * k);                                       // (on the way in and out the paw swings a little wide of the face)
-      P.FLx += .035 * sx * tr; P.FLz += .03 * tr; P.FLy -= .015 * tr;
+      P.FLx += .02 * sx * tr; P.FLz += .015 * tr;
       P.earLp = -.3 * k; P.earLy = -.2 * k;
       P.blink = Math.max(.6, k);
     } else P.blink = up > .5 ? .75 : blinkAt(t, [.2]);
@@ -1004,8 +1001,6 @@ export function makeClips(rig, opts = {}) {
       for (const key of [...FACEK, 'mouth']) P[key] = lerp(P[key], base[key], HEADK.includes(key) ? upH : upP);
       const chew = (t > .5 && t < 2.8) ? .5 + .5 * Math.sin(TAU * 4 * t) : 0;
       P.FLy += .02 * Math.sin(Math.PI * upP);                                 // the paw lifts clear of the floor on the way
-      const wait = upP * (1 - mj(seg(t, .4, .52)));                           // (and waits low and forward while the head comes down)
-      P.FLy -= .03 * wait; P.FLz += .025 * wait;
       P.mouth = (.15 + .4 * chew) * up; P.blink = .7 * up;
       return P;
     }, 3.4, { fkAt: t => t > .55 && t < 2.75 ? ['FL'] : [] }, 14), { contacts: [{ a: 'FL', b: ['head'], when: (P, t) => t > .5 && t < 2.8 }] });
