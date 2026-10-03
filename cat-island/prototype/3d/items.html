@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#f6f1e3;font-family:Jua,sans-serif;color:#6f5a40}h1{margin:14px 20px 2px;font-size:26px;font-weight:normal}
+p{margin:0 20px 8px;color:#a08a6a;font-size:14px}#g{display:grid;gap:8px;padding:0 10px 12px}.c{background:#fbf6e6;border-radius:14px;overflow:hidden}
+.c canvas{display:block}.c b{display:block;font-weight:normal;font-size:15px;margin:2px 10px 6px}</style></head>
+<body><h1>고양이 용품</h1><p id="sub"></p><div id="g"></div>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+<script type="module">
+// item review sheet: ?ids=a,b&view=34|side|top|low&cw=&ch=&cat=breed (a cat beside each item for scale)
+// Shadows: the sun's shadow camera is fitted tightly round each item (sharp, no blocky edges), with a small
+// normal offset so curved surfaces do not shade themselves in stripes (shadow acne) and a small bias so
+// shadows still start right at the contact (no gap under the item: "peter panning").
+import * as THREE from 'three';
+import { ITEM_IDS, buildItem, checkMesh } from './items.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const q = new URLSearchParams(location.search);
+// &game=DIR : show the finished game assets (DIR/<id>/<id>.glb, baked textures) instead of the raw sculpts
+const gameDir = q.get('game');
+const ids = q.get('ids') ? q.get('ids').split(',') : ITEM_IDS, views = (q.get('view') || '34').split(',');
+const CW = +(q.get('cw') || 300), CH = +(q.get('ch') || 240), cols = +(q.get('cols') || 4);
+g.style.gridTemplateColumns = `repeat(${Math.min(cols, ids.length * views.length)}, ${CW}px)`;
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+r.setPixelRatio(2); r.setSize(CW, CH); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;
+const sc = new THREE.Scene(); sc.background = new THREE.Color('#fbf6e6');
+sc.add(new THREE.HemisphereLight('#f2fbff', '#c9b892', 1.2));
+const sun = new THREE.DirectionalLight('#fff4dc', 2.3); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.bias = -.0001; sun.shadow.normalBias = .004; sun.shadow.radius = 3; sc.add(sun, sun.target);
+const gr = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ color: '#b6dd8f', roughness: 1 }));
+gr.rotation.x = -Math.PI / 2; gr.receiveShadow = true; sc.add(gr);
+const info = [];
+for (const id of ids) {
+  let mesh, geo, m, chk;
+  if (gameDir) {
+    const gl = await new GLTFLoader().loadAsync(`${gameDir}/${id}/${id}.glb`);
+    mesh = gl.scene; mesh.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; geo = o.geometry; } });
+    m = { ko: (await (await fetch(`${gameDir}/${id}/${id}.json`)).json()).ko, tris: geo.index.count / 3 };
+    // (glTF splits vertices along texture seams: weld by position before counting open edges)
+    const ps = geo.attributes.position.array, key = new Map(), remap = new Uint32Array(ps.length / 3);
+    for (let i = 0; i < remap.length; i++) { const k = `${Math.round(ps[3 * i] * 1e5)},${Math.round(ps[3 * i + 1] * 1e5)},${Math.round(ps[3 * i + 2] * 1e5)}`; if (!key.has(k)) key.set(k, i); remap[i] = key.get(k); }
+    chk = checkMesh({ idx: Uint32Array.from(geo.index.array, i => remap[i]), pos: ps });
+  } else {
+    m = buildItem(id); chk = checkMesh(m);
+    geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(m.pos, 3)); geo.setAttribute('normal', new THREE.BufferAttribute(m.nrm, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(m.col, 3)); geo.setIndex(new THREE.BufferAttribute(m.idx, 1));
+    mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .75 }));
+    mesh.castShadow = mesh.receiveShadow = true;
+  }
+  sc.add(mesh);
+  const bb = new THREE.Box3().setFromObject(mesh), c = bb.getCenter(new THREE.Vector3()), size = bb.getSize(new THREE.Vector3()), R = size.length() / 2;
+  for (const view of views) {
+    const dir = { '34': [.75, .6, 1], side: [1, .25, 0], top: [.15, 1.6, .4], low: [.6, .18, 1], front: [0, .35, 1] }[view];
+    const cam = new THREE.PerspectiveCamera(30, CW / CH, .01, 30);
+    cam.position.copy(c).add(new THREE.Vector3(...dir).normalize().multiplyScalar(R * 2.6 + .05)); cam.lookAt(c);
+    sun.position.copy(c).add(new THREE.Vector3(-.9, 2, 1.3).normalize().multiplyScalar(R * 3 + .5)); sun.target.position.copy(c);
+    Object.assign(sun.shadow.camera, { left: -R * 1.6, right: R * 1.6, top: R * 1.6, bottom: -R * 1.6, near: .01, far: R * 6 + 2 }); sun.shadow.camera.updateProjectionMatrix();
+    r.render(sc, cam);
+    const cell = document.createElement('div'); cell.className = 'c';
+    const cv = document.createElement('canvas'); cv.width = CW * 2; cv.height = CH * 2; cv.style.width = CW + 'px'; cv.style.height = CH + 'px';
+    cv.getContext('2d').drawImage(r.domElement, 0, 0); cell.append(cv);
+    cell.insertAdjacentHTML('beforeend', `<b>${m.ko} · ${(size.x * 100).toFixed(0)}×${(size.z * 100).toFixed(0)}×${(size.y * 100).toFixed(0)}cm · ${m.tris.toLocaleString()}면${chk.open ? ' · 열린 모서리 ' + chk.open : ''}${chk.nonManifold ? ' · 겹친 모서리 ' + chk.nonManifold : ''}</b>`); g.append(cell);
+  }
+  sc.remove(mesh);
+  info.push({ id, tris: m.tris, ...chk });
+}
+sub.textContent = `${ids.length}종 · ${gameDir ? '게임용 (구운 텍스처)' : '원본 조형'} · ${info.every(i => !i.open) ? '모두 닫힌 메시 (그림자 새는 틈 없음)' : '열린 메시 있음'}`;
+window.__info = info; window.__done = true;
+</script></body></html>

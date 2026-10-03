@@ -1,0 +1,22 @@
+{
+ "id": "ball",
+ "ko": "공",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "center": [
+   0,
+   0.035,
+   0
+  ],
+  "r": 0.035
+ },
+ "rawTris": 15120,
+ "rawCheck": {
+  "open": 0,
+  "nonManifold": 0,
+  "volume": 0.00017942405061776586,
+  "minY": 0
+ },
+ "game_tris": 1200,
+ "texture": 512
+}

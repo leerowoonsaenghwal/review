@@ -1,0 +1,23 @@
+{
+ "id": "hideout",
+ "ko": "숨숨집",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "floor": 0.04,
+  "door": [
+   0,
+   0.05,
+   0.36
+  ],
+  "r": 0.3
+ },
+ "rawTris": 345476,
+ "rawCheck": {
+  "open": 0,
+  "nonManifold": 1,
+  "volume": 0.029420238653818473,
+  "minY": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

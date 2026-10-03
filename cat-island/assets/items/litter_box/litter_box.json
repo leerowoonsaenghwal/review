@@ -1,0 +1,21 @@
+{
+ "id": "litter_box",
+ "ko": "화장실",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "floor": 0.075,
+  "inner": [
+   0.37,
+   0.47000000000000003
+  ]
+ },
+ "rawTris": 136912,
+ "rawCheck": {
+  "open": 0,
+  "nonManifold": 13,
+  "volume": 0.017944501245132118,
+  "minY": 0
+ },
+ "game_tris": 3000,
+ "texture": 1024
+}

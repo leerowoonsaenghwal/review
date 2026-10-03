@@ -1,0 +1,21 @@
+{
+ "id": "wand_toy",
+ "ko": "낚싯대 장난감",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "lure": [
+   -0.04540814971847569,
+   0.012,
+   0.33
+  ]
+ },
+ "rawTris": 38260,
+ "rawCheck": {
+  "open": 0,
+  "nonManifold": 0,
+  "volume": 9.295114050376624e-05,
+  "minY": 0
+ },
+ "game_tris": 2000,
+ "texture": 512
+}

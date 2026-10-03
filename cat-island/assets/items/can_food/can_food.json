@@ -1,0 +1,20 @@
+{
+ "id": "can_food",
+ "ko": "고양이 캔",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "surface": {
+   "y": 0.048,
+   "r": 0.032
+  }
+ },
+ "rawTris": 12484,
+ "rawCheck": {
+  "open": 0,
+  "nonManifold": 44,
+  "volume": 0.0002304298192089671,
+  "minY": 0
+ },
+ "game_tris": 1500,
+ "texture": 512
+}

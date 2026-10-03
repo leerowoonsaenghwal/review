@@ -1,0 +1,21 @@
+{
+ "id": "water_bowl",
+ "ko": "물그릇",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "surface": {
+   "y": 0.045,
+   "r": 0.058
+  },
+  "footprint": 0.085
+ },
+ "rawTris": 31488,
+ "rawCheck": {
+  "open": 0,
+  "nonManifold": 0,
+  "volume": 0.0008881758572324079,
+  "minY": 0
+ },
+ "game_tris": 2400,
+ "texture": 512
+}

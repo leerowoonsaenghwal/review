@@ -1,0 +1,21 @@
+{
+ "id": "scratcher",
+ "ko": "스크래처",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "top": 0.043,
+  "size": [
+   0.26,
+   0.5
+  ]
+ },
+ "rawTris": 142368,
+ "rawCheck": {
+  "open": 0,
+  "nonManifold": 489,
+  "volume": 0.00551403495218681,
+  "minY": 0
+ },
+ "game_tris": 2000,
+ "texture": 1024
+}

@@ -1,0 +1,18 @@
+{
+ "id": "cushion",
+ "ko": "방석",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "top": 0.08399999999999999,
+  "r": 0.24000000000000002
+ },
+ "rawTris": 168920,
+ "rawCheck": {
+  "open": 0,
+  "nonManifold": 0,
+  "volume": 0.02588078845258306,
+  "minY": 2.0346278688521124e-06
+ },
+ "game_tris": 3000,
+ "texture": 1024
+}

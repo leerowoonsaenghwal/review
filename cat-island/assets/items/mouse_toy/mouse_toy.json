@@ -1,0 +1,21 @@
+{
+ "id": "mouse_toy",
+ "ko": "쥐돌이",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "center": [
+   0,
+   0.02,
+   0
+  ]
+ },
+ "rawTris": 23368,
+ "rawCheck": {
+  "open": 0,
+  "nonManifold": 0,
+  "volume": 8.090159157150577e-05,
+  "minY": 6.68983784635202e-06
+ },
+ "game_tris": 1600,
+ "texture": 512
+}

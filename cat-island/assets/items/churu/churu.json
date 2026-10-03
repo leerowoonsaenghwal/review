@@ -1,0 +1,21 @@
+{
+ "id": "churu",
+ "ko": "츄르",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "tip": [
+   0,
+   0.007,
+   0.079
+  ]
+ },
+ "rawTris": 9008,
+ "rawCheck": {
+  "open": 0,
+  "nonManifold": 0,
+  "volume": 5.5876997899073085e-05,
+  "minY": 0
+ },
+ "game_tris": 800,
+ "texture": 512
+}
