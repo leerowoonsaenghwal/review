@@ -636,7 +636,7 @@ export function makeClips(rig, opts = {}) {
   add('LieDown', 1.1, false, t => over(transfer(P0, LOAF, t / 1.1, { FL: .04, FR: .04 }, { FL: .25, FR: .25 }), { blink: blinkAt(t, [.9]) }));
   add('Loaf', 5, true, t => over(LOAF, { breath: Math.sin(TAU * t / 2.5), blink: .55 + .45 * blinkAt(t, [2]), tailWave: .04, tailWph: t / 2.5 }));
   add('Sleep', 5, true, t => over(SLEEP, { breath: 1.3 * Math.sin(TAU * t / 2.5), tailTip: .05 * Math.sin(TAU * t / 5), earLp: -.25 + .25 * bump(t, 3.2, .06) }));
-  add('FallAsleep', 2, false, t => { const P = over(transfer(LOAF, SLEEP, t / 2, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }); P.nkPitch -= .25 * Math.sin(Math.PI * ss(t / 2)); return P; });   // the head lifts over the front legs on the way
+  add('FallAsleep', 2, false, t => { const P = over(transfer(LOAF, SLEEP, t / 2, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }); P.nkPitch += .3 * Math.sin(Math.PI * ss(t / 2)); return P; });   // the head draws back over the front legs on the way
   // ---------------------------------------------------------------- grooming
   // Cats groom sitting or lying, never standing, and a bout runs head to tail (cephalocaudal). Share of oral
   // grooming by region: face 31 %, hind legs 21 %, sides/back 13 %, neck/chest 11 %, anogenital 10 %,
@@ -778,12 +778,17 @@ export function makeClips(rig, opts = {}) {
       guard: [{ a: 'HL', b: ['head', 'torso'] }, { a: 'head', b: ['HL'] }] }, [{ HLk1: -2.6, HLk2: .8, hdRoll: .7 }, { HLk1: -2.0, HLk2: 1.4, HLkz: .8, hdPitch: .6 }]);
     report.scratch = touch.last;
     settle(S, base, { fk: ['HL'] });                                             // tail off the floor, other paws out of the body
+    // getting the foot up: first carried (by IK) up round the outside of the haunch to where the raised foot
+    // will be, then the leg takes the raised joint angles; the reverse on the way down
+    applyPose(rig, base); const W = worldOf(rig, 'Toes_L');
     add('ScratchEar', 3, true, t => {
       const k = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 2.5, 3)));
-      const P = mix(SITG, base, k); P.HLfk = k;
-      // the foot swings out wide of the haunch while the leg changes over from standing to raised
-      P.HLx += .5 * rig.hipH * Math.sin(Math.PI * k); P.HLy += .3 * rig.hipH * Math.sin(Math.PI * k);
+      const P = mix(SITG, base, k);
+      const ik = mj(seg(t, 0, .3)) * (1 - mj(seg(t, 2.65, 3))), fk = mj(seg(t, .2, .35)) * (1 - mj(seg(t, 2.5, 2.7)));
+      const g = V(SITG.HLx, SITG.HLy, SITG.HLz).lerp(W, ik);
       const sc = Math.sin(TAU * 7 * t) * (t > .45 && t < 2.5 ? 1 : 0);
+      P.HLx = g.x + .6 * rig.hipH * Math.sin(Math.PI * ik); P.HLy = g.y; P.HLz = g.z; P.HLfk = fk;
+      P.HLa = lerp(SITG.HLa, -.6, ik); P.HLt = lerp(0, .6, ik);
       P.HLk2 += .06 * sc * k; P.HLk3 -= .15 * sc * k;                              // the scratching stroke (toes rake the fur)
       P.hdRoll += .03 * sc * k; P.mouth = .15 * k;                                  // head jiggles with it
       return P;
