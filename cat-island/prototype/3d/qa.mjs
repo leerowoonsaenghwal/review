@@ -19,7 +19,7 @@ for (const id of breeds) {
   const b = BREEDS.find(x => x.id === id);
   const rig = makeRig(buildCatModel(b.shape, b.coat, { res: RES })), C = makeContact(rig);
   const longFur = b.shape.fur === 'long';
-  const clips = makeClips(rig).filter(c => !only || only.includes(c.name));
+  const allClips = makeClips(rig), clips = allClips.filter(c => !only || only.includes(c.name)); clips.skipped = allClips.skipped;
   // point sets (every other vertex is plenty at this resolution)
   const limbPts = Object.fromEntries(LIMBS.map(L => [L, C.points(p => p === L, 'body', 2)]));
   const beanPts = Object.fromEntries(LIMBS.map(L => [L, C.points(p => p === L, 'face')]));
@@ -34,7 +34,7 @@ for (const id of breeds) {
   const notSelf = L => p => p !== L && p !== L + 'u';
   const restL = Object.fromEntries(LIMBS.map(L => [L, C.depthEach(limbPts[L], notSelf(L))]));
   const restB = Object.fromEntries(LIMBS.map(L => [L, C.depthEach(beanPts[L], notSelf(L))]));
-  console.log(`\n${b.ko} (${id})`);
+  console.log(`\n${b.ko} (${id})`); if (clips.skipped?.length) console.log('  (skipped for this body: ' + clips.skipped.map(x => x.clip + ' — ' + x.reason).join('; ') + ')');
   for (const clip of clips) {
     const issues = [], n = Math.max(2, Math.round(clip.dur * FPS));
     const runs = (clip.contacts || []).map(() => []);

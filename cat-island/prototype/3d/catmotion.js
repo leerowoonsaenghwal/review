@@ -224,7 +224,9 @@ export function gaitFeet(rig, g, t) {
     // galloping, the hind paws land ahead of where the front paws were: on this short body they would meet,
     // so the hind track runs wide (wider still mid-swing) and they pass outside the front legs
     const wide = g.kind !== 'gallop' || fr ? 0 : .4 + (stance ? 0 : .3 * Math.sin(Math.PI * u));
-    out.feet[f] = { x: r.x * (narrow + wide), y, z: z - rootZ, a, t: toe, c, u, stance };
+    // (but never so narrow that thick legs brush each other)
+    const xx = r.x * (narrow + wide), minX = 1.25 * rig.d.pawR;
+    out.feet[f] = { x: Math.sign(r.x) * Math.max(Math.abs(xx), minX), y, z: z - rootZ, a, t: toe, c, u, stance };
   }
   // a hind paw passing its front paw (same side) steps round it: sideways clearance grows as they close in
   const pr = rig.d.pawR, clear = 5 * pr;
@@ -548,6 +550,8 @@ const addTongue = (P, c, k = 1) => { for (const key in c) P[key] = key === 'hdPi
 // Only the regions this toy cat can really reach are animated (the face 31 % and chest 11 %; flanks, hind
 // legs, belly and tail are out of its reach). `from` is the posture the clip starts and ends in (play SitDown
 // first). The last two are scratching and claw care, not licking, and are sprinkled in rather than weighted.
+// a grooming contact further off than this after solving means the clip is not made for that breed
+export const GROOM_REACH_LIMIT = .005;
 export const GROOM_ROUTINE = [
   { clip: 'GroomFace', region: 'front paw (lick) and face (paw wash: cheek, whisker pad, muzzle)', share: .31, from: 'Sit' },
   { clip: 'GroomChest', region: 'neck / chest', share: .11, from: 'Sit' },
@@ -642,7 +646,7 @@ export function makeClips(rig, opts = {}) {
         P[f + 'x'] = r.x * (fr ? 1 : 1 + .25 * crouch); P[f + 'y'] = wy - P.rootY;   // crouching, the hind paws set wider beside the haunches P[f + 'z'] = wz - P.rootZ; P[f + 'a'] = a; P[f + 't'] = toe;
       }
       return P;
-    }, dur, {}, 36), { rootMotion: true, jump: { D, H: Hup } });
+    }, dur, { iters: 10 }, 36), { rootMotion: true, jump: { D, H: Hup } });
   }
   // sitting down, sitting, standing up
   const SIT = sitPose(rig, S), LOAF = settle(S, loafPose(rig), { floor: -.002, dense: true, iters: 20 }), SLEEP = settle(S, sleepPose(rig), { dense: true, iters: 20 });
@@ -733,6 +737,17 @@ export function makeClips(rig, opts = {}) {
     }
     return best.sub(d.joints.Head);
   };
+  // the point on part `part`'s surface in direction `dir` from bone `bone`'s joint (bind pose), as a bone-local offset
+  const surfOf = (bone, dir, part = 'torso') => {
+    const g = S.model.userData.meshes.body.geometry.attributes.position, C = contactOf(S), o = d.joints[bone], u = dir.clone().normalize();
+    let best = null, bd = -Infinity;
+    for (let i = 0; i < g.count; i++) {
+      if (C.M.body.part[i] !== part) continue;
+      const v = V(g.getX(i), g.getY(i), g.getZ(i)), r = v.clone().sub(o), sc = r.clone().normalize().dot(u) * 3 + r.length() / d.chestR;
+      if (sc > bd) { bd = sc; best = v; }
+    }
+    return best.sub(o);
+  };
   const sx = 1;
   const UPP = { scapL: -.4, scapLy: .012 * rig.hipH };                                            // paw-up support
   const PAWK = ['FLx', 'FLy', 'FLz'], FACEK = [...HEADK, ...PAWK, 'FLa', 'FLt'];
@@ -752,7 +767,7 @@ export function makeClips(rig, opts = {}) {
   touchBest(S, lickBase, { a: 'tongue', b: ['FL'], keys: [...PAWK, 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], bounds: HB, iters: 40, at: lickAt(faceStroke), guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD] },
     [{ hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLy: rig.ballH, FLz: chestFront + .09 }, { FLx: .1 * sx, hdYaw: .45 * sx, hdRoll: .2 * sx }, { FLx: .12 * sx, FLz: chestFront + .08, hdYaw: .6 * sx, nkYaw: .3 * sx, hdRoll: .25 * sx }, { FLx: .09 * sx, FLz: chestFront + .1, hdYaw: .3 * sx, hdPitch: 1 }, { FLx: .11 * sx, FLz: chestFront + .05, hdYaw: .5 * sx, hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLx: .07 * sx, FLz: chestFront + .12, hdPitch: 1.1, nkPitch: SITG.nkPitch - .7 }],
     { FLx: [0, .04 * sx], FLz: [-.03, 0, .03, .06], hdPitch: [-.2, 0, .2, .4], nkPitch: [-.2, 0, .3], hdYaw: [0, .4 * sx] });
-  report.pawLick = touch.last; report.pawLickInfo = touch.info;
+  report.pawLick = Math.abs(touch.last - .001); report.pawLickInfo = touch.info;
   const faceTrack = lickTrack(lickBase, faceStroke, { b: ['FL'], guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD] });
   const WASH = [[.4, -.35, .8], [.32, -.45, .8], [.22, -.52, .75]].map(([x, y, z]) => V(x * sx, y, z).multiplyScalar(HS));
   const washPoses = WASH.map(off => {
@@ -787,12 +802,14 @@ export function makeClips(rig, opts = {}) {
   // 2. GroomChest: sitting, chin tucked down to the chest, the tongue drawn up the bib in long strokes
   {
     const stroke = (Q, s2) => { Q.hdPitch += .05 * s2; Q.nkPitch += .025 * s2; };
+    // the bib: the front of the chest below the chin, found on this breed's own coat
+    const chestZone = { bone: 'Chest', off: surfOf('Chest', V(0, -.45, 1)), r: .06 };
     const base = over(SITG, { hdPitch: .7, nkPitch: SITG.nkPitch + .4 });
-    touchBest(S, base, { a: 'tongue', b: ['torso'], zone: { bone: 'Chest', off: V(0, -.35 * d.chestR, .75 * d.chestR), r: .06 }, keys: ['nkPitch', 'hdPitch', 'spPitch'], bounds: { ...HB, hdPitch: [0, 1.6] }, at: lickAt(stroke), iters: 45, guard: [{ a: 'tongue', b: ['torso'] }, ...GUARD] },
+    touchBest(S, base, { a: 'tongue', b: ['torso'], zone: chestZone, keys: ['nkPitch', 'hdPitch', 'spPitch'], bounds: { ...HB, hdPitch: [0, 1.6] }, at: lickAt(stroke), iters: 45, guard: [{ a: 'tongue', b: ['torso'] }, ...GUARD] },
       [{ hdPitch: 1.2, nkPitch: SITG.nkPitch + .2 }, { hdPitch: 1.45, nkPitch: SITG.nkPitch + .5, spPitch: .2 }, { hdPitch: 1.3, nkPitch: SITG.nkPitch + .35, spPitch: .1 }],
       { hdPitch: [-.3, 0, .3, .55, .8], nkPitch: [-.3, 0, .3, .6], spPitch: [-.2, 0, .25] });
-    report.chest = touch.last;
-    const track = lickTrack(base, stroke, { b: ['torso'], zone: { bone: 'Chest', off: V(0, -.35 * d.chestR, .75 * d.chestR), r: .08 }, guard: [{ a: 'tongue', b: ['torso'] }, ...GUARD] });
+    report.chest = Math.abs(touch.last - .001);
+    const track = lickTrack(base, stroke, { b: ['torso'], zone: { ...chestZone, r: .08 }, guard: [{ a: 'tongue', b: ['torso'] }, ...GUARD] });
     add('GroomChest', 4.2, true, t => {
       const P = { ...SITG }, k = mj(seg(t, 0, .5)) * (1 - mj(seg(t, 3.7, 4.2)));
       Object.assign(P, mix(SITG, base, k)); P.blink = .8 * k + blinkAt(t, [.1]) * (1 - k); P.breath = Math.sin(TAU * t / 2.2);
@@ -818,12 +835,12 @@ export function makeClips(rig, opts = {}) {
       if (touch.last < .004) break;
     }
     Object.assign(base, bestScratch.P); touch.last = bestScratch.err;
-    report.scratch = touch.last;
+    report.scratch = Math.abs(touch.last + .002);
     settle(S, base, { fk: ['HL'] });                                             // tail off the floor, other paws out of the body
     // getting the foot up: first carried (by IK) up round the outside of the haunch to where the raised foot
     // will be, then the leg takes the raised joint angles; the reverse on the way down
     applyPose(rig, base); const W = worldOf(rig, 'Toes_L');
-    add('ScratchEar', 3, true, t => {
+    add('ScratchEar', 3, true, withSettle(S, t => {
       const k = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 2.5, 3)));
       const P = mix(SITG, base, k);
       const ik = mj(seg(t, 0, .3)) * (1 - mj(seg(t, 2.65, 3))), fk = mj(seg(t, .2, .35)) * (1 - mj(seg(t, 2.5, 2.7)));
@@ -831,10 +848,10 @@ export function makeClips(rig, opts = {}) {
       const sc = Math.sin(TAU * 7 * t) * (t > .45 && t < 2.5 ? 1 : 0);
       P.HLx = g.x + .6 * rig.hipH * Math.sin(Math.PI * ik); P.HLy = g.y; P.HLz = g.z; P.HLfk = fk;
       P.HLa = lerp(SITG.HLa, -.6, ik); P.HLt = lerp(0, .6, ik);
-      P.HLk2 += .06 * sc * k; P.HLk3 -= .15 * sc * k;                              // the scratching stroke (toes rake the fur)
+      P.HLk2 += .04 * sc * k; P.HLk3 -= .1 * sc * k;                               // the scratching stroke (toes rake the fur)
       P.hdRoll += .03 * sc * k; P.mouth = .15 * k;                                  // head jiggles with it
       return P;
-    }, { contacts: [{ a: 'HL', b: ['head'], when: (P, t) => t > .45 && t < 2.5 }] });
+    }, 3, {}, 30), { contacts: [{ a: 'HL', b: ['head'], when: (P, t) => t > .45 && t < 2.5 }] });
   }
 
   // 4. NibbleClaws: sitting, a front paw lifted a little with toes spread, head bent down and turned sideways
@@ -844,7 +861,7 @@ export function makeClips(rig, opts = {}) {
     touchBest(S, base, { a: 'FL', b: ['head'], zone: { bone: 'Head', off: headSurf(V(.3 * sx, -.5, .75).multiplyScalar(HS)), r: .035 }, keys: [...PAWK, ...HEADK], bounds: HB, gap: -.003, iters: 45,
       guard: GUARD }, [{ hdRoll: .7 * sx, hdYaw: .3 * sx }, { hdPitch: 1, hdRoll: .55 * sx }, { FLz: lickBase.FLz + .02, hdRoll: .5 * sx, hdYaw: .2 * sx }],
       { FLz: [-.02, 0, .03], FLy: [0, .02], hdPitch: [-.2, 0, .2], hdRoll: [-.2, 0, .2], hdYaw: [-.2, .2] });
-    report.nibble = touch.last;
+    report.nibble = Math.abs(touch.last + .003);
     add('NibbleClaws', 3.4, true, t => {
       const P = { ...SITG }, up = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 2.9, 3.4)));
       for (const [key, v] of Object.entries(UPP)) P[key] = (P[key] || 0) * (1 - up) + v * up;
@@ -881,7 +898,7 @@ export function makeClips(rig, opts = {}) {
   // column of liquid that the jaw snaps shut on. Every 8 laps a short pause to swallow.
   {
     const f = 3.5, laps = 8, lapT = 1 / f, dur = laps * lapT + .95;
-    add('Drink', dur, true, t => {
+    add('Drink', dur, true, withSettle(S, t => {
       const P = { ...P0 };
       P.hipY = -.07 * h; P.hipPitch = .06; P.spPitch = .18; P.nkPitch = .4; P.hdPitch = .5;
       for (const ff of ['FL', 'FR']) { P[ff + 'z'] += .02 * h; P[ff + 'a'] = .55; }
@@ -898,7 +915,7 @@ export function makeClips(rig, opts = {}) {
         addTongue(P, lipLick(seg(t, laps * lapT + .05, dur - .02)));
       }
       return P;
-    }, { drink: { laps, rate: f } });
+    }, dur, {}, 12), { drink: { laps, rate: f } });
   }
   add('LickLips', 1.4, false, t => {
     const P = over(SIT, { breath: Math.sin(TAU * t / 2), blink: .3 + .5 * Math.sin(Math.PI * seg(t, .1, 1.2)) });
@@ -920,7 +937,7 @@ export function makeClips(rig, opts = {}) {
     add('FlopIdle', 4, true, t => over(FLOP, { breath: 1.2 * Math.sin(TAU * t / 2.4), tailTip: .3 * Math.sin(TAU * t / 2 - 1), tailWave: .1, tailWph: t / 2, blink: .55 + .45 * blinkAt(t, [2.6]) }));
   }
   // paw batting: lift, tap down, return (Turkish Van at the water bowl)
-  add('PawBat', 1.4, true, t => {
+  add('PawBat', 1.4, true, withSettle(S, t => {
     const P = { ...P0 }, u = t / 1.4;
     const up = u < .35 ? mj(u / .35) : u < .5 ? 1 - .9 * mj((u - .35) / .15) : .1 * (1 - mj((u - .5) / .5));
     const fwd = u < .5 ? mj(Math.min(1, u / .4)) : 1 - mj((u - .5) / .5);
@@ -929,9 +946,15 @@ export function makeClips(rig, opts = {}) {
     P.hdPitch = .35 * Math.max(up, .8 * fwd); P.hdYaw = .1 * fwd;
     P.tailBase = -.2; P.tailWave = .2; P.tailWph = u * 2; P.earLp = P.earRp = .12;
     return P;
-  });
+  }, 1.4, {}, 14));
   clips.groomReport = report;
-  return clips;
+  // a grooming clip whose contact this breed's body cannot make (legs too short to reach, ...) is not shipped:
+  // it is left out of the clip set and listed with the reason, so the game simply never plays it for that cat
+  const reachErr = { GroomFace: Math.max(report.pawLick, report.wash), GroomChest: report.chest, ScratchEar: report.scratch, NibbleClaws: report.nibble };
+  const out = clips.filter(c => !(reachErr[c.name] > GROOM_REACH_LIMIT));
+  out.skipped = clips.filter(c => reachErr[c.name] > GROOM_REACH_LIMIT).map(c => ({ clip: c.name, reason: `contact out of reach for this body (${(reachErr[c.name] * 1000).toFixed(0)} mm short)` }));
+  out.groomReport = report;
+  return out;
 }
 
 // ------------------------------------------------------------------ bake to AnimationClips
