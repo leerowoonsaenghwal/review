@@ -462,10 +462,6 @@ export function touchBest(rig, P, opts, starts = [], grid = null) {
   Object.assign(P, best); applyPose(rig, P); touch.last = bestErr + (opts.gap ?? .001); touch.info = info;
   return P;
 }
-  }
-  Object.assign(P, best); applyPose(rig, P); touch.last = bestErr + (opts.gap ?? .001); touch.info = info;
-  return P;
-}
 // settle a moving clip: settle n+1 sampled frames and blend the corrections in between (cheap at play time)
 export function withSettle(rig, pose, dur, opts = {}, n = 12) {
   const keys = new Set(), deltas = [];
