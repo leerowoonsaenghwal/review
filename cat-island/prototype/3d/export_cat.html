@@ -7,7 +7,8 @@ import * as THREE from 'three';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { BREEDS } from './catgen.js';
 import { buildCatModel } from './catmodel.js';
-import { GROOM_ROUTINE, makeRig, makeClips, bakeClip, applyPose, stand } from './catmotion.js';
+import { GROOM_ROUTINE, makeRig, makeClips, bakeClip, applyPose, stand, solveAt } from './catmotion.js';
+import { itemField } from './items.js';
 const q = new URLSearchParams(location.search);
 const b = BREEDS.find(x => x.id === (q.get('id') || 'korean_shorthair'));
 const coat = q.get('coat') ? JSON.parse(q.get('coat')) : b.coat;
@@ -15,6 +16,19 @@ const cat = buildCatModel(b.shape, coat, { res: +(q.get('res') || .016), name: '
 // contacts are solved on a coarser build of the same cat (same skeleton): much faster, same poses
 const rig = makeRig(cat), defs = makeClips(rig, { solveRig: makeRig(buildCatModel(b.shape, b.coat, { res: .03 })) });
 const clips = defs.map(d => bakeClip(rig, d));
+// where this cat's items go (root space, metres; docs/ITEMS.md): the toy under the paw at the bottom of the
+// PawBat tap, the cushion / hideout under the middle of the trunk
+const W = n => rig.B[n].getWorldPosition(new THREE.Vector3());
+const pb = defs.find(d => d.name === 'PawBat'); solveAt(rig, pb, pb.dur * .5); cat.updateMatrixWorld(true);
+const tap = W('Fingers_L');
+applyPose(rig, stand(rig)); cat.updateMatrixWorld(true);
+const mid = W('Hips').add(W('Chest')).multiplyScalar(.5), ho = itemField('hideout').anchors, cu = itemField('cushion').anchors;
+const r3 = v => +v.toFixed(3);
+const itemSpots = {
+  mouse_toy: { x: r3(tap.x), z: r3(tap.z), yaw: r3(-Math.PI / 2), clip: 'PawBat' },
+  cushion: { x: r3(mid.x), z: r3(mid.z), catLift: r3(cu.top), clips: ['Loaf', 'Sleep', 'FlopIdle'] },
+  hideout: { x: r3(mid.x), z: r3(mid.z - ho.catAhead), catLift: r3(ho.floor), clips: ['Loaf'] },
+};
 applyPose(rig, stand(rig));                       // leave the rig in the rest-like standing pose
 const scene = new THREE.Scene(); scene.add(cat);
 const glb = await new GLTFExporter().parseAsync(scene, { binary: true, animations: clips });
@@ -22,6 +36,6 @@ const bytes = new Uint8Array(glb);
 let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
 window.__glb = btoa(bin);
 window.__info = { id: b.id, ko: b.ko, tris: cat.userData.tris, bones: cat.userData.skeleton.bones.length,
-  clips: defs.map(d => ({ name: d.name, dur: +d.dur.toFixed(3), loop: d.loop, rootMotion: !!d.rootMotion, speed: d.speed && +d.speed.toFixed(3), stride: d.stride && +d.stride.toFixed(3), jump: d.jump })), groomRoutine: GROOM_ROUTINE.filter(r => defs.some(d => d.name === r.clip)), skippedClips: defs.skipped || [] };
+  clips: defs.map(d => ({ name: d.name, dur: +d.dur.toFixed(3), loop: d.loop, rootMotion: !!d.rootMotion, speed: d.speed && +d.speed.toFixed(3), stride: d.stride && +d.stride.toFixed(3), jump: d.jump, drink: d.drink })), groomRoutine: GROOM_ROUTINE.filter(r => defs.some(d => d.name === r.clip)), skippedClips: defs.skipped || [], itemSpots };
 window.__done = true;
 </script></body></html>
