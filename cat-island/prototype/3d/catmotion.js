@@ -643,7 +643,8 @@ export function makeClips(rig, opts = {}) {
           a = fr ? K([[0, .3], [.3, -1.6], [.8, .4], [1, .3]], u) : K([[0, -.9], [.4, -1.2], [.85, .5], [1, .2]], u);
           toe = fr ? K([[0, 0], [.3, 1.1], [.8, .2], [1, 0]], u) : K([[0, -.2], [.4, .7], [1, 0]], u);
         }
-        P[f + 'x'] = r.x * (fr ? 1 : 1 + .25 * crouch); P[f + 'y'] = wy - P.rootY;   // crouching, the hind paws set wider beside the haunches P[f + 'z'] = wz - P.rootZ; P[f + 'a'] = a; P[f + 't'] = toe;
+        P[f + 'x'] = r.x * (fr ? 1 : 1 + .25 * crouch); P[f + 'y'] = wy - P.rootY;   // crouching, the hind paws set wider beside the haunches
+        P[f + 'z'] = wz - P.rootZ; P[f + 'a'] = a; P[f + 't'] = toe;
       }
       return P;
     }, dur, { iters: 10 }, 36), { rootMotion: true, jump: { D, H: Hup } });
