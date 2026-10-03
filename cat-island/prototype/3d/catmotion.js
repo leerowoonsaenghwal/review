@@ -1067,13 +1067,13 @@ export function makeClips(rig, opts = {}) {
     // the toy, then drawn back and set down behind it
     const lift = Math.max(.5 * h, TOY_TOP + .06), tapLow = clamp(TOY_TOP / lift, .1, .9);
     const v = clamp((u - .5) / .5, 0, 1);
-    const up = u < .35 ? mj(u / .35) : u < .5 ? 1 - (1 - tapLow) * mj((u - .35) / .15) : tapLow * (1 - mj(seg(v, .5, 1))) + .35 * Math.sin(Math.PI * v);
-    const fwd = u < .5 ? mj(Math.min(1, u / .4)) : 1 - mj(seg(v, .25, 1));
+    const up = u < .35 ? mj(u / .35) : u < .5 ? 1 - (1 - tapLow) * mj((u - .35) / .15) : tapLow * (1 - mj(seg(v, .5, 1))) + .45 * mj(seg(v, 0, .3)) * (1 - mj(seg(v, .55, 1)));
+    const fwd = u < .5 ? mj(Math.min(1, u / .4)) : 1 - mj(seg(v, .3, 1));
     // the paw reaches far enough to clear a toy lying in front of it, whatever the leg length
     const reach = Math.max(.36 * h, .11);
     P.FLy += up * lift; P.FLz += fwd * reach; P.FLx *= .85; P.FLt = 1.0 * up;
     // (the wrist curls the toes down for the tap only; drawn back over the toy the paw is held level, toes up)
-    P.FLa = u < .5 ? lerp(.3, -1.5, up) : lerp(lerp(.3, -1.5, tapLow), .1, mj(seg(v, 0, .3))) * (1 - mj(seg(v, .7, 1))) + .3 * mj(seg(v, .7, 1));
+    P.FLa = u < .5 ? lerp(.3, -1.5, up) : lerp(lerp(.3, -1.5, tapLow), .1, mj(seg(v, .2, .45))) * (1 - mj(seg(v, .7, 1))) + .3 * mj(seg(v, .7, 1));
     P.scapL = -.35 * Math.min(1, up); P.scapLy = .012 * Math.min(1, up) * h; P.hipZ = -.025 * h * up; P.hipPitch = .06 * up; P.hipRoll = -.05 * up;
     P.hdPitch = .35 * Math.max(up, .8 * fwd); P.hdYaw = .1 * fwd;
     P.tailBase = -.2; P.tailWave = .2; P.tailWph = u * 2; P.earLp = P.earRp = .12;
