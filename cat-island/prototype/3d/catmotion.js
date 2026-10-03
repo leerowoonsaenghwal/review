@@ -634,41 +634,6 @@ export function makeClips(rig, opts = {}) {
       return P;
     };
   };
-  // grooming paws, on the finished pose of every half frame: wherever the paw (or forearm, or its beans) is in
-  // the head, or the head in it, by more than 3 mm, the paw's target is pushed out along the head's surface
-  // normal until it is clear (a rub is meant to press in ~2 mm: that is left alone). Measured, so it holds
-  // whatever the breed's head and paw sizes.
-  const sepFix = (pose, dur, L) => {
-    let offs = null;
-    const build = () => {
-      const C = contactOf(S), n = Math.max(2, Math.ceil(2 * dur * FPS)), sets = [C.sets[L], C.sets[L + 'b']];
-      const isHead = p => p === 'head', isPaw = p => p === L || p === L + 'u';
-      offs = Array.from({ length: n + 1 }, (_, i) => {
-        const P = pose(dur * i / n), o = [0, 0, 0];
-        for (let it = 0; it < 5; it++) {
-          const Q = { ...P, [L + 'x']: P[L + 'x'] + o[0], [L + 'y']: P[L + 'y'] + o[1], [L + 'z']: P[L + 'z'] + o[2] };
-          applyPose(S, Q); C.update();
-          let worst = null;
-          for (const set of sets) {
-            const r = C.depth(set, isHead, set === C.sets[L] ? null : null, .06);
-            if (r.d < (worst?.d ?? -.003)) { const p = C.M[set.mesh].pos, q = C.nearest(p[3 * r.i], p[3 * r.i + 1], p[3 * r.i + 2], isHead, .06); if (q) worst = { d: r.d, n: [q.n.x, q.n.y, q.n.z] }; }
-          }
-          const rh = C.depth(C.sets.head, isPaw, null, .06);
-          if (rh.d < (worst?.d ?? -.003)) { const p = C.M.body.pos, q = C.nearest(p[3 * rh.i], p[3 * rh.i + 1], p[3 * rh.i + 2], isPaw, .06); if (q) worst = { d: rh.d, n: [-q.n.x, -q.n.y, -q.n.z] }; }
-          if (!worst) break;
-          const push = -worst.d - .002;
-          for (let k = 0; k < 3; k++) o[k] += worst.n[k] * push;
-        }
-        return o;
-      });
-    };
-    return t => {
-      if (!offs) build();
-      const P = pose(t), f = clamp(t / dur, 0, 1) * (offs.length - 1), i = Math.min(offs.length - 2, Math.floor(f)), u = f - i;
-      P[L + 'x'] += lerp(offs[i][0], offs[i + 1][0], u); P[L + 'y'] += lerp(offs[i][1], offs[i + 1][1], u); P[L + 'z'] += lerp(offs[i][2], offs[i + 1][2], u);
-      return P;
-    };
-  };
   // grooming licks, last of all, on the finished pose of every half frame: how far the tongue is out is
   // bisected so that mid-lick (lick phase LICK_CORE) it just meets the fur and at no other time is it in it.
   // (lickTrack has already done this on the base pose; this catches what breathing, settling and the floor
@@ -718,7 +683,6 @@ export function makeClips(rig, opts = {}) {
     const frames = Math.max(2, Math.round(dur * FPS)), d2 = frames / FPS, f = dur / d2;
     // (after a jump has carried the root onto the deck, the deck top is the floor)
     let fn = floorFix(f === 1 ? pose : t => pose(t * f), d2, extra.jump ? P => (P.rootZ >= .8 * extra.jump.D ? extra.jump.H : 0) : undefined);
-    if (extra.sepPaw) fn = sepFix(fn, d2, extra.sepPaw);
     const tc = (extra.contacts || []).find(c => c.a === 'tongue');
     if (tc) fn = tongueFix(fn, d2, tc.b);
     const clip = { name, dur: d2, loop, pose: fn, ...extra };
@@ -973,7 +937,7 @@ export function makeClips(rig, opts = {}) {
     if (t >= .45 && t < 2.25) licking(P, t, .45, 4, 2.2, faceStroke, faceTrack);
     if (t >= 5.15 && t < 6.05) licking(P, t, 5.15, 2, 2.2, faceStroke, faceTrack);
     return P;
-  }, 6.6, { fkAt: t => (t > .5 && t < 2.2) || (t > 2.5 && t < 4.85) || (t > 5.2 && t < 6.0) ? ['FL'] : [] }, 24), { sepPaw: 'FL', contacts: [{ a: 'tongue', b: ['FL'], when: P => P.lickU >= LICK_CORE[0] && P.lickU <= LICK_CORE[1] }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }] });
+  }, 6.6, { fkAt: t => (t > .5 && t < 2.2) || (t > 2.5 && t < 4.85) || (t > 5.2 && t < 6.0) ? ['FL'] : [] }, 24), { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.lickU >= LICK_CORE[0] && P.lickU <= LICK_CORE[1] }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }] });
 
   // (chest licking is not animated: with the chin tucked, this big head rests ON the chest, so the tongue can
   //  only hang down in front of the bib - checked on the meshes and in renders, it reads as a dangling tongue)
@@ -1044,7 +1008,7 @@ export function makeClips(rig, opts = {}) {
       P.FLy -= .03 * wait; P.FLz += .025 * wait;
       P.mouth = (.15 + .4 * chew) * up; P.blink = .7 * up;
       return P;
-    }, 3.4, { fkAt: t => t > .55 && t < 2.75 ? ['FL'] : [] }, 14), { sepPaw: 'FL', contacts: [{ a: 'FL', b: ['head'], when: (P, t) => t > .5 && t < 2.8 }] });
+    }, 3.4, { fkAt: t => t > .55 && t < 2.75 ? ['FL'] : [] }, 14), { contacts: [{ a: 'FL', b: ['head'], when: (P, t) => t > .5 && t < 2.8 }] });
   }
   }
   // stretch: play-bow with a big yawn, then each hind leg stretched out behind
