@@ -1121,8 +1121,44 @@ export function makeClips(rig, opts = {}) {
   // a grooming clip whose contact this breed's body cannot make (legs too short to reach, ...) is not shipped:
   // it is left out of the clip set and listed with the reason, so the game simply never plays it for that cat
   const reachErr = { GroomFace: Math.max(report.pawLick ?? 0, report.wash ?? 0), ScratchEar: report.scratch, NibbleClaws: report.nibble };
-  const out = clips.filter(c => !(reachErr[c.name] > GROOM_REACH_LIMIT));
-  out.skipped = clips.filter(c => reachErr[c.name] > GROOM_REACH_LIMIT).map(c => ({ clip: c.name, reason: `contact out of reach for this body (${(reachErr[c.name] * 1000).toFixed(0)} mm short)` }));
+  // and every grooming clip that is left is played through, frame by frame, with the same rules as qa.mjs: a
+  // paw or leg more than 4 mm into the head or body (long coats: the body's fur is soft), the head more than
+  // 8 mm into a paw, a lick or rub that misses by more than 3 mm or presses in deeper than 7 mm. A clip that
+  // breaks any of them is not shipped for this breed (listed with the reason), so no clip in the game shows it.
+  const failed = {};
+  if (!opts.noVerify) {
+    const C = contactOf(S), fur = rig.model.userData.shape?.fur, longFur = fur === 'long' || fur === 'curly';
+    const T = C.sets.tongue ||= C.points(p => p === 'tongue', 'face', 2);
+    for (const c of clips) {
+      if (!GROOM_ROUTINE.some(g => g.clip === c.name) || reachErr[c.name] > GROOM_REACH_LIMIT) continue;
+      const n = Math.round(c.dur * FPS), runs = (c.contacts || []).map(() => []);
+      let bad = null;
+      for (let f = 0; f <= n && !bad; f++) {
+        const t = c.dur * f / n, P = c.pose(t); applyPose(S, P); C.update();
+        for (const L of LIMBS) {
+          const ok = p => p !== L && p !== L + 'u' && !(longFur && p === 'torso');
+          const d1 = C.depth(C.sets[L], ok, C.rest[L]), d2 = C.depth(C.sets[L + 'b'], ok);
+          const d = Math.min(d1.d, d2.d);
+          if (d < -.004) { bad = `${L} into ${(d1.d < d2.d ? d1 : d2).part} ${(-d * 1000).toFixed(0)} mm at ${t.toFixed(2)} s`; break; }
+        }
+        const dh = C.depth(C.sets.head, p => LIMBS.includes(p));
+        if (!bad && dh.d < -.008) bad = `head into ${dh.part} ${(-dh.d * 1000).toFixed(0)} mm at ${t.toFixed(2)} s`;
+        (c.contacts || []).forEach((k, i) => {
+          const r = runs[i];
+          if (!k.when(P, t)) { if (r.length) r[r.length - 1].open = false; return; }
+          if (!r.length || !r[r.length - 1].open) r.push({ open: true, best: Infinity, deep: 0, t });
+          const A = k.a === 'tongue' ? [T] : [C.sets[k.a], C.sets[k.a + 'b']];
+          const g = Math.min(...A.map(set => C.gap(set, p => k.b.includes(p)).d)), run = r[r.length - 1];
+          run.best = Math.min(run.best, Math.max(0, g)); run.deep = Math.min(run.deep, g);
+        });
+      }
+      if (!bad) (c.contacts || []).forEach((k, i) => { for (const r of runs[i]) if (!bad && (r.best > .003 || r.deep < -.007)) bad = `${k.a} on ${k.b.join('/')} ${r.best > .003 ? `misses by ${(r.best * 1000).toFixed(0)} mm` : `presses in ${(-r.deep * 1000).toFixed(0)} mm`} at ${r.t.toFixed(2)} s`; });
+      if (bad) failed[c.name] = bad;
+    }
+  }
+  const drop = c => reachErr[c.name] > GROOM_REACH_LIMIT || failed[c.name];
+  const out = clips.filter(c => !drop(c));
+  out.skipped = clips.filter(drop).map(c => ({ clip: c.name, reason: failed[c.name] ? `failed the contact check on this body (${failed[c.name]})` : `contact out of reach for this body (${(reachErr[c.name] * 1000).toFixed(0)} mm short)` }));
   out.groomReport = report;
   return out;
 }

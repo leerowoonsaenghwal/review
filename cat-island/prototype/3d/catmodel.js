@@ -600,6 +600,6 @@ export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
     len: { lH: lH * S, lR: lR * S, lMc: lMc * S, lF: lF * S, lT: lT * S, lMt: lMt * S },
     shoulderH: shoulderH * S, hipH: hipH * S, rumpR: .31 * B * fl * S, chestR: .33 * B * fl * S, BLm: BL * S, tongueLen: tongueLen * S, tongueIn: tongueIn * S, tongueU: TU, mouth: toM(Hc.clone().add(V(0, mY, mZ))), tail: s.tail, shape: s,
   };
-  group.userData = { dims, bones, skeleton, meshes: { body, face: faceMesh }, tris: (bodyIdx.length + faceIdx.length) / 3 };
+  group.userData = { shape: { fur: s.fur }, dims, bones, skeleton, meshes: { body, face: faceMesh }, tris: (bodyIdx.length + faceIdx.length) / 3 };
   return group;
 }
