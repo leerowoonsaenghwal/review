@@ -1060,19 +1060,15 @@ export function makeClips(rig, opts = {}) {
     add('FlopIdle', 4, true, t => over(FLOP, { breath: 1.2 * Math.sin(TAU * t / 2.4), tailTip: .3 * Math.sin(TAU * t / 2 - 1), tailWave: .1, tailWph: t / 2, blink: .55 + .45 * blinkAt(t, [2.6]) }));
   }
   // paw batting: lift, tap down, return (Turkish Van at the water bowl)
-  add('PawBat', 1.4, true, withSettle(S, t => {
+  let tapLow = .5;
+  const pawBat = t => {
     const P = { ...P0 }, u = t / 1.4;
     // the paw is raised well over the toy whatever the leg length (a Munchkin's half-leg is lower than the toy),
     // the tap comes down onto the toy's top (TOY_TOP), not through it to the floor; and back: first lifted off
     // the toy, then drawn back and set down behind it
     const lift = Math.max(.5 * h, TOY_TOP + .06);
-    // where the tap stops is measured on the mesh: the lowest point of the paw (curled toes, beans) on the toy top
-    const tapLow = (() => {
-      const C = contactOf(S), at = k => { const Q = { ...P0 }; Q.FLy += k * lift; Q.FLz += Math.max(.36 * h, .11); Q.FLx *= .85; Q.FLa = lerp(.3, -1.5, k); Q.FLt = k; applyPose(S, Q); C.update(); return Math.min(C.lowest(C.sets.FL), C.lowest(C.sets.FLb)); };
-      let lo = .05, hi = 1;
-      for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (at(m) < TOY_TOP + .002) lo = m; else hi = m; }
-      return hi;
-    })();
+    // (tapLow: where the tap stops, solved below on the mesh with this very pose)
+
     const v = clamp((u - .5) / .5, 0, 1);
     const up = u < .35 ? mj(u / .35) : u < .5 ? 1 - (1 - tapLow) * mj((u - .35) / .15) : tapLow * (1 - mj(seg(v, .5, 1))) + .45 * mj(seg(v, 0, .3)) * (1 - mj(seg(v, .55, 1)));
     const fwd = u < .5 ? mj(Math.min(1, u / .4)) : 1 - mj(seg(v, .3, 1));
@@ -1085,7 +1081,15 @@ export function makeClips(rig, opts = {}) {
     P.hdPitch = .35 * Math.max(up, .8 * fwd); P.hdYaw = .1 * fwd;
     P.tailBase = -.2; P.tailWave = .2; P.tailWph = u * 2; P.earLp = P.earRp = .12;
     return P;
-  }, 1.4, {}, 14));
+  };
+  {
+    // the lowest point of the paw (curled toes, beans) at the bottom of the tap stops on the toy top
+    const C = contactOf(S), at = k => { tapLow = k; applyPose(S, pawBat(.7)); C.update(); return Math.min(C.lowest(C.sets.FL), C.lowest(C.sets.FLb)); };
+    let lo = .05, hi = 1;
+    for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (at(m) < TOY_TOP + .002) lo = m; else hi = m; }
+    tapLow = hi;
+  }
+  add('PawBat', 1.4, true, withSettle(S, pawBat, 1.4, {}, 14));
   clips.groomReport = report;
   // a grooming clip whose contact this breed's body cannot make (legs too short to reach, ...) is not shipped:
   // it is left out of the clip set and listed with the reason, so the game simply never plays it for that cat
