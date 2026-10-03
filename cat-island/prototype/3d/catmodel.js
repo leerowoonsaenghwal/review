@@ -301,6 +301,16 @@ export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
       const d = segDist(p, J[`Scapula_${S}`], J[`UpperArm_${S}`]), w = .7 * sstep(.16, .06, d) * sstep(-.05, .08, p.y - J[`UpperArm_${S}`].y);
       if (w > 0) { let sum = 0; for (let k = 0; k < NB; k++) sum += W[i * NB + k]; for (let k = 0; k < NB; k++) W[i * NB + k] *= (1 - w); W[i * NB + BI[`Scapula_${S}`]] += w * sum; }
     }
+    // the body's coat hanging round the top of each leg (the fur skirt of long-haired and stocky breeds) moves
+    // partly with that leg, so a swinging leg carries its fur with it instead of pushing out through the coat
+    {
+      let trunk = 0, all = 0;
+      for (let k = 0; k < NB; k++) { all += W[i * NB + k]; if (TRUNK_BONES.has(BONE_NAMES[k])) trunk += W[i * NB + k]; }
+      if (all && trunk / all > .5) for (const [S] of SIDES) for (const [a, b2] of [[`UpperArm_${S}`, `Forearm_${S}`], [`Thigh_${S}`, `Shin_${S}`]]) {
+        const d = segDist(p, J[a], J[b2]), w = .55 * sstep(.22 * thick, .1 * thick, d) * sstep(.05, -.08, p.y - J[a].y);
+        if (w > 0) { let sum = 0; for (let k = 0; k < NB; k++) sum += W[i * NB + k]; for (let k = 0; k < NB; k++) W[i * NB + k] *= (1 - w); W[i * NB + BI[a]] += w * sum; }
+      }
+    }
   }
   // smooth the weights across the surface (soft joints), then keep the 4 strongest per vertex
   const tmpW = new Float32Array(W.length);

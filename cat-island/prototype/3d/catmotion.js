@@ -350,16 +350,18 @@ export function settle(rig, P, { fk = [], floor = .002, iters = 12 } = {}) {
     // tail: raise its root until it clears the floor
     // (with a few mm to spare: the idle tail sway dips it a little)
     if (C.lowest(C.sets.tail) < .003 && P.tailBase < 1.2) { P.tailBase += .04; moved = true; }
-    // planted paws pressed into the body: step them out along the body's surface normal (sideways only)
+    // planted (IK) legs pressed into the body or another leg: the paw target and ankle angle are solved (on the
+    // mesh) to the nearest place where the whole leg is clear - so the same pose fits short and long legs
     for (const L of LIMBS) {
       if (fk.includes(L) || P[L + 'fk'] > .5) continue;
       const pl = C.lowest(C.sets[L]);                              // a folded paw tucked under the floor
       if (pl < -floor - .001) { P[L + 'y'] += -floor - pl; moved = true; }
-      const r = C.depth(C.sets[L], p => p !== L && p !== L + 'u', C.rest[L]);
+      const others = ['torso', 'head', 'tail', ...LIMBS.flatMap(M => M === L ? [] : [M, M + 'u'])];
+      const r = C.depth(C.sets[L], p => others.includes(p), C.rest[L]);
       if (r.d < -.004) {
-        const pt = C.M.body.pos, i = r.i, n = C.nearest(pt[3 * i], pt[3 * i + 1], pt[3 * i + 2], p => p === r.part, .06).n;
-        const h = Math.hypot(n.x, n.z) || 1, step = Math.min(.02, -r.d + .002);
-        P[L + 'x'] += n.x / h * step; P[L + 'z'] += n.z / h * step; moved = true;
+        touch(rig, P, { a: L, b: others, keys: [L + 'x', L + 'y', L + 'z', L + 'a'], bounds: { [L + 'y']: [rig.ballH * .95, rig.ballH + .3], [L + 'a']: [-2.2, 1.7] }, gap: .002, apart: true, iters: 15, lim: .04,
+          guard: [{ a: L, b: others }] });
+        moved = true; applyPose(rig, P); C.update();
       }
     }
     if (!moved) break;
@@ -564,8 +566,12 @@ export function makeClips(rig, opts = {}) {
   // locomotion (root motion: the clip moves the cat forward; paws stay planted on the ground)
   for (const [name, kind, cycles] of [['Walk', 'walk', 2], ['Trot', 'trot', 2], ['Gallop', 'gallop', 3]]) {
     const g = gaitParams(rig, kind);
+    // every breed's body is a different shape: the paws of each gait are settled on its mesh (stepped round
+    // the body where a swinging leg would pass into it, kept on the floor) at 16 points per stride
+    const raw = t => gaitPose(rig, g, t), cyc = withSettle(S, raw, g.T, { iters: 20 }, 16);
     add(name, g.T * cycles, true, t => {
-      const P = gaitPose(rig, g, t);
+      const P = cyc(((t % g.T) + g.T) % g.T), Q = raw(t);
+      P.rootZ = Q.rootZ;                                                       // the cycle repeats; the root keeps moving
       P.blink = kind === 'walk' ? blinkAt(t, [g.T * 1.4]) : 0;
       return P;
     }, { rootMotion: true, speed: g.v, stride: g.S, cycle: g.T });
