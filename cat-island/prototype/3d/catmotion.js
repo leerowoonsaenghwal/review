@@ -694,7 +694,7 @@ export function makeClips(rig, opts = {}) {
     // paws then land on (a long cat cannot stand right in front of a deck it can reach in one hop)
     const d0 = rig.d, Hup = .2, tLift = 1.0, tPush = 1.1;
     const headFront = (() => { const C = contactOf(S); applyPose(S, P0); C.update({ face: false }); let z = -Infinity; const p = C.M.body.pos; for (const i of C.sets.head.ids) z = Math.max(z, p[3 * i + 2]); return z; })();
-    const D = Math.max(.78, headFront + .12 - rig.restFoot.HL.z), deckBack = D + rig.restFoot.HL.z - .06;
+    const D = Math.max(.78, headFront + .12 - rig.restFoot.HL.z), deckBack = D + rig.restFoot.HL.z - .15;   // (room for the raised heel behind the toes)
     const apex = Hup + .1, vy = Math.sqrt(2 * G * apex), Tf = vy / G + Math.sqrt(2 * (apex - Hup) / G);
     const tLand = tPush + Tf, dur = tLand + .9;
     // short forelegs under a big head (Munchkin, Persian) leave no room to drop the chest and nod on landing:
@@ -1065,9 +1065,13 @@ export function makeClips(rig, opts = {}) {
     // the tap comes down onto the top of a toy (the mouse toy, TOY_TOP high), not through it to the floor
     const tapLow = clamp(TOY_TOP / (.5 * h), .1, .9);
     // (and back: lifted in an arc over the toy, down behind it)
-    const up = u < .35 ? mj(u / .35) : u < .5 ? 1 - (1 - tapLow) * mj((u - .35) / .15) : tapLow * (1 - mj((u - .5) / .5)) + .3 * Math.sin(Math.PI * mj((u - .5) / .5));
-    const fwd = u < .5 ? mj(Math.min(1, u / .4)) : 1 - mj((u - .5) / .5);
-    P.FLy += up * .5 * h; P.FLz += fwd * .36 * h; P.FLx *= .85; P.FLa = lerp(.3, -1.5, up); P.FLt = 1.0 * up;
+    // (and back: first lifted off the toy, then drawn back and set down behind it)
+    const v = clamp((u - .5) / .5, 0, 1);
+    const up = u < .35 ? mj(u / .35) : u < .5 ? 1 - (1 - tapLow) * mj((u - .35) / .15) : tapLow * (1 - mj(seg(v, .5, 1))) + .35 * Math.sin(Math.PI * v);
+    const fwd = u < .5 ? mj(Math.min(1, u / .4)) : 1 - mj(seg(v, .25, 1));
+    // the paw reaches far enough to clear a toy lying in front of it, whatever the leg length
+    const reach = Math.max(.36 * h, .11);
+    P.FLy += up * .5 * h; P.FLz += fwd * reach; P.FLx *= .85; P.FLa = lerp(.3, -1.5, up); P.FLt = 1.0 * up;
     P.scapL = -.35 * up; P.scapLy = .012 * up * h; P.hipZ = -.025 * h * up; P.hipPitch = .06 * up; P.hipRoll = -.05 * up;
     P.hdPitch = .35 * Math.max(up, .8 * fwd); P.hdYaw = .1 * fwd;
     P.tailBase = -.2; P.tailWave = .2; P.tailWph = u * 2; P.earLp = P.earRp = .12;
