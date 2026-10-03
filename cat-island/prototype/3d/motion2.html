@@ -18,7 +18,8 @@ const times = q.get('t') ? q.get('t').split(',').map(Number) : null;   // &t=0.5
 const clipNames = (q.get('clip') || 'Walk').split(','), n = times ? times.length : +(q.get('n') || 8), views = (q.get('view') || 'side').split(',');
 const CW = +(q.get('cw') || 240), CH = +(q.get('ch') || 200);
 const cat = buildCatModel(b.shape, b.coat, { res: +(q.get('res') || .02) });
-const rig = makeRig(cat), clips = makeClips(rig);
+// contacts are solved on a coarser build of the same cat (same skeleton): much faster, same poses
+const rig = makeRig(cat), clips = makeClips(rig, { solveRig: makeRig(buildCatModel(b.shape, b.coat, { res: .03 })) });
 ttl.textContent = `${b.ko} · ${clipNames.join(', ')}`;
 sub.textContent = clips.filter(c => clipNames.includes(c.name)).map(c => `${c.name} ${c.dur.toFixed(2)}s${c.speed ? ` · ${c.speed.toFixed(2)} m/s · 보폭 ${(c.stride * 100).toFixed(0)}cm` : ''}`).join('  |  ');
 if (clips.groomReport) sub.textContent += '  |  입→목표 거리(mm, 혀가 메우는 몫 제외): ' + Object.entries(clips.groomReport).map(([k, v]) => k + ' ' + (v * 1000).toFixed(0)).join(', ');

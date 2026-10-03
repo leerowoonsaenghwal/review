@@ -164,7 +164,11 @@ export function makeContact(rig, { cell = .015 } = {}) {
     // deepest vertex of `set` inside a part accepted by `ok`
     depth(set, ok) {
       const p = M[set.mesh].pos; let worst = { d: 0 };
+      // only points inside the bounding box of the parts tested can be inside them
+      const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+      for (let v = 0; v < B.n; v++) if (ok(B.part[v])) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], B.pos[3 * v + k]); hi[k] = Math.max(hi[k], B.pos[3 * v + k]); }
       for (const i of set.ids) {
+        if (p[3 * i] < lo[0] || p[3 * i] > hi[0] || p[3 * i + 1] < lo[1] || p[3 * i + 1] > hi[1] || p[3 * i + 2] < lo[2] || p[3 * i + 2] > hi[2]) continue;
         const r = C.nearest(p[3 * i], p[3 * i + 1], p[3 * i + 2], ok, .06);
         if (r && !r.rim && r.d < worst.d) worst = { d: r.d, part: r.part, i };
       }

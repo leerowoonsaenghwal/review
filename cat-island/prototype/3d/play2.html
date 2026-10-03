@@ -34,7 +34,7 @@ if (q.get('glb')) {
 } else {
   const b = BREEDS.find(x => x.id === (q.get('id') || 'korean_shorthair'));
   cat = buildCatModel(b.shape, b.coat, { res: +(q.get('res') || .018) });
-  const rig = makeRig(cat), def = makeClips(rig).find(c => c.name === clipName);
+  const rig = makeRig(cat), def = makeClips(rig, { solveRig: makeRig(buildCatModel(b.shape, b.coat, { res: .03 })) }).find(c => c.name === clipName);
   clip = bakeClip(rig, def);
   window.__clipInfo = { name: def.name, dur: def.dur, loop: def.loop, speed: def.speed, stride: def.stride, jump: def.jump };
 }
