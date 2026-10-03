@@ -55,7 +55,7 @@ for (const id of breeds) {
     console.log(`  ${bad ? 'FAIL' : 'ok  '} ${name.padEnd(28)} ${worst.d < 0 ? `${worst.part} into ${itemId} ${(worst.d * 1000).toFixed(0)}mm at ${worst.t.toFixed(2)}s` : 'nothing inside'}${when ? ` · contact ${runs.length - misses.length}/${runs.length}${misses.length ? ` (misses up to ${(Math.max(...misses.map(r => r.best)) * 1000).toFixed(0)}mm)` : ''}` : ''}`);
   };
   // Drink: bowl where the clip says
-  const dk = clip('Drink'), bw = dk.drink.bowl, lap = (P, t) => t < dk.drink.laps / dk.drink.rate && (t * dk.drink.rate % 1) > .36 && (t * dk.drink.rate % 1) < .47;   // (the tongue is down from .36 to .46 of a lap)
+  const dk = clip('Drink'), bw = dk.drink.bowl, lap = (P, t) => t < dk.drink.laps / dk.drink.rate && (t * dk.drink.rate % 1) > .3 && (t * dk.drink.rate % 1) < .55;   // (the tongue is down around .36-.46 of a lap: at 30 fps a lap has 1-2 frames near it)
   for (const bowl of ['water_bowl', 'milk_bowl', 'food_bowl'])
     scene('Drink · ' + bowl, bowl, 'Drink', [bw.x, 0, bw.z], { touchParts: ['tongue'], when: lap });
   // JumpUp: the tower deck sits where the old test box was (deck centre at D + 5 cm)
@@ -66,7 +66,8 @@ for (const id of breeds) {
   const mid = rig.B.Hips.getWorldPosition(rig.B.Hips.position.clone()).add(rig.B.Chest.getWorldPosition(rig.B.Chest.position.clone())).multiplyScalar(.5);
   const cu = itemField('cushion').anchors, ho = itemField('hideout').anchors;
   for (const cn of ['Loaf', 'Sleep', 'FlopIdle']) scene(cn + ' · cushion', 'cushion', cn, [mid.x, cu.top, mid.z].map((v, i) => i === 1 ? 0 : v), { lift: cu.top, soft: SOFT });
-  scene('Loaf · hideout', 'hideout', 'Loaf', [mid.x, 0, mid.z], { lift: ho.floor, soft: SOFT });
+  // (the hideout goes where the body is inside and the head out of the door: the offset is searched and printed)
+  scene('Loaf · hideout', 'hideout', 'Loaf', [mid.x, 0, mid.z - (ho.catAhead ?? 0)], { lift: ho.floor, soft: SOFT });
   // PawBat: the toy under the paw at the bottom of the tap
   const pb = clip('PawBat'); solveAt(rig, pb, pb.dur * .5); C.update();
   let px = 0, pz = 0, py = Infinity; { const M = C.M.face; for (let i = 0; i < M.n; i++) if (M.part[i] === 'FL' && M.pos[3 * i + 1] < py) { py = M.pos[3 * i + 1]; px = M.pos[3 * i]; pz = M.pos[3 * i + 2]; } }
