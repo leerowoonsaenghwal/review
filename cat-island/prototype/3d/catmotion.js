@@ -575,6 +575,9 @@ const addTongue = (P, c, k = 1) => { for (const key in c) P[key] = key === 'hdPi
 // legs, belly and tail are out of its reach). `from` is the posture the clip starts and ends in (play SitDown
 // first). The last two are scratching and claw care, not licking, and are sprinkled in rather than weighted.
 // a grooming contact further off than this after solving means the clip is not made for that breed
+// the part of a lick when the tongue is on the fur (the head is still coming down the stroke; after it, the
+// stroke lifts the head away)
+export const LICK_CORE = [.3, .44];
 export const GROOM_REACH_LIMIT = .005;
 export const GROOM_ROUTINE = [
   { clip: 'GroomFace', region: 'front paw (lick) and face (paw wash: cheek, whisker pad, muzzle)', share: .31, from: 'Sit' },
@@ -629,7 +632,7 @@ export function makeClips(rig, opts = {}) {
     };
   };
   // grooming licks, last of all, on the finished pose of every half frame: how far the tongue is out is
-  // bisected so that mid-lick (lick phase .36-.5) it just meets the fur and at no other time is it in it.
+  // bisected so that mid-lick (lick phase LICK_CORE) it just meets the fur and at no other time is it in it.
   // (lickTrack has already done this on the base pose; this catches what breathing, settling and the floor
   // pass change.) Worked out on first use.
   const tongueFix = (pose, dur, parts) => {
@@ -641,7 +644,7 @@ export function makeClips(rig, opts = {}) {
         const P = pose(dur * i / n), u = P.lickU;
         if (u === undefined || u < .04 || u > .82 || !(P.tongue > 0)) return 0;
         const gapAt = dt => { const Q = { ...P, tongue: Math.max(0, P.tongue + dt) }; groomTongue(Q); applyPose(S, Q); C.update(); return C.gap(T, onB, .12).d; };
-        const core = u >= .36 && u <= .5, want = core ? -.001 : .001;
+        const core = u >= LICK_CORE[0] && u <= LICK_CORE[1], want = core ? -.001 : .001;
         if (!core && gapAt(0) >= want) return 0;
         if (core && Math.abs(gapAt(0) - want) < .0015) return 0;
         let lo = -P.tongue, hi = core ? Math.max(.15, 1 - P.tongue) : 0;     // (mid-lick it may come all the way out)
@@ -817,7 +820,7 @@ export function makeClips(rig, opts = {}) {
     const offs = LICK_U.map(u => {
       const c0 = lickCycle(u), k0 = c0.hdPitch / .1; delete c0.hdPitch;
       const gapAt = dt => { const Q = addTongue({ ...base }, c0); Q.tongue += dt; groomTongue(Q); stroke(Q, k0); applyPose(S, Q); C.update(); return C.gap(T, onB, .12).d; };
-      const core = u >= .36 && u <= .5, want = core ? -.001 : .001;
+      const core = u >= LICK_CORE[0] && u <= LICK_CORE[1], want = core ? -.001 : .001;
       if (!core && gapAt(0) >= want) return 0;                                 // already clear
       let lo = -.8, hi = core ? .12 : 0;                                       // gap falls as the tongue comes further out
       if (gapAt(hi) > want) return hi;                                         // cannot reach: as far as it goes
@@ -835,7 +838,7 @@ export function makeClips(rig, opts = {}) {
   };
   const SITG = over(SIT, { tailWave: .05 });
   // the pose at the moment the tongue is on the fur (mid-lick), for solving contact
-  const lickAt = (stroke, u = .45) => Q => { const c = lickCycle(u), k = c.hdPitch / .1; delete c.hdPitch; addTongue(Q, c); groomTongue(Q); stroke(Q, k); return Q; };
+  const lickAt = (stroke, u = .37) => Q => { const c = lickCycle(u), k = c.hdPitch / .1; delete c.hdPitch; addTongue(Q, c); groomTongue(Q); stroke(Q, k); return Q; };
   // head limits: turned past ~70 degrees or rolled flat, the toy head hides the face and wrings the neck
   const HB = { hdPitch: [-.3, 1.2], hdYaw: [-1.25, 1.25], hdRoll: [-.7, .7], nkPitch: [-.5, 1.3], nkYaw: [-.7, .7], nkRoll: [-.5, .5], spPitch: [-.35, 1], spYaw: [-.5, .5] };
   const HEADK = ['nkPitch', 'nkYaw', 'nkRoll', 'hdPitch', 'hdYaw', 'hdRoll'];
@@ -917,7 +920,7 @@ export function makeClips(rig, opts = {}) {
     if (t >= .45 && t < 2.25) licking(P, t, .45, 4, 2.2, faceStroke, faceTrack);
     if (t >= 5.15 && t < 6.05) licking(P, t, 5.15, 2, 2.2, faceStroke, faceTrack);
     return P;
-  }, 6.6, { fk: ['FL'] }, 24), { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.lickU >= .36 && P.lickU <= .5 }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }] });
+  }, 6.6, { fk: ['FL'] }, 24), { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.lickU >= LICK_CORE[0] && P.lickU <= LICK_CORE[1] }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }] });
 
   // (chest licking is not animated: with the chin tucked, this big head rests ON the chest, so the tongue can
   //  only hang down in front of the bib - checked on the meshes and in renders, it reads as a dangling tongue)
@@ -953,6 +956,9 @@ export function makeClips(rig, opts = {}) {
     add('ScratchEar', 3, true, withSettle(S, t => {
       const k = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 2.5, 3)));
       const P = mix(SITG, base, k);
+      // (the raised leg's joint angles are the scratching ones from the start: the IK -> angles crossfade does
+      //  the moving, an angle halfway from the sitting leg would fold the leg into the haunch)
+      for (const key of ['HLk1', 'HLk2', 'HLk3', 'HLk4', 'HLkz']) P[key] = base[key];
       const ik = mj(seg(t, 0, .3)) * (1 - mj(seg(t, 2.65, 3))), fk = mj(seg(t, .2, .35)) * (1 - mj(seg(t, 2.5, 2.7)));
       const g = V(SITG.HLx, SITG.HLy, SITG.HLz).lerp(W, ik);
       const sc = rakeDir * .5 * (1 - Math.cos(TAU * 7 * (t - .45))) * ss(seg(t, .45, .6)) * (1 - ss(seg(t, 2.3, 2.5)));
