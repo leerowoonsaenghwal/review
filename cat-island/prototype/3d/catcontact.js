@@ -96,9 +96,9 @@ export function makeContact(rig, { cell = .015 } = {}) {
   const P3 = (t, k) => { const v = B.idx[3 * t + k]; return [B.pos[3 * v], B.pos[3 * v + 1], B.pos[3 * v + 2]]; };
   const C = {
     M, triPart,
-    update() {
+    update({ face = true } = {}) {
       for (let b = 0; b < skel.bones.length; b++) mats[b].multiplyMatrices(skel.bones[b].matrixWorld, skel.boneInverses[b]);
-      skinAll(M.body); skinAll(M.face); normals();
+      skinAll(M.body); if (face) skinAll(M.face); normals();
       grid = new Map();
       for (let t = 0; t < nt; t++) {
         if (!triPart[t]) continue;
@@ -164,14 +164,14 @@ export function makeContact(rig, { cell = .015 } = {}) {
     // deepest vertex of `set` inside a part accepted by `ok`
     // deepest vertex of `set` inside a part accepted by `ok`; `base` (from depthEach in the rest pose) lets a
     // vertex already that deep in the bind pose (a long-haired breed's legs inside its fur skirt) count from there
-    depth(set, ok, base = null) {
+    depth(set, ok, base = null, maxR = .06) {
       const p = M[set.mesh].pos; let worst = { d: 0 };
       // only points inside the bounding box of the parts tested can be inside them
       const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
       for (let v = 0; v < B.n; v++) if (ok(B.part[v])) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], B.pos[3 * v + k]); hi[k] = Math.max(hi[k], B.pos[3 * v + k]); }
       set.ids.forEach((i, k) => {
         if (p[3 * i] < lo[0] || p[3 * i] > hi[0] || p[3 * i + 1] < lo[1] || p[3 * i + 1] > hi[1] || p[3 * i + 2] < lo[2] || p[3 * i + 2] > hi[2]) return;
-        const r = C.nearest(p[3 * i], p[3 * i + 1], p[3 * i + 2], ok, .06);
+        const r = C.nearest(p[3 * i], p[3 * i + 1], p[3 * i + 2], ok, maxR);
         if (!r || r.rim) return;
         const d = base ? Math.min(0, r.d - base[k]) : r.d;
         if (d < worst.d) worst = { d, part: r.part, i };

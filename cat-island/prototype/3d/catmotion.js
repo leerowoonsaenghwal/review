@@ -317,11 +317,12 @@ export function contactOf(rig) {
       head: C.points(p => p === 'head', 'body', 2),
       tail: C.points(p => p === 'tail', 'body', 2),
       ...Object.fromEntries(LIMBS.map(L => [L, C.points(p => p === L, 'body', 2)])),
+      ...Object.fromEntries(LIMBS.map(L => [L + '_s', C.points(p => p === L, 'body', 4)])),        // sparser, for settling
     };
     // how deep each limb vertex already sits in the rest pose (a long-haired breed's legs are inside its fur
     // skirt): only deeper than that counts as sinking in
     applyPose(rig, stand(rig)); C.update();
-    C.rest = Object.fromEntries(LIMBS.map(L => [L, C.depthEach(C.sets[L], p => p !== L && p !== L + 'u')]));
+    C.rest = Object.fromEntries(LIMBS.flatMap(L => [[L, C.depthEach(C.sets[L], p => p !== L && p !== L + 'u')], [L + '_s', C.depthEach(C.sets[L + '_s'], p => p !== L && p !== L + 'u')]]));
     rig.contact = C;
   }
   return rig.contact;
@@ -329,7 +330,7 @@ export function contactOf(rig) {
 export function settle(rig, P, { fk = [], floor = .002, iters = 12 } = {}) {
   const C = contactOf(rig);
   for (let it = 0; it < iters; it++) {
-    applyPose(rig, P); C.update();
+    applyPose(rig, { ...P, breath: Math.max(P.breath || 0, 1.3) }); C.update({ face: false });   // (with the belly at its fullest breath)
     let moved = false;
     // body: lift the hips so the lowest trunk point (and any limb posed by joint angles) is at -floor
     let low = C.lowest(C.sets.trunk);
@@ -341,11 +342,11 @@ export function settle(rig, P, { fk = [], floor = .002, iters = 12 } = {}) {
     if (hl < -floor - .001) {
       let best = null, bestY = hl;
       for (const [k, dv] of [['nkRoll', .06], ['nkRoll', -.06], ['hdRoll', .06], ['hdRoll', -.06], ['nkPitch', -.06]]) {
-        const Q = { ...P, [k]: P[k] + dv }; applyPose(rig, Q); C.update();
+        const Q = { ...P, [k]: P[k] + dv }; applyPose(rig, Q); C.update({ face: false });
         const y = C.lowest(C.sets.head); if (y > bestY + .0005) { bestY = y; best = [k, dv]; }
       }
       if (best) { P[best[0]] += best[1]; moved = true; } else if (hl < -.01) { P.hipY += -floor - hl; moved = true; }
-      applyPose(rig, P); C.update();
+      applyPose(rig, P); C.update({ face: false });
     }
     // tail: raise its root until it clears the floor
     // (with a few mm to spare: the idle tail sway dips it a little)
@@ -357,11 +358,11 @@ export function settle(rig, P, { fk = [], floor = .002, iters = 12 } = {}) {
       const pl = C.lowest(C.sets[L]);                              // a folded paw tucked under the floor
       if (pl < -floor - .001) { P[L + 'y'] += -floor - pl; moved = true; }
       const others = ['torso', 'head', 'tail', ...LIMBS.flatMap(M => M === L ? [] : [M, M + 'u'])];
-      const r = C.depth(C.sets[L], p => others.includes(p), C.rest[L]);
+      const r = C.depth(C.sets[L + '_s'], p => others.includes(p), C.rest[L + '_s'], .035);
       if (r.d < -.004) {
-        touch(rig, P, { a: L, b: others, keys: [L + 'x', L + 'y', L + 'z', L + 'a'], bounds: { [L + 'y']: [rig.ballH * .95, rig.ballH + .3], [L + 'a']: [-2.2, 1.7] }, gap: .002, apart: true, iters: 15, lim: .04,
-          guard: [{ a: L, b: others }] });
-        moved = true; applyPose(rig, P); C.update();
+        touch(rig, P, { a: L + '_s', b: others, keys: [L + 'x', L + 'y', L + 'z', L + 'a'], bounds: { [L + 'y']: [rig.ballH * .95, rig.ballH + .3], [L + 'a']: [-2.2, 1.7] }, pairless: true, iters: 10, lim: .04,
+          guard: [{ a: L + '_s', b: others }], maxR: .035 });
+        moved = true; applyPose(rig, P); C.update({ face: false });
       }
     }
     if (!moved) break;
@@ -376,36 +377,37 @@ export function settle(rig, P, { fk = [], floor = .002, iters = 12 } = {}) {
 // the deepest guard violations; one damped least-squares step (finite differences) moves the contact pair to
 // `gap` along the surface normal (negative gap: pressed into the fur) and every violating vertex back out.
 // `at` turns the base pose into the pose at the moment of contact (e.g. the tongue out at mid-lick).
-export function touch(rig, P, { a, b, zone = null, keys, bounds = {}, gap = .001, iters = 30, at = Q => Q, lim = .12, guard = null, apart = false }) {
+export function touch(rig, P, { a, b, zone = null, keys, bounds = {}, gap = .001, iters = 30, at = Q => Q, lim = .12, guard = null, apart = false, pairless = false, maxR = .06 }) {
   const C = contactOf(rig);
   const setOf = name => name === 'tongue' ? (C.sets.tongue ||= C.points(p => p === 'tongue', 'face', 2)) : C.sets[name] || (C.sets['all' + name] ||= C.points(p => p === name, 'body', 2));
   const A = setOf(a), guards = (guard || [{ a, b }]).map(g => ({ set: setOf(g.a), b: g.b, name: g.a }));
   const pa = new THREE.Vector3(), pb = new THREE.Vector3(), tmp = new THREE.Vector3();
   let res = { d: Infinity }, bestP = { ...P }, bestErr = Infinity, step = lim;
   const pose = Q => { applyPose(rig, at({ ...Q })); };
+  const face = A.mesh === 'face' || guards.some(g => g.set.mesh === 'face');
   for (let it = 0; it <= iters; it++) {
-    pose(P); C.update();
+    pose(P); C.update({ face });
     const zc = zone ? rig.B[zone.bone].localToWorld(zone.off.clone()) : null;
     // contact: closest vertex pair first (brute force over the target patch), then the exact surface point
     const bp = C.M.body.pos, bPart = C.M.body.part, Bv = [];
-    for (let v = 0; v < C.M.body.n; v++) if (b.includes(bPart[v]) && (!zc || Math.hypot(bp[3 * v] - zc.x, bp[3 * v + 1] - zc.y, bp[3 * v + 2] - zc.z) < zone.r)) Bv.push(v);
+    if (!pairless) for (let v = 0; v < C.M.body.n; v++) if (b.includes(bPart[v]) && (!zc || Math.hypot(bp[3 * v] - zc.x, bp[3 * v + 1] - zc.y, bp[3 * v + 2] - zc.z) < zone.r)) Bv.push(v);
     const pos = C.M[A.mesh].pos; let pi = -1, pd = Infinity;
     for (const i of A.ids) for (const v of Bv) {
       const dd = (pos[3 * i] - bp[3 * v]) ** 2 + (pos[3 * i + 1] - bp[3 * v + 1]) ** 2 + (pos[3 * i + 2] - bp[3 * v + 2]) ** 2;
       if (dd < pd) { pd = dd; pi = i; }
     }
     const ok = (part, t) => b.includes(part) && (!zc || C.triCenter(t).distanceTo(zc) < zone.r * 1.2);
-    const r0 = pi < 0 ? null : C.nearest(pos[3 * pi], pos[3 * pi + 1], pos[3 * pi + 2], ok, Math.sqrt(pd) + .02);
+    const r0 = pairless ? { d: gap } : pi < 0 ? null : C.nearest(pos[3 * pi], pos[3 * pi + 1], pos[3 * pi + 2], ok, Math.sqrt(pd) + .02);
     if (!r0) break;
-    // (apart: only keep `a` from sinking in - no pull toward the surface)
-    const rows = apart && r0.d >= gap ? [] : [{ mesh: A.mesh, i: pi, t: r0.t, bary: r0.bary, n: r0.n.clone(), want: gap }];
+    // (apart: only keep `a` from sinking in - no pull toward the surface; pairless: guards only)
+    const rows = pairless || (apart && r0.d >= gap) ? [] : [{ mesh: A.mesh, i: pi, t: r0.t, bary: r0.bary, n: r0.n.clone(), want: gap }];
     // guards: the deepest vertex of each guarded set inside its forbidden parts is pushed back out
     let over = 0; const viol = [];
     for (const g of guards) {
-      const okG = p => g.b.includes(p), w = C.depth(g.set, okG, LIMBS.includes(g.name) ? C.rest[g.name] : null);
+      const okG = p => g.b.includes(p), w = C.depth(g.set, okG, C.rest[g.name] || null, maxR);
       if (w.d < -.003) {
         const gp0 = C.M[g.set.mesh].pos; viol.push({ who: g.set === A ? a : 'guard', into: w.part, d: +w.d.toFixed(4), at: [gp0[3 * w.i], gp0[3 * w.i + 1], gp0[3 * w.i + 2]].map(x => +x.toFixed(3)), bone: rig.model.userData.skeleton.bones[C.M[g.set.mesh].si[4 * w.i]].name });
-        const gp = C.M[g.set.mesh].pos, r = C.nearest(gp[3 * w.i], gp[3 * w.i + 1], gp[3 * w.i + 2], okG, .06);
+        const gp = C.M[g.set.mesh].pos, r = C.nearest(gp[3 * w.i], gp[3 * w.i + 1], gp[3 * w.i + 2], okG, maxR);
         if (r) { rows.push({ mesh: g.set.mesh, i: w.i, t: r.t, bary: r.bary, n: r.n.clone(), want: .001 }); over += -.003 - w.d; }
       }
     }
@@ -450,7 +452,7 @@ export function touchBest(rig, P, opts, starts = []) {
 export function withSettle(rig, pose, dur, opts = {}, n = 12) {
   const keys = new Set(), deltas = [];
   for (let i = 0; i <= n; i++) {
-    const P = pose(dur * i / n), Q = settle(rig, { ...P }, opts), dl = {};
+    const P = pose(dur * i / n), Q = settle(rig, { ...P }, { iters: 6, ...opts }), dl = {};
     for (const k in Q) if (typeof Q[k] === 'number' && Math.abs(Q[k] - P[k]) > 1e-6) { dl[k] = Q[k] - P[k]; keys.add(k); }
     deltas.push(dl);
   }
@@ -545,7 +547,9 @@ export function makeClips(rig, opts = {}) {
   if (S !== rig) { rig.ballH = S.ballH; rig.floorLift = S.floorLift; }      // one floor height for both builds
   const h = rig.hipH, P0 = stand(rig), clips = [];
   // looping clips are stretched to a whole number of frames so the last frame meets the first exactly
+  let tAdd = performance.now();
   const add = (name, dur, loop, pose, extra = {}) => {
+    if (globalThis.__timing) { const n = performance.now(); console.log('  ' + name, Math.round(n - tAdd) + 'ms'); tAdd = n; }
     const frames = Math.max(2, Math.round(dur * FPS)), d2 = frames / FPS, f = dur / d2;
     const clip = { name, dur: d2, loop, pose: f === 1 ? pose : t => pose(t * f), ...extra };
     if (clip.speed) { clip.speed /= f; clip.cycle = clip.cycle / f; }
@@ -568,7 +572,7 @@ export function makeClips(rig, opts = {}) {
     const g = gaitParams(rig, kind);
     // every breed's body is a different shape: the paws of each gait are settled on its mesh (stepped round
     // the body where a swinging leg would pass into it, kept on the floor) at 16 points per stride
-    const raw = t => gaitPose(rig, g, t), cyc = withSettle(S, raw, g.T, { iters: 20 }, 16);
+    const raw = t => gaitPose(rig, g, t), cyc = withSettle(S, raw, g.T, { iters: 6 }, 16);
     add(name, g.T * cycles, true, t => {
       const P = cyc(((t % g.T) + g.T) % g.T), Q = raw(t);
       P.rootZ = Q.rootZ;                                                       // the cycle repeats; the root keeps moving
@@ -624,7 +628,7 @@ export function makeClips(rig, opts = {}) {
         P[f + 'x'] = r.x * (fr ? 1 : 1 + .25 * crouch); P[f + 'y'] = wy - P.rootY;   // crouching, the hind paws set wider beside the haunches P[f + 'z'] = wz - P.rootZ; P[f + 'a'] = a; P[f + 't'] = toe;
       }
       return P;
-    }, dur, {}, 60), { rootMotion: true, jump: { D, H: Hup } });
+    }, dur, {}, 36), { rootMotion: true, jump: { D, H: Hup } });
   }
   // sitting down, sitting, standing up
   const SIT = sitPose(rig, S), LOAF = settle(S, loafPose(rig), { floor: -.002 }), SLEEP = settle(S, sleepPose(rig));
@@ -850,7 +854,7 @@ export function makeClips(rig, opts = {}) {
     }
     P.blink = Math.max(P.blink, blinkAt(t, [2.5]));
     return P;
-  }, 4.2, { floor: -.001 }, 28));
+  }, 4.2, { floor: -.001 }, 21));
   // drinking: crouched over the bowl, lapping ~3.5 times a second. Like real cats (Reis et al. 2010, Science):
   // the tongue tip curls under into a J so only its top touches the surface, then whips back up, pulling a
   // column of liquid that the jaw snaps shut on. Every 8 laps a short pause to swallow.

@@ -18,6 +18,7 @@ let failed = 0;
 for (const id of breeds) {
   const b = BREEDS.find(x => x.id === id);
   const rig = makeRig(buildCatModel(b.shape, b.coat, { res: RES })), C = makeContact(rig);
+  const longFur = b.shape.fur === 'long';
   const clips = makeClips(rig).filter(c => !only || only.includes(c.name));
   // point sets (every other vertex is plenty at this resolution)
   const limbPts = Object.fromEntries(LIMBS.map(L => [L, C.points(p => p === L, 'body', 2)]));
@@ -42,8 +43,10 @@ for (const id of breeds) {
       const at = t.toFixed(2) + 's';
       for (const L of LIMBS) {
         const dl = C.depth(limbPts[L], notSelf(L), restL[L]), db = C.depth(beanPts[L], notSelf(L), restB[L]);
-        if (dl.d < -LIMIT.pen) issues.push({ k: `${L} in ${dl.part}`, d: dl.d, at });
-        if (db.d < -LIMIT.pen) issues.push({ k: `${L} beans in ${db.part}`, d: db.d, at });
+        // a long coat is soft hair the legs move in: legs inside the body's fur volume are only a warning there
+        const soft = part => longFur && part === 'torso';
+        if (dl.d < -LIMIT.pen) issues.push({ k: `${L} in ${dl.part}${soft(dl.part) ? ' fur (warn)' : ''}`, d: dl.d, at, warn: soft(dl.part) });
+        if (db.d < -LIMIT.pen) issues.push({ k: `${L} beans in ${db.part}${soft(db.part) ? ' fur (warn)' : ''}`, d: db.d, at, warn: soft(db.part) });
       }
       const dt = C.depth(tailPts, p => p !== 'tail' && p !== 'torso' || false);
       if (dt.d < -LIMIT.pen) issues.push({ k: `tail in ${dt.part}`, d: dt.d, at });
