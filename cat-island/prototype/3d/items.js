@@ -211,11 +211,11 @@ const ITEM_DEFS = {
       const R = .36, Hh = .4;
       const shell = leaf((x, y, z) => sdEllipsoid(x, y - .01, z, R, Hh, R), [-R, 0, -R, R, Hh + .01, R], grain(hex('#a9c7a2'), .5, 50));
       const inside = leaf((x, y, z) => sdEllipsoid(x, y - .03, z, R - .03, Hh - .035, R - .03), [-R, .02, -R, R, Hh, R], hex('#f6efe2'));
-      const door = leaf((x, y, z) => sdCapsule(x, y, z, [0, .2, 0], [0, .2, R + .1], .2), [-.21, -.01, 0, .21, .41, R + .1], hex('#f6efe2'));
+      const door = leaf((x, y, z) => sdCapsule(x, y, z, [0, .18, 0], [0, .18, R + .1], .17), [-.18, 0, 0, .18, .36, R + .1], hex('#f6efe2'));   // (its top stays well under the roof: no paper-thin rim)
       const pad = leaf((x, y, z) => sdCylY(x, y - .02, z, R - .04, .02, .015), [-R, 0, -R, R, .04, R], hex('#ffe6a8'));
       const shellCut = CUT(CUT(shell, inside, .012, hex('#f6efe2')), door, .02, hex('#cfe0c9'));
       const below = leaf((x, y, z) => y, [-R - .05, -1, -R - .05, R + .05, 0, R + .05], hex('#7f9c7a'));      // (everything under the floor is cut off)
-      return { shape: U(CUT(shellCut, below, 0, hex('#7f9c7a')), pad), anchors: { floor: .04, door: [0, .05, R], r: R - .06, catAhead: .075 } };   // catAhead: the cat's trunk centre sits this far in front of the hideout centre (head out of the door)
+      return { shape: U(CUT(shellCut, below, 0, hex('#7f9c7a')), pad), anchors: { floor: .04, door: [0, .05, R], r: R - .06, catAhead: .1 } };   // catAhead: the cat's trunk centre sits this far in front of the hideout centre (head out of the door)
     },
   },
   litter_box: {

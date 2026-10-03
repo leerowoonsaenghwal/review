@@ -5,16 +5,16 @@
  "anchors": {
   "surface": {
    "y": 0.03,
-   "r": 0.07200000000000001
+   "r": 0.12999999999999998
   },
   "rimTop": 0.038,
-  "footprint": 0.1
+  "footprint": 0.16
  },
- "rawTris": 34372,
+ "rawTris": 76496,
  "rawCheck": {
   "open": 0,
   "nonManifold": 0,
-  "volume": 0.0007708068855283074,
+  "volume": 0.0019870066355169845,
   "minY": 0
  },
  "game_tris": 3000,

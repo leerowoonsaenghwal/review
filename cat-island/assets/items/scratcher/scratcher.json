@@ -3,17 +3,17 @@
  "ko": "스크래처",
  "units": "metres, Y up, +Z front",
  "anchors": {
-  "top": 0.043,
+  "top": 0.0688,
   "size": [
-   0.26,
-   0.5
+   0.41600000000000004,
+   0.8
   ]
  },
- "rawTris": 142368,
+ "rawTris": 90928,
  "rawCheck": {
   "open": 0,
-  "nonManifold": 489,
-  "volume": 0.00551403495218681,
+  "nonManifold": 247,
+  "volume": 0.022666888057605673,
   "minY": 0
  },
  "game_tris": 2000,

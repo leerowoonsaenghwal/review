@@ -3,17 +3,17 @@
  "ko": "화장실",
  "units": "metres, Y up, +Z front",
  "anchors": {
-  "floor": 0.075,
+  "floor": 0.15,
   "inner": [
-   0.37,
-   0.47000000000000003
+   0.74,
+   0.9400000000000001
   ]
  },
- "rawTris": 136912,
+ "rawTris": 136828,
  "rawCheck": {
   "open": 0,
-  "nonManifold": 13,
-  "volume": 0.017944501245132118,
+  "nonManifold": 9,
+  "volume": 0.14355575961908543,
   "minY": 0
  },
  "game_tris": 3000,

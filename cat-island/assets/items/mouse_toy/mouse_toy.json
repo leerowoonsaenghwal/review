@@ -5,16 +5,16 @@
  "anchors": {
   "center": [
    0,
-   0.02,
+   0.032,
    0
   ]
  },
- "rawTris": 23368,
+ "rawTris": 23428,
  "rawCheck": {
   "open": 0,
   "nonManifold": 0,
-  "volume": 8.090159157150577e-05,
-  "minY": 6.68983784635202e-06
+  "volume": 0.00033142257340949995,
+  "minY": 7.804937013133895e-06
  },
  "game_tris": 1600,
  "texture": 512

@@ -8,8 +8,8 @@
     "y": 0.2,
     "z": 0,
     "size": [
-     0.5,
-     0.62
+     0.72,
+     1
     ]
    }
   ],
@@ -26,13 +26,13 @@
    }
   ]
  },
- "rawTris": 207512,
+ "rawTris": 424296,
  "rawCheck": {
   "open": 0,
   "nonManifold": 0,
-  "volume": 0.028539151616943315,
+  "volume": 0.06265530422089383,
   "minY": 0
  },
- "game_tris": 5000,
- "texture": 1024
+ "game_tris": 6000,
+ "texture": 2048
 }

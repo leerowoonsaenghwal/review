@@ -10,7 +10,7 @@ SPEC = {   # id: (tris, texture, voxel m)
     'food_bowl': (3000, 1024, .0015), 'water_bowl': (2400, 512, .0015), 'milk_bowl': (2400, 512, .0015),
     'can_food': (1500, 512, .0012), 'churu': (800, 512, .001), 'ball': (1200, 512, .0012),
     'mouse_toy': (1600, 512, .001), 'wand_toy': (2000, 512, .0012), 'scratcher': (2000, 1024, .003),
-    'cushion': (3000, 1024, .006), 'hideout': (4000, 1024, .008), 'litter_box': (3000, 1024, .008),
+    'cushion': (3000, 1024, .006), 'hideout': (5000, 1024, .005), 'litter_box': (3000, 1024, .008),
     'cat_tower_1': (6000, 2048, .004),
 }
 ids = ids or list(SPEC)
