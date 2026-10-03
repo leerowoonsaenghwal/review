@@ -327,7 +327,7 @@ export function contactOf(rig) {
   }
   return rig.contact;
 }
-export function settle(rig, P, { fk = [], floor = .002, iters = 12 } = {}) {
+export function settle(rig, P, { fk = [], floor = .002, iters = 12, dense = false } = {}) {
   const C = contactOf(rig);
   for (let it = 0; it < iters; it++) {
     applyPose(rig, { ...P, breath: Math.max(P.breath || 0, 1.3) }); C.update({ face: false });   // (with the belly at its fullest breath)
@@ -350,7 +350,7 @@ export function settle(rig, P, { fk = [], floor = .002, iters = 12 } = {}) {
     }
     // tail: raise its root until it clears the floor
     // (with a few mm to spare: the idle tail sway dips it a little)
-    if (C.lowest(C.sets.tail) < .003 && P.tailBase < 1.2) { P.tailBase += .04; moved = true; }
+    if (C.lowest(C.sets.tail) < .003 && P.tailBase < 1.2) { P.tailBase += .08; moved = true; }
     // planted (IK) legs pressed into the body or another leg: the paw target and ankle angle are solved (on the
     // mesh) to the nearest place where the whole leg is clear - so the same pose fits short and long legs
     for (const L of LIMBS) {
@@ -358,10 +358,11 @@ export function settle(rig, P, { fk = [], floor = .002, iters = 12 } = {}) {
       const pl = C.lowest(C.sets[L]);                              // a folded paw tucked under the floor
       if (pl < -floor - .001) { P[L + 'y'] += -floor - pl; moved = true; }
       const others = ['torso', 'head', 'tail', ...LIMBS.flatMap(M => M === L ? [] : [M, M + 'u'])];
-      const r = C.depth(C.sets[L + '_s'], p => others.includes(p), C.rest[L + '_s'], .035);
-      if (r.d < -.004) {
-        touch(rig, P, { a: L + '_s', b: others, keys: [L + 'x', L + 'y', L + 'z', L + 'a'], bounds: { [L + 'y']: [rig.ballH * .95, rig.ballH + .3], [L + 'a']: [-2.2, 1.7] }, pairless: true, iters: 10, lim: .04,
-          guard: [{ a: L + '_s', b: others }], maxR: .035 });
+      const SL = dense ? L : L + '_s', mR = dense ? .06 : .035;                // (held postures: every other vertex)
+      const r = C.depth(C.sets[SL], p => others.includes(p), C.rest[SL], mR);
+      if (r.d < -.003) {
+        touch(rig, P, { a: SL, b: others, keys: [L + 'x', L + 'y', L + 'z', L + 'a'], bounds: { [L + 'y']: [rig.ballH * .95, rig.ballH + .3], [L + 'a']: [-2.2, 1.7] }, pairless: true, iters: 10, lim: .04,
+          guard: [{ a: SL, b: others }], maxR: mR });
         moved = true; applyPose(rig, P); C.update({ face: false });
       }
     }
@@ -439,11 +440,28 @@ export function touch(rig, P, { a, b, zone = null, keys, bounds = {}, gap = .001
   return P;
 }
 // touch() from several starting poses; keeps the closest
-export function touchBest(rig, P, opts, starts = []) {
+export function touchBest(rig, P, opts, starts = [], grid = null) {
+  // a coarse scan first (grid: offsets per channel, every combination scored without solving), so a body of
+  // any proportions starts from its own nearest good pose; the best few are then solved from
+  if (grid) {
+    const keys = Object.keys(grid); let combos = [{}];
+    for (const k of keys) combos = combos.flatMap(c => grid[k].map(v => ({ ...c, [k]: v })));
+    const scored = combos.map(c => {
+      const s0 = Object.fromEntries(Object.entries(c).map(([k, v]) => [k, P[k] + v]));
+      touch(rig, { ...P, ...s0 }, { ...opts, iters: 0 });
+      return { s0, e: Math.abs(touch.last - (opts.gap ?? .001)) };
+    }).sort((x, y) => x.e - y.e);
+    starts = [...scored.slice(0, 3).map(x => x.s0), ...starts];
+  }
   let best = null, bestErr = Infinity, info = null;
   for (const s0 of [{}, ...starts]) {
     const Q = touch(rig, { ...P, ...s0 }, opts), e = Math.abs(touch.last - (opts.gap ?? .001));
     if (e < bestErr) { bestErr = e; best = Q; info = touch.info; }
+    if (bestErr < .0015) break;
+  }
+  Object.assign(P, best); applyPose(rig, P); touch.last = bestErr + (opts.gap ?? .001); touch.info = info;
+  return P;
+}
   }
   Object.assign(P, best); applyPose(rig, P); touch.last = bestErr + (opts.gap ?? .001); touch.info = info;
   return P;
@@ -465,7 +483,7 @@ export function withSettle(rig, pose, dur, opts = {}, n = 12) {
 function sitPose(rig, S = rig) {
   const P = stand(rig);
   Object.assign(P, { hdPitch: .02, scapL: -.05, scapR: -.05, tailBase: -1.25, tailBend: .02, tailCurl: .3, tailYaw: .45 });
-  return settle(S, fitSit(rig, P));
+  return settle(S, fitSit(rig, P), { dense: true, iters: 20 });
 }
 function loafPose(rig) {
   const P = stand(rig), h = rig.hipH, chestR = rig.chestY - rig.ballH;
@@ -631,7 +649,7 @@ export function makeClips(rig, opts = {}) {
     }, dur, {}, 36), { rootMotion: true, jump: { D, H: Hup } });
   }
   // sitting down, sitting, standing up
-  const SIT = sitPose(rig, S), LOAF = settle(S, loafPose(rig), { floor: -.002 }), SLEEP = settle(S, sleepPose(rig));
+  const SIT = sitPose(rig, S), LOAF = settle(S, loafPose(rig), { floor: -.002, dense: true, iters: 20 }), SLEEP = settle(S, sleepPose(rig), { dense: true, iters: 20 });
   // move between two postures; `lifts` raises the named paws in an arc, `splay` swings them out sideways on the
   // way (so a hind paw folding under the haunch passes beside it, not through it)
   const transfer = (A, B, k, lifts = {}, splay = {}) => {
@@ -734,14 +752,16 @@ export function makeClips(rig, opts = {}) {
   const faceStroke = (Q, s2) => { Q.hdPitch += .04 * s2; };
   const lickBase = over(SITG, UPP, { FLx: .05 * sx, FLy: rig.ballH + .02, FLz: chestFront + .06, FLa: .2, FLt: 0, hdPitch: .8, nkPitch: SITG.nkPitch - .6, hdYaw: 0, hdRoll: 0 });
   touchBest(S, lickBase, { a: 'tongue', b: ['FL'], keys: [...PAWK, 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], bounds: HB, iters: 40, at: lickAt(faceStroke), guard: [{ a: 'tongue', b: ['FL'] }, { a: 'FL', b: ['head', 'torso'] }, { a: 'head', b: ['FL'] }] },
-    [{ hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLy: rig.ballH, FLz: chestFront + .09 }, { FLx: .1 * sx, hdYaw: .45 * sx, hdRoll: .2 * sx }, { FLx: .12 * sx, FLz: chestFront + .08, hdYaw: .6 * sx, nkYaw: .3 * sx, hdRoll: .25 * sx }, { FLx: .09 * sx, FLz: chestFront + .1, hdYaw: .3 * sx, hdPitch: 1 }, { FLx: .11 * sx, FLz: chestFront + .05, hdYaw: .5 * sx, hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLx: .07 * sx, FLz: chestFront + .12, hdPitch: 1.1, nkPitch: SITG.nkPitch - .7 }]);
+    [{ hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLy: rig.ballH, FLz: chestFront + .09 }, { FLx: .1 * sx, hdYaw: .45 * sx, hdRoll: .2 * sx }, { FLx: .12 * sx, FLz: chestFront + .08, hdYaw: .6 * sx, nkYaw: .3 * sx, hdRoll: .25 * sx }, { FLx: .09 * sx, FLz: chestFront + .1, hdYaw: .3 * sx, hdPitch: 1 }, { FLx: .11 * sx, FLz: chestFront + .05, hdYaw: .5 * sx, hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLx: .07 * sx, FLz: chestFront + .12, hdPitch: 1.1, nkPitch: SITG.nkPitch - .7 }],
+    { FLx: [0, .04 * sx], FLz: [-.03, 0, .03, .06], hdPitch: [-.2, 0, .2, .4], nkPitch: [-.2, 0, .3], hdYaw: [0, .4 * sx] });
   report.pawLick = touch.last; report.pawLickInfo = touch.info;
   const faceTrack = lickTrack(lickBase, faceStroke, { b: ['FL'], guard: [{ a: 'tongue', b: ['FL'] }, { a: 'FL', b: ['head', 'torso'] }, { a: 'head', b: ['FL'] }] });
   const WASH = [[.4, -.35, .8], [.32, -.45, .8], [.22, -.52, .75]].map(([x, y, z]) => V(x * sx, y, z).multiplyScalar(HS));
   const washPoses = WASH.map(off => {
     const P = over(lickBase, { FLx: lickBase.FLx + .3 * d.pawR * sx, FLy: lickBase.FLy + .6 * d.pawR, FLa: -.4, FLt: .3, hdRoll: .35 * sx, hdYaw: .25 * sx, nkRoll: .1 * sx });
     touchBest(S, P, { a: 'FL', b: ['head'], zone: { bone: 'Head', off: headSurf(off), r: .04 }, keys: [...HEADK, ...PAWK], bounds: HB, gap: -.002, guard: [{ a: 'FL', b: ['head', 'torso'] }, { a: 'head', b: ['FL'] }] },
-      [{ hdPitch: 1.0, nkPitch: SITG.nkPitch - .3 }, { hdRoll: .6 * sx }, { hdPitch: .9, nkPitch: SITG.nkPitch + .2, hdRoll: .5 * sx }]);
+      [{ hdPitch: 1.0, nkPitch: SITG.nkPitch - .3 }, { hdRoll: .6 * sx }, { hdPitch: .9, nkPitch: SITG.nkPitch + .2, hdRoll: .5 * sx }],
+      { hdPitch: [-.2, 0, .2, .4], nkPitch: [-.2, 0, .3], hdRoll: [-.2, 0, .25], hdYaw: [-.2, 0, .2] });
     return { P, err: Math.abs(touch.last + .002), info: touch.info };
   });
   report.wash = Math.max(...washPoses.map(w => w.err)); report.washEach = washPoses.map(w => [+(w.err * 1000).toFixed(1), w.info]);
@@ -771,7 +791,8 @@ export function makeClips(rig, opts = {}) {
     const stroke = (Q, s2) => { Q.hdPitch += .05 * s2; Q.nkPitch += .025 * s2; };
     const base = over(SITG, { hdPitch: .7, nkPitch: SITG.nkPitch + .4 });
     touchBest(S, base, { a: 'tongue', b: ['torso'], zone: { bone: 'Chest', off: V(0, -.35 * d.chestR, .75 * d.chestR), r: .06 }, keys: ['nkPitch', 'hdPitch', 'spPitch'], bounds: { ...HB, hdPitch: [0, 1.6] }, at: lickAt(stroke), iters: 45 },
-      [{ hdPitch: 1.2, nkPitch: SITG.nkPitch + .2 }, { hdPitch: 1.45, nkPitch: SITG.nkPitch + .5, spPitch: .2 }, { hdPitch: 1.3, nkPitch: SITG.nkPitch + .35, spPitch: .1 }]);
+      [{ hdPitch: 1.2, nkPitch: SITG.nkPitch + .2 }, { hdPitch: 1.45, nkPitch: SITG.nkPitch + .5, spPitch: .2 }, { hdPitch: 1.3, nkPitch: SITG.nkPitch + .35, spPitch: .1 }],
+      { hdPitch: [-.3, 0, .3, .55, .8], nkPitch: [-.3, 0, .3, .6], spPitch: [-.2, 0, .25] });
     report.chest = touch.last;
     const track = lickTrack(base, stroke, { b: ['torso'], zone: { bone: 'Chest', off: V(0, -.35 * d.chestR, .75 * d.chestR), r: .08 } });
     add('GroomChest', 4.2, true, t => {
@@ -793,7 +814,8 @@ export function makeClips(rig, opts = {}) {
     for (const sp of [[.6, -.55, -.1], [.55, -.62, -.05], [.65, -.5, -.18], [.5, -.65, -.2]]) {
       const Q = { ...base };
       touchBest(S, Q, { a: 'HL', b: ['head'], zone: { bone: 'Head', off: headSurf(V(sp[0] * sx, sp[1], sp[2]).multiplyScalar(HS)), r: .06 }, keys: ['HLk1', 'HLk2', 'HLk3', 'HLkz', 'hdRoll', 'hdPitch', 'nkRoll', 'nkPitch', 'hipRoll'], bounds: { ...HB, hipRoll: [-.6, 0], HLk1: [-3, -1], HLkz: [-.2, 1.2] }, gap: -.002, iters: 40,
-        guard: [{ a: 'HL', b: ['head', 'torso'] }, { a: 'head', b: ['HL'] }] }, [{ HLk1: -2.6, HLk2: .8, hdRoll: .7 }, { HLk1: -2.0, HLk2: 1.4, HLkz: .8, hdPitch: .6 }]);
+        guard: [{ a: 'HL', b: ['head', 'torso'] }, { a: 'head', b: ['HL'] }] }, [{ HLk1: -2.6, HLk2: .8, hdRoll: .7 }, { HLk1: -2.0, HLk2: 1.4, HLkz: .8, hdPitch: .6 }],
+        { HLk1: [-.4, 0, .4], HLk2: [-.4, 0, .4], HLkz: [-.2, .2], hdRoll: [-.2, .15], hdPitch: [-.2, .2] });
       if (!bestScratch || touch.last < bestScratch.err) bestScratch = { P: Q, err: touch.last };
       if (touch.last < .004) break;
     }
@@ -822,7 +844,8 @@ export function makeClips(rig, opts = {}) {
   {
     const base = over(lickBase, { FLt: -.6, mouth: .35, hdRoll: .4 * sx, tongue: 0 });
     touchBest(S, base, { a: 'FL', b: ['head'], zone: { bone: 'Head', off: headSurf(V(.3 * sx, -.5, .75).multiplyScalar(HS)), r: .035 }, keys: [...PAWK, ...HEADK], bounds: HB, gap: -.003, iters: 45,
-      guard: [{ a: 'FL', b: ['head', 'torso'] }, { a: 'head', b: ['FL'] }] }, [{ hdRoll: .7 * sx, hdYaw: .3 * sx }, { hdPitch: 1, hdRoll: .55 * sx }, { FLz: lickBase.FLz + .02, hdRoll: .5 * sx, hdYaw: .2 * sx }]);
+      guard: [{ a: 'FL', b: ['head', 'torso'] }, { a: 'head', b: ['FL'] }] }, [{ hdRoll: .7 * sx, hdYaw: .3 * sx }, { hdPitch: 1, hdRoll: .55 * sx }, { FLz: lickBase.FLz + .02, hdRoll: .5 * sx, hdYaw: .2 * sx }],
+      { FLz: [-.02, 0, .03], FLy: [0, .02], hdPitch: [-.2, 0, .2], hdRoll: [-.2, 0, .2], hdYaw: [-.2, .2] });
     report.nibble = touch.last;
     add('NibbleClaws', 3.4, true, t => {
       const P = { ...SITG }, up = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 2.9, 3.4)));
@@ -890,7 +913,7 @@ export function makeClips(rig, opts = {}) {
       const fr = f[0] === 'F', top = f[1] === 'L';
       Object.assign(FLOP, { [f + 'fk']: 1, [f + 'k1']: fr ? .7 : top ? -.25 : -.6, [f + 'k2']: fr ? -.45 : .7, [f + 'k3']: fr ? .5 : -.35, [f + 'k4']: .3, [f + 'kz']: fr ? (top ? .1 : -.05) : (top ? .35 : -.35) });   // forelegs reach forward clear of the head, hind legs splay off the belly
     }
-    settle(S, FLOP, { fk: FOOT_KEYS, iters: 30 });
+    settle(S, FLOP, { fk: FOOT_KEYS, iters: 30, dense: true });
     add('Flop', 1.6, false, withSettle(S, t => {
       const k = seg(t, 0, 1.4), P = transfer(P0, FLOP, k);
       P.hipY -= .06 * h * Math.sin(Math.PI * ss(k));     // sinks before rolling over
