@@ -1084,9 +1084,9 @@ export function makeClips(rig, opts = {}) {
   };
   {
     // the lowest point of the paw (curled toes, beans) at the bottom of the tap stops on the toy top
-    const C = contactOf(S), at = k => { tapLow = k; applyPose(S, pawBat(.7)); C.update(); return Math.min(C.lowest(C.sets.FL), C.lowest(C.sets.FLb)); };
+    const C = contactOf(S), at = k => { tapLow = k; let y = Infinity; for (let t = .56; t <= .705; t += .02) { applyPose(S, pawBat(t)); C.update(); y = Math.min(y, C.lowest(C.sets.FL), C.lowest(C.sets.FLb)); } return y; };   // (over the whole way down: the curled toes swing lowest just before the stop)
     let lo = .05, hi = 1;
-    for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (at(m) < TOY_TOP + .002) lo = m; else hi = m; }
+    for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (at(m) < TOY_TOP + .001) lo = m; else hi = m; }
     tapLow = hi;
   }
   add('PawBat', 1.4, true, withSettle(S, pawBat, 1.4, {}, 14));
