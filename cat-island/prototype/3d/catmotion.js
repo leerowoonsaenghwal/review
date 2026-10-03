@@ -618,12 +618,46 @@ export function makeClips(rig, opts = {}) {
       return P;
     };
   };
+  // grooming licks, last of all, on the finished pose of every half frame: how far the tongue is out is
+  // bisected so that mid-lick (lick phase .36-.5) it just meets the fur and at no other time is it in it.
+  // (lickTrack has already done this on the base pose; this catches what breathing, settling and the floor
+  // pass change.) Worked out on first use.
+  const tongueFix = (pose, dur, parts) => {
+    let offs = null;
+    const build = () => {
+      const C = contactOf(S), T = C.sets.tongue ||= C.points(p => p === 'tongue', 'face', 2), onB = p => parts.includes(p);
+      const n = Math.max(2, Math.ceil(2 * dur * FPS));
+      offs = Array.from({ length: n + 1 }, (_, i) => {
+        const P = pose(dur * i / n), u = P.lickU;
+        if (u === undefined || u < .04 || u > .82 || !(P.tongue > 0)) return 0;
+        const gapAt = dt => { const Q = { ...P, tongue: Math.max(0, P.tongue + dt) }; groomTongue(Q); applyPose(S, Q); C.update(); return C.gap(T, onB, .12).d; };
+        const core = u >= .36 && u <= .5, want = core ? -.001 : .001;
+        if (!core && gapAt(0) >= want) return 0;
+        if (core && Math.abs(gapAt(0) - want) < .0015) return 0;
+        let lo = -P.tongue, hi = core ? .15 : 0;
+        if (gapAt(hi) > want) return hi;
+        if (gapAt(lo) < want) return lo;
+        for (let it = 0; it < 12; it++) { const m = (lo + hi) / 2; if (gapAt(m) > want) lo = m; else hi = m; }
+        return (lo + hi) / 2;
+      });
+    };
+    return t => {
+      if (!offs) build();
+      const P = pose(t), f = clamp(t / dur, 0, 1) * (offs.length - 1), i = Math.min(offs.length - 2, Math.floor(f)), u = f - i;
+      const o = lerp(offs[i], offs[i + 1], u);
+      if (o) { P.tongue = Math.max(0, P.tongue + o); groomTongue(P); }
+      return P;
+    };
+  };
   // looping clips are stretched to a whole number of frames so the last frame meets the first exactly
   let tAdd = performance.now();
   const add = (name, dur, loop, pose, extra = {}) => {
     if (globalThis.__timing) { const n = performance.now(); console.log('  ' + name, Math.round(n - tAdd) + 'ms'); tAdd = n; }
     const frames = Math.max(2, Math.round(dur * FPS)), d2 = frames / FPS, f = dur / d2;
-    const clip = { name, dur: d2, loop, pose: floorFix(f === 1 ? pose : t => pose(t * f), d2), ...extra };
+    let fn = floorFix(f === 1 ? pose : t => pose(t * f), d2);
+    const tc = (extra.contacts || []).find(c => c.a === 'tongue');
+    if (tc) fn = tongueFix(fn, d2, tc.b);
+    const clip = { name, dur: d2, loop, pose: fn, ...extra };
     if (clip.speed) { clip.speed /= f; clip.cycle = clip.cycle / f; }
     clips.push(clip);
   };
@@ -725,10 +759,10 @@ export function makeClips(rig, opts = {}) {
   }));
   add('StandUp', .7, false, t => transfer(SIT, P0, t / .7, { HL: .03, HR: .03 }, { HL: .3, HR: .3 }));
   // lying down into a loaf, loafing, curling up to sleep
-  add('LieDown', 1.1, false, t => over(transfer(P0, LOAF, t / 1.1, { FL: .04, FR: .04 }, { FL: .25, FR: .25 }), { blink: blinkAt(t, [.9]) }));
+  add('LieDown', 1.1, false, withSettle(S, t => over(transfer(P0, LOAF, t / 1.1, { FL: .04, FR: .04 }, { FL: .25, FR: .25 }), { blink: blinkAt(t, [.9]) }), 1.1, {}, 10));
   add('Loaf', 5, true, t => over(LOAF, { breath: Math.sin(TAU * t / 2.5), blink: .55 + .45 * blinkAt(t, [2]), tailWave: .04, tailWph: t / 2.5 }));
   add('Sleep', 5, true, t => over(SLEEP, { breath: 1.3 * Math.sin(TAU * t / 2.5), tailTip: .05 * Math.sin(TAU * t / 5), earLp: -.25 + .25 * bump(t, 3.2, .06) }));
-  add('FallAsleep', 2, false, t => { const P = over(transfer(LOAF, SLEEP, t / 2, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }); P.nkPitch += .3 * Math.sin(Math.PI * ss(t / 2)); return P; });   // the head draws back over the front legs on the way
+  add('FallAsleep', 2, false, withSettle(S, t => { const P = over(transfer(LOAF, SLEEP, t / 2, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }); P.nkPitch += .3 * Math.sin(Math.PI * ss(t / 2)); return P; }, 2, {}, 12));   // the head draws back over the front legs on the way
   // ---------------------------------------------------------------- grooming
   // Cats groom sitting or lying, never standing, and a bout runs head to tail (cephalocaudal). Share of oral
   // grooming by region: face 31 %, hind legs 21 %, sides/back 13 %, neck/chest 11 %, anogenital 10 %,
@@ -740,13 +774,13 @@ export function makeClips(rig, opts = {}) {
   // were measured out of reach (25-250 mm short even with the grooming tongue), so they are not animated.
   // Each clip starts and ends sitting, so the game can chain them (see GROOM_ROUTINE).
   const report = {};
+  // grooming licks use the lengthened tongue (up to 2.2 times its length), growing as it comes out
+  const GROOM_REACH = 1.2, groomTongue = Q => { Q.tongueStretch = GROOM_REACH * clamp(Q.tongue / .95, 0, 1); return Q; };
   // (opts.only, for quick checks: the grooming solves are skipped when none of these clips is asked for)
   if (!opts.only || opts.only.some(n => GROOM_ROUTINE.some(g => g.clip === n))) {
   const HS = rig.d.HS, d = rig.d;
   const mouthLocal = d.mouth.clone().sub(d.joints.Head);
   const mouthAt = P => { applyPose(rig, P); return rig.B.Head.localToWorld(mouthLocal.clone()); };
-  // grooming licks use the lengthened tongue (about 1.6x as far out of the mouth), growing as it comes out
-  const GROOM_REACH = 1.2, groomTongue = Q => { Q.tongueStretch = GROOM_REACH * clamp(Q.tongue / .95, 0, 1); return Q; };
   // a run of licks on a solved base pose; `stroke(P, k)` moves the head along the fur for stroke amount k, and
   // an optional contact track (see lickTrack) keeps the tongue on the surface through the whole stroke
   const licking = (P, t, t0, n, rate, stroke, track = null) => {
@@ -844,7 +878,7 @@ export function makeClips(rig, opts = {}) {
     return { P, err: Math.abs(touch.last + .002), info: touch.info };
   });
   report.wash = Math.max(...washPoses.map(w => w.err)); report.washEach = washPoses.map(w => [+(w.err * 1000).toFixed(1), w.info]);
-  add('GroomFace', 6.6, true, t => {
+  add('GroomFace', 6.6, true, withSettle(S, t => {
     const P = { ...SITG };
     P.breath = Math.sin(TAU * t / 2.2);
     const up = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 6.1, 6.6)));
@@ -866,7 +900,7 @@ export function makeClips(rig, opts = {}) {
     if (t >= .45 && t < 2.25) licking(P, t, .45, 4, 2.2, faceStroke, faceTrack);
     if (t >= 5.15 && t < 6.05) licking(P, t, 5.15, 2, 2.2, faceStroke, faceTrack);
     return P;
-  }, { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.lickU >= .36 && P.lickU <= .5 }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }] });
+  }, 6.6, {}, 24), { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.lickU >= .36 && P.lickU <= .5 }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }] });
 
   // 2. GroomChest: sitting, chin tucked down to the chest, the tongue drawn up the bib in long strokes
   {
@@ -897,14 +931,15 @@ export function makeClips(rig, opts = {}) {
     let bestScratch = null;
     for (const sp of [[.6, -.55, -.1], [.55, -.62, -.05], [.65, -.5, -.18], [.5, -.65, -.2]]) {
       const Q = { ...base };
-      touchBest(S, Q, { a: 'HL', b: ['head'], zone: { bone: 'Head', off: headSurf(V(sp[0] * sx, sp[1], sp[2]).multiplyScalar(HS)), r: .06 }, keys: ['HLk1', 'HLk2', 'HLk3', 'HLkz', 'hdRoll', 'hdPitch', 'nkRoll', 'nkPitch', 'hipRoll'], bounds: { ...HB, hipRoll: [-.6, 0], HLk1: [-3, -1], HLkz: [-.2, 1.2] }, gap: -.002, iters: 40,
+      touchBest(S, Q, { a: 'HL', b: ['head'], zone: { bone: 'Head', off: headSurf(V(sp[0] * sx, sp[1], sp[2]).multiplyScalar(HS)), r: .06 }, keys: ['HLk1', 'HLk2', 'HLk3', 'HLkz', 'hdRoll', 'hdPitch', 'nkRoll', 'nkPitch', 'hipRoll'], bounds: { ...HB, hipRoll: [-.6, 0], HLk1: [-3, -1], HLkz: [-.2, 1.2] }, gap: .0005, iters: 40,
         guard: [{ a: 'HL', b: ['head', 'torso'] }, { a: 'head', b: ['HL', 'FL', 'FR'] }, { a: 'FL', b: ['head'] }] }, [{ HLk1: -2.6, HLk2: .8, hdRoll: .7 }, { HLk1: -2.0, HLk2: 1.4, HLkz: .8, hdPitch: .6 }],
         { HLk1: [-.4, 0, .4], HLk2: [-.4, 0, .4], HLkz: [-.2, .2], hdRoll: [-.2, .15], hdPitch: [-.2, .2] });
-      if (!bestScratch || touch.last < bestScratch.err) bestScratch = { P: Q, err: touch.last };
-      if (touch.last < .004) break;
+      const e = Math.abs(touch.last - .0005);
+      if (!bestScratch || e < bestScratch.e) bestScratch = { P: Q, err: touch.last, e };
+      if (e < .002) break;
     }
     Object.assign(base, bestScratch.P); touch.last = bestScratch.err;
-    report.scratch = Math.abs(touch.last + .002);
+    report.scratch = Math.abs(touch.last - .0005);
     settle(S, base, { fk: ['HL'] });                                             // tail off the floor, other paws out of the body
     // getting the foot up: first carried (by IK) up round the outside of the haunch to where the raised foot
     // will be, then the leg takes the raised joint angles; the reverse on the way down
@@ -935,7 +970,7 @@ export function makeClips(rig, opts = {}) {
       guard: GUARD }, [{ hdRoll: .7 * sx, hdYaw: .3 * sx }, { hdPitch: 1, hdRoll: .55 * sx }, { FLz: lickBase.FLz + .02, hdRoll: .5 * sx, hdYaw: .2 * sx }],
       { FLz: [-.02, 0, .03], FLy: [0, .02], hdPitch: [-.2, 0, .2], hdRoll: [-.2, 0, .2], hdYaw: [-.2, .2] });
     report.nibble = Math.abs(touch.last + .003);
-    add('NibbleClaws', 3.4, true, t => {
+    add('NibbleClaws', 3.4, true, withSettle(S, t => {
       const P = { ...SITG }, up = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 2.9, 3.4)));
       const upP = mj(seg(t, 0, .3)) * (1 - mj(seg(t, 3.1, 3.4))), upH = mj(seg(t, .12, .45)) * (1 - mj(seg(t, 2.9, 3.22)));   // (paw first, head after: see GroomFace)
       for (const [key, v] of Object.entries(UPP)) P[key] = (P[key] || 0) * (1 - upP) + v * upP;
@@ -944,7 +979,7 @@ export function makeClips(rig, opts = {}) {
       P.FLy += .02 * Math.sin(Math.PI * upP);                                 // the paw lifts clear of the floor on the way
       P.mouth = (.15 + .4 * chew) * up; P.blink = .7 * up;
       return P;
-    }, { contacts: [{ a: 'FL', b: ['head'], when: (P, t) => t > .5 && t < 2.8 }] });
+    }, 3.4, {}, 14), { contacts: [{ a: 'FL', b: ['head'], when: (P, t) => t > .5 && t < 2.8 }] });
   }
   }
   // stretch: play-bow with a big yawn, then each hind leg stretched out behind
