@@ -30,7 +30,9 @@ for (const id of breeds) {
   };
   // one scene: item at `at` (x,y,z), cat clip played with the root lifted by `lift`; `touch(part)` = parts that
   // must touch the item (checked with `when`), `soft`: how far the cat may press into it
+  const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
   const scene = (name, itemId, clipName, at, { lift = 0, touchParts = null, when = null, soft = PEN, ignore = [], yaw = 0, fps = FPS } = {}) => {
+    if (only && !name.includes(only)) return;
     const F0 = itemField(itemId), c = clip(clipName), n = Math.max(2, Math.round(c.dur * fps));
     const cy = Math.cos(yaw), sy = Math.sin(yaw), F = { d: (x, y, z) => F0.d(cy * x - sy * z, y, sy * x + cy * z) };   // (item turned by yaw about Y)
     let worst = { d: 0 }, runs = [], open = null;
