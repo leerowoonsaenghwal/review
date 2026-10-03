@@ -363,10 +363,11 @@ export function settle(rig, P, { fk = [], floor = .002, iters = 12, dense = fals
       if (pl < -floor - .001) { P[L + 'y'] += -floor - pl; moved = true; }
       const others = ['torso', 'head', 'tail', ...LIMBS.flatMap(M => M === L ? [] : [M, M + 'u'])];
       const SL = dense ? L : L + '_s', mR = .06;                // (held postures: every other vertex)
-      const r = C.depth(C.sets[SL], p => others.includes(p), C.rest[SL], mR);
-      if (r.d < -.003) {
-        touch(rig, P, { a: SL, b: others, keys: [L + 'x', L + 'y', L + 'z', L + 'a'], bounds: { [L + 'y']: [rig.ballH * .95 - (P.rootY || 0), rig.ballH + .3], [L + 'a']: [-2.2, 1.7] }, pairless: true, iters: 10, lim: .04,
-          guard: [{ a: SL, b: others }], maxR: mR });
+      const r = C.depth(C.sets[SL], p => others.includes(p), C.rest[SL], mR), rb = C.depth(C.sets[L + 'b'], p => others.includes(p), null, mR);
+      if (r.d < -.003 || rb.d < -.003) {
+        const A = rb.d < r.d ? L + 'b' : SL;                       // (the beans stand proud of the paw's fur)
+        touch(rig, P, { a: A, b: others, keys: [L + 'x', L + 'y', L + 'z', L + 'a'], bounds: { [L + 'y']: [rig.ballH * .95 - (P.rootY || 0), rig.ballH + .3], [L + 'a']: [-2.2, 1.7] }, pairless: true, iters: 10, lim: .04,
+          guard: [{ a: SL, b: others }, { a: L + 'b', b: others }], maxR: mR });
         moved = true; applyPose(rig, P); C.update({ face: false });
       }
     }
@@ -470,7 +471,9 @@ export function touchBest(rig, P, opts, starts = [], grid = null) {
 export function withSettle(rig, pose, dur, opts = {}, n = 12) {
   // (worked out on first use: a clip nobody samples costs nothing)
   let keys = null;                                     // [{ t, dl }] sorted by time
-  const fix = (t, o = {}) => { const P = pose(t), Q = settle(rig, { ...P }, { iters: 6, ...opts, ...o }), dl = {}; for (const k in Q) if (typeof Q[k] === 'number' && Math.abs(Q[k] - P[k]) > 1e-6) dl[k] = Q[k] - P[k]; return { t, dl }; };
+  // (opts.fkAt(t): legs left alone at time t - a grooming paw is held where it was solved only while it is
+  //  touching; on the way there and back the settle may move it out of the head)
+  const fix = (t, o = {}) => { const P = pose(t), Q = settle(rig, { ...P }, { iters: 6, ...opts, ...(opts.fkAt ? { fk: opts.fkAt(t) } : {}), ...o }), dl = {}; for (const k in Q) if (typeof Q[k] === 'number' && Math.abs(Q[k] - P[k]) > 1e-6) dl[k] = Q[k] - P[k]; return { t, dl }; };
   const at = t => {
     const P = pose(t); let i = 0;
     while (i < keys.length - 2 && keys[i + 1].t <= t) i++;
@@ -482,16 +485,16 @@ export function withSettle(rig, pose, dur, opts = {}, n = 12) {
     keys = Array.from({ length: n + 1 }, (_, i) => fix(dur * i / n));
     // then every frame in between is checked; where a leg still passes into the body (the blend between two
     // settled points is not itself settled) that frame is settled too
-    const C = contactOf(rig), fk = opts.fk || [], m = Math.max(2, Math.round(dur * FPS)), h = dur / m;   // (every frame; a fix also settles half a frame either side)
+    const C = contactOf(rig), fkOf = t => opts.fkAt ? opts.fkAt(t) : opts.fk || [], m = Math.max(2, Math.round(dur * FPS)), h = dur / m;   // (every frame; a fix also settles half a frame either side)
     for (let round = 0; round < 2; round++) {
       const add = [];
       for (let f = 0; f <= m; f++) {
         const t = dur * f / m; if (keys.some(k => Math.abs(k.t - t) < 1e-4)) continue;
         const P = at(t); applyPose(rig, P); C.update({ face: false });
         for (const L of LIMBS) {
-          if (fk.includes(L) || P[L + 'fk'] > .5) continue;
+          if (fkOf(t).includes(L) || P[L + 'fk'] > .5) continue;
           const others = ['torso', 'head', 'tail', ...LIMBS.flatMap(M => M === L ? [] : [M, M + 'u'])];
-          if (C.depth(C.sets[L], p => others.includes(p), C.rest[L], .06).d < -.003) { add.push(t); break; }
+          if (C.depth(C.sets[L], p => others.includes(p), C.rest[L], .06).d < -.003 || C.depth(C.sets[L + 'b'], p => others.includes(p), null, .06).d < -.003) { add.push(t); break; }
         }
       }
       if (!add.length) break;
@@ -931,7 +934,7 @@ export function makeClips(rig, opts = {}) {
     if (t >= .45 && t < 2.25) licking(P, t, .45, 4, 2.2, faceStroke, faceTrack);
     if (t >= 5.15 && t < 6.05) licking(P, t, 5.15, 2, 2.2, faceStroke, faceTrack);
     return P;
-  }, 6.6, { fk: ['FL'] }, 24), { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.lickU >= LICK_CORE[0] && P.lickU <= LICK_CORE[1] }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }] });
+  }, 6.6, { fkAt: t => (t > .5 && t < 2.2) || (t > 2.5 && t < 4.85) || (t > 5.2 && t < 6.0) ? ['FL'] : [] }, 24), { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.lickU >= LICK_CORE[0] && P.lickU <= LICK_CORE[1] }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }] });
 
   // (chest licking is not animated: with the chin tucked, this big head rests ON the chest, so the tongue can
   //  only hang down in front of the bib - checked on the meshes and in renders, it reads as a dangling tongue)
@@ -1000,7 +1003,7 @@ export function makeClips(rig, opts = {}) {
       P.FLy += .02 * Math.sin(Math.PI * upP);                                 // the paw lifts clear of the floor on the way
       P.mouth = (.15 + .4 * chew) * up; P.blink = .7 * up;
       return P;
-    }, 3.4, { fk: ['FL'] }, 14), { contacts: [{ a: 'FL', b: ['head'], when: (P, t) => t > .5 && t < 2.8 }] });
+    }, 3.4, { fkAt: t => t > .55 && t < 2.75 ? ['FL'] : [] }, 14), { contacts: [{ a: 'FL', b: ['head'], when: (P, t) => t > .5 && t < 2.8 }] });
   }
   }
   // stretch: play-bow with a big yawn, then each hind leg stretched out behind
