@@ -69,7 +69,7 @@ for (const id of breeds) {
   applyPose(rig, stand(rig)); rig.model.updateMatrixWorld(true);
   const mid = rig.B.Hips.getWorldPosition(rig.B.Hips.position.clone()).add(rig.B.Chest.getWorldPosition(rig.B.Chest.position.clone())).multiplyScalar(.5);
   const cu = itemField('cushion').anchors, ho = itemField('hideout').anchors;
-  for (const cn of ['Loaf', 'Sleep', 'FlopIdle']) scene(cn + ' · cushion', 'cushion', cn, [mid.x, 0, mid.z], { lift: cu.top, soft: -.015 });   // (a cushion gives 1.5 cm)
+  for (const cn of ['Loaf', 'Sleep']) scene(cn + ' · cushion', 'cushion', cn, [mid.x, 0, mid.z], { lift: cu.top, soft: -.015 });   // (a cushion gives 1.5 cm)
   // (the hideout goes where the body is inside and the head out of the door: the offset is searched and printed)
   scene('Loaf · hideout', 'hideout', 'Loaf', [mid.x, 0, mid.z - (ho.catAhead ?? 0)], { lift: ho.floor, soft: SOFT });
   // PawBat: the toy under the paw at the bottom of the tap

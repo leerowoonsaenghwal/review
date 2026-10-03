@@ -482,7 +482,7 @@ export function withSettle(rig, pose, dur, opts = {}, n = 12) {
     keys = Array.from({ length: n + 1 }, (_, i) => fix(dur * i / n));
     // then every frame in between is checked; where a leg still passes into the body (the blend between two
     // settled points is not itself settled) that frame is settled too
-    const C = contactOf(rig), fk = opts.fk || [], m = Math.max(2, Math.round(2 * dur * FPS)), h = dur / m;   // (half-frame steps: a clip is sampled off this grid)
+    const C = contactOf(rig), fk = opts.fk || [], m = Math.max(2, Math.round(dur * FPS)), h = dur / m;   // (every frame; a fix also settles half a frame either side)
     for (let round = 0; round < 2; round++) {
       const add = [];
       for (let f = 0; f <= m; f++) {
@@ -603,6 +603,15 @@ export function makeClips(rig, opts = {}) {
         }
         const low = Math.min(C.lowest(C.sets.trunk), C.lowest(C.sets.head)) - fl;
         if (low < -.0015) e.hipY = Math.max(e.hipY || 0, -.0005 - low);
+        // checked again with the lifts on: a leg already stretched to its full length cannot lift its paw by its
+        // target alone (lying on the side), so whatever is still under the floor raises the whole body
+        if (Object.keys(e).length) {
+          const Q = { ...P }; for (const k in e) Q[k] += e[k];
+          applyPose(S, Q); C.update();
+          let lo2 = Math.min(C.lowest(C.sets.trunk), C.lowest(C.sets.head));
+          for (const L of LIMBS) lo2 = Math.min(lo2, C.lowest(C.sets[L]), C.lowest(C.sets[L + 'b']));
+          if (lo2 - fl < -.0015) e.hipY = (e.hipY || 0) + (-.0005 - (lo2 - fl));
+        }
         raw.push(e);
       }
       // (each lift held over the neighbouring frames, so the blend between frames never undershoots)
@@ -656,7 +665,7 @@ export function makeClips(rig, opts = {}) {
     if (globalThis.__timing) { const n = performance.now(); console.log('  ' + name, Math.round(n - tAdd) + 'ms'); tAdd = n; }
     const frames = Math.max(2, Math.round(dur * FPS)), d2 = frames / FPS, f = dur / d2;
     // (after a jump has carried the root onto the deck, the deck top is the floor)
-    let fn = floorFix(f === 1 ? pose : t => pose(t * f), d2, extra.jump ? P => (P.rootZ >= .9 * extra.jump.D ? extra.jump.H : 0) : undefined);
+    let fn = floorFix(f === 1 ? pose : t => pose(t * f), d2, extra.jump ? P => (P.rootZ >= .8 * extra.jump.D ? extra.jump.H : 0) : undefined);
     const tc = (extra.contacts || []).find(c => c.a === 'tongue');
     if (tc) fn = tongueFix(fn, d2, tc.b);
     const clip = { name, dur: d2, loop, pose: fn, ...extra };
@@ -908,7 +917,7 @@ export function makeClips(rig, opts = {}) {
     if (t >= .45 && t < 2.25) licking(P, t, .45, 4, 2.2, faceStroke, faceTrack);
     if (t >= 5.15 && t < 6.05) licking(P, t, 5.15, 2, 2.2, faceStroke, faceTrack);
     return P;
-  }, 6.6, {}, 24), { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.lickU >= .36 && P.lickU <= .5 }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }] });
+  }, 6.6, { fk: ['FL'] }, 24), { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.lickU >= .36 && P.lickU <= .5 }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }] });
 
   // (chest licking is not animated: with the chin tucked, this big head rests ON the chest, so the tongue can
   //  only hang down in front of the bib - checked on the meshes and in renders, it reads as a dangling tongue)
@@ -948,7 +957,8 @@ export function makeClips(rig, opts = {}) {
       const g = V(SITG.HLx, SITG.HLy, SITG.HLz).lerp(W, ik);
       const sc = rakeDir * .5 * (1 - Math.cos(TAU * 7 * (t - .45))) * ss(seg(t, .45, .6)) * (1 - ss(seg(t, 2.3, 2.5)));
       // (held out wide while the leg changes between IK and joint angles too: in between it would cut the haunch)
-      P.HLx = g.x + .6 * rig.hipH * Math.max(Math.sin(Math.PI * ik), ik * Math.sin(Math.PI * fk)); P.HLy = g.y; P.HLz = g.z; P.HLfk = fk;
+      const wide = Math.max(Math.sin(Math.PI * ik), ik * Math.sin(Math.PI * fk));
+      P.HLx = g.x + .9 * rig.hipH * wide; P.HLy = g.y + .25 * rig.hipH * wide; P.HLz = g.z; P.HLfk = fk;
       P.HLa = lerp(SITG.HLa, -.6, ik); P.HLt = lerp(0, .6, ik);
       P.HLk2 += .04 * sc * k; P.HLk3 -= .1 * sc * k;                               // the scratching stroke (toes rake the fur)
       P.hdRoll += .012 * Math.sin(TAU * 7 * t) * k; P.mouth = .15 * k;            // head jiggles with it
@@ -973,7 +983,7 @@ export function makeClips(rig, opts = {}) {
       P.FLy += .02 * Math.sin(Math.PI * upP);                                 // the paw lifts clear of the floor on the way
       P.mouth = (.15 + .4 * chew) * up; P.blink = .7 * up;
       return P;
-    }, 3.4, {}, 14), { contacts: [{ a: 'FL', b: ['head'], when: (P, t) => t > .5 && t < 2.8 }] });
+    }, 3.4, { fk: ['FL'] }, 14), { contacts: [{ a: 'FL', b: ['head'], when: (P, t) => t > .5 && t < 2.8 }] });
   }
   }
   // stretch: play-bow with a big yawn, then each hind leg stretched out behind
@@ -1070,7 +1080,7 @@ export function makeClips(rig, opts = {}) {
     // (tapLow: where the tap stops, solved below on the mesh with this very pose)
 
     const v = clamp((u - .5) / .5, 0, 1);
-    const up = u < .35 ? mj(u / .35) : u < .5 ? 1 - (1 - tapLow) * mj((u - .35) / .15) : tapLow * (1 - mj(seg(v, .5, 1))) + .45 * mj(seg(v, 0, .3)) * (1 - mj(seg(v, .55, 1)));
+    const up = u < .35 ? mj(u / .35) : u < .5 ? 1 - (1 - tapLow) * mj((u - .35) / .15) : tapLow * (1 - mj(seg(v, .5, 1))) + .32 * mj(seg(v, 0, .3)) * (1 - mj(seg(v, .55, 1)));
     const fwd = u < .5 ? mj(Math.min(1, u / .4)) : 1 - mj(seg(v, .3, 1));
     // the paw reaches far enough to clear a toy lying in front of it, whatever the leg length
     const reach = Math.max(.36 * h, .11);
@@ -1078,7 +1088,7 @@ export function makeClips(rig, opts = {}) {
     // (the wrist curls the toes down for the tap only; drawn back over the toy the paw is held level, toes up)
     P.FLa = u < .5 ? lerp(.3, -1.5, up) : lerp(lerp(.3, -1.5, tapLow), .1, mj(seg(v, .2, .45))) * (1 - mj(seg(v, .7, 1))) + .3 * mj(seg(v, .7, 1));
     P.scapL = -.35 * Math.min(1, up); P.scapLy = .012 * Math.min(1, up) * h; P.hipZ = -.025 * h * up; P.hipPitch = .06 * up; P.hipRoll = -.05 * up;
-    P.hdPitch = .35 * Math.max(up, .8 * fwd); P.hdYaw = .1 * fwd;
+    P.hdPitch = .35 * Math.max(up, .8 * fwd) - .25 * Math.sin(Math.PI * v); P.hdYaw = .1 * fwd;   // (the head comes up as the paw is drawn back past the chin)
     P.tailBase = -.2; P.tailWave = .2; P.tailWph = u * 2; P.earLp = P.earRp = .12;
     return P;
   };

@@ -44,9 +44,10 @@ for (const id of breeds) {
       for (const L of LIMBS) {
         const dl = C.depth(limbPts[L], notSelf(L), restL[L]), db = C.depth(beanPts[L], notSelf(L), restB[L]);
         // a long coat is soft hair the legs move in: legs inside the body's fur volume are only a warning there
-        const soft = part => longFur && part === 'torso';
-        if (dl.d < -LIMIT.pen) issues.push({ k: `${L} in ${dl.part}${soft(dl.part) ? ' fur (warn)' : ''}`, d: dl.d, at, warn: soft(dl.part) });
-        if (db.d < -LIMIT.pen) issues.push({ k: `${L} beans in ${db.part}${soft(db.part) ? ' fur (warn)' : ''}`, d: db.d, at, warn: soft(db.part) });
+        // (and a fluffy leg brushing the next one, up to 12 mm, is hair in hair)
+        const soft = (part, d = 0) => longFur && (part === 'torso' || (LIMBS.includes(part) || part.endsWith('u')) && d > -.012);
+        if (dl.d < -LIMIT.pen) issues.push({ k: `${L} in ${dl.part}${soft(dl.part, dl.d) ? ' fur (warn)' : ''}`, d: dl.d, at, warn: soft(dl.part, dl.d) });
+        if (db.d < -LIMIT.pen) issues.push({ k: `${L} beans in ${db.part}${soft(db.part, db.d) ? ' fur (warn)' : ''}`, d: db.d, at, warn: soft(db.part, db.d) });
       }
       const dt = C.depth(tailPts, p => p !== 'tail' && p !== 'torso' || false);
       if (dt.d < -LIMIT.pen) issues.push({ k: `tail in ${dt.part}`, d: dt.d, at });
