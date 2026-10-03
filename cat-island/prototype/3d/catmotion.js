@@ -690,7 +690,11 @@ export function makeClips(rig, opts = {}) {
   }
   // JumpUp: crouch, bum wiggle, launch, ballistic flight, front paws land first, absorb, stand
   {
-    const d0 = rig.d, D = .78, Hup = .2, tLift = 1.0, tPush = 1.1;
+    // the jump carries the cat its own length forward: at take-off the head must be clear of the deck the hind
+    // paws then land on (a long cat cannot stand right in front of a deck it can reach in one hop)
+    const d0 = rig.d, Hup = .2, tLift = 1.0, tPush = 1.1;
+    const headFront = (() => { const C = contactOf(S); applyPose(S, P0); C.update({ face: false }); let z = -Infinity; const p = C.M.body.pos; for (const i of C.sets.head.ids) z = Math.max(z, p[3 * i + 2]); return z; })();
+    const D = Math.max(.78, headFront + .12 - rig.restFoot.HL.z), deckBack = D + rig.restFoot.HL.z - .06;
     const apex = Hup + .1, vy = Math.sqrt(2 * G * apex), Tf = vy / G + Math.sqrt(2 * (apex - Hup) / G);
     const tLand = tPush + Tf, dur = tLand + .9;
     // short forelegs under a big head (Munchkin, Persian) leave no room to drop the chest and nod on landing:
@@ -742,7 +746,7 @@ export function makeClips(rig, opts = {}) {
         P[f + 'z'] = wz - P.rootZ; P[f + 'a'] = a; P[f + 't'] = toe;
       }
       return P;
-    }, dur, { iters: 10 }, 36), { rootMotion: true, jump: { D, H: Hup } });
+    }, dur, { iters: 10 }, 36), { rootMotion: true, jump: { D: +D.toFixed(3), H: Hup, deckBack: +deckBack.toFixed(3) } });   // deckBack: where the deck must begin (root space)
   }
   // sitting down, sitting, standing up
   const SIT = sitPose(rig, S), LOAF = settle(S, loafPose(rig), { floor: -.002, dense: true, iters: 20 }), SLEEP = settle(S, sleepPose(rig), { dense: true, iters: 20 });
@@ -1011,12 +1015,12 @@ export function makeClips(rig, opts = {}) {
     for (let it = 0; it < 12; it++) { const m = (lo + hi) / 2; if (chinAt(m) > BOWL_SURF + .004) lo = m; else hi = m; }
     const sDrink = lo;
     // 2. the tongue reaches on down to the surface (lengthened like the grooming tongue, as far as needed)
-    const tipAt = st => { applyPose(S, lapPose(sDrink, .44, st)); C.update(); return C.lowest(T); };
+    const tipAt = st => { let y = Infinity; for (const u of [.3, .33, .36, .4, .44, .48]) { applyPose(S, lapPose(sDrink, u, st)); C.update(); y = Math.min(y, C.lowest(T)); } return y; };   // (lowest over the down-stroke)
     let a0 = 0, a1 = 1.5;
     if (tipAt(0) <= BOWL_SURF - .0015) a1 = 0;
     else for (let it = 0; it < 12; it++) { const m = (a0 + a1) / 2; if (tipAt(m) > BOWL_SURF - .0015) a0 = m; else a1 = m; }
     const stDrink = a1, tipY = tipAt(stDrink), tp = C.M.face.pos; let tx = 0, tz = 0;
-    { let y = Infinity; for (const i of T.ids) if (tp[3 * i + 1] < y) { y = tp[3 * i + 1]; tx = tp[3 * i]; tz = tp[3 * i + 2]; } }
+    { let y = Infinity; for (const u of [.3, .36, .44]) { applyPose(S, lapPose(sDrink, u, stDrink)); C.update(); for (const i of T.ids) if (tp[3 * i + 1] < y) { y = tp[3 * i + 1]; tx = tp[3 * i]; tz = tp[3 * i + 2]; } } }
     report.drink = Math.max(0, tipY - BOWL_SURF);
     add('Drink', dur, true, withSettle(S, t => {
       const P = crouch({ ...P0 }, sDrink);

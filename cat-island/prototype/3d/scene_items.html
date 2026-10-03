@@ -44,12 +44,12 @@ applyPose(rig, stand(rig)); cat.updateMatrixWorld(true);
 const mid = rig.B.Hips.getWorldPosition(new THREE.Vector3()).add(rig.B.Chest.getWorldPosition(new THREE.Vector3())).multiplyScalar(.5);
 const lifted = (c, lift) => ({ ...c, pose: t => { const P = c.pose(t); P.rootY = (P.rootY || 0) + lift; return P; } });
 const SHOTS = {
-  drink: async () => { const c = clip('Drink'), it = await load('water_bowl'); it.position.set(c.drink.bowl.x, 0, c.drink.bowl.z); return { items: [it], c, t: .44 / c.drink.rate + 2 / c.drink.rate, label: '물 마시기 · 물그릇', view: [.9, .35, .6], dist: 1.1 }; },
-  food: async () => { const c = clip('Drink'), it = await load('food_bowl'); it.position.set(c.drink.bowl.x, 0, c.drink.bowl.z); return { items: [it], c, t: .44 / c.drink.rate + 3 / c.drink.rate, label: '사료 먹기 · 사료 그릇', view: [.9, .45, .6], dist: 1.1 }; },
-  tower: async () => { const c = clip('JumpUp'), it = await load('cat_tower_1'); it.position.set(0, 0, c.jump.D + .05); return { items: [it], c, t: c.dur * .62, label: '캣타워 오르기 · 캣타워 1단', view: [1, .4, .35], dist: 2.3 }; },
-  cushion: async () => { const c = lifted(clip('Sleep'), itemField('cushion').anchors.top), it = await load('cushion'); it.position.set(mid.x, 0, mid.z); return { items: [it], c, t: 1, label: '잠자기 · 방석', view: [.8, .6, .8], dist: 1.9 }; },
-  hideout: async () => { const c = lifted(clip('Loaf'), itemField('hideout').anchors.floor), it = await load('hideout'); it.position.set(mid.x, 0, mid.z); return { items: [it], c, t: 1, label: '식빵 자세 · 숨숨집', view: [.35, .35, 1], dist: 2.1 }; },
-  toy: async () => { const c = clip('PawBat'); solveAt(rig, c, c.dur * .5); cat.updateMatrixWorld(true); const p = rig.B.Hand_L ? rig.B.Hand_L.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(); const it = await load('mouse_toy'); it.position.set(p.x, 0, p.z + .01); return { items: [it], c, t: c.dur * .5, label: '장난감 치기 · 쥐돌이', view: [1, .35, .7], dist: 1.3 }; },
+  drink: async () => { const c = clip('Drink'), it = await load('water_bowl'); it.position.set(c.drink.bowl.x, 0, c.drink.bowl.z); return { items: [it], c, t: .44 / c.drink.rate + 2 / c.drink.rate, label: '물 마시기 · 물그릇', view: [1, .5, .9], dist: 2.4 }; },
+  food: async () => { const c = clip('Drink'), it = await load('food_bowl'); it.position.set(c.drink.bowl.x, 0, c.drink.bowl.z); return { items: [it], c, t: .44 / c.drink.rate + 3 / c.drink.rate, label: '사료 먹기 · 사료 그릇', view: [.6, .6, 1], dist: 2.4 }; },
+  tower: async () => { const c = clip('JumpUp'), it = await load('cat_tower_1'); it.position.set(0, 0, c.jump.deckBack + itemField('cat_tower_1').anchors.decks[0].size[1] / 2); return { items: [it], c, t: c.dur * .62, label: '캣타워 오르기 · 캣타워 1단', view: [1, .45, .5], dist: 3.4 }; },
+  cushion: async () => { const c = lifted(clip('Sleep'), itemField('cushion').anchors.top), it = await load('cushion'); it.position.set(mid.x, 0, mid.z); return { items: [it], c, t: 1, label: '잠자기 · 방석', view: [.8, .7, .9], dist: 2.8 }; },
+  hideout: async () => { const ho = itemField('hideout').anchors, c = lifted(clip('Loaf'), ho.floor), it = await load('hideout'); it.position.set(mid.x, 0, mid.z - ho.catAhead); return { items: [it], c, t: 1, label: '식빵 자세 · 숨숨집', view: [.45, .4, 1], dist: 3.2 }; },
+  toy: async () => { const c = clip('PawBat'); solveAt(rig, c, c.dur * .5); cat.updateMatrixWorld(true); const p = rig.B.Hand_L ? rig.B.Hand_L.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(); const it = await load('mouse_toy'); it.position.set(p.x, 0, p.z); it.rotation.y = -Math.PI / 2; return { items: [it], c, t: c.dur * .5, label: '장난감 치기 · 쥐돌이', view: [1, .45, 1], dist: 2.4 }; },
 };
 for (const s of shots) {
   const S = await SHOTS[s]();
