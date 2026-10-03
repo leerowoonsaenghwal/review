@@ -1089,7 +1089,7 @@ export function makeClips(rig, opts = {}) {
     for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (at(m) < TOY_TOP + .001) lo = m; else hi = m; }
     tapLow = hi;
   }
-  add('PawBat', 1.4, true, withSettle(S, pawBat, 1.4, {}, 14));
+  add('PawBat', 1.4, true, withSettle(S, pawBat, 1.4, { fk: ['FL'] }, 14));   // (the batting paw is left where it was aimed: the toy is placed under it)
   clips.groomReport = report;
   // a grooming clip whose contact this breed's body cannot make (legs too short to reach, ...) is not shipped:
   // it is left out of the clip set and listed with the reason, so the game simply never plays it for that cat
