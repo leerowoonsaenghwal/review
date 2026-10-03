@@ -647,11 +647,22 @@ export function makeClips(rig, opts = {}) {
         const core = u >= LICK_CORE[0] && u <= LICK_CORE[1], want = core ? -.001 : .001;
         if (!core && gapAt(0) >= want) return 0;
         if (core && Math.abs(gapAt(0) - want) < .0015) return 0;
-        let lo = -P.tongue, hi = core ? Math.max(.15, 1 - P.tongue) : 0;     // (mid-lick it may come all the way out)
-        if (gapAt(hi) > want) return hi;
-        if (gapAt(lo) < want) return lo;
-        for (let it = 0; it < 12; it++) { const m = (lo + hi) / 2; if (gapAt(m) > want) lo = m; else hi = m; }
-        return (lo + hi) / 2;
+        // the gap is not monotonic in how far the tongue is out (far out, the tip curls up and away), so the range
+        // is scanned first; then the best step is refined against its neighbours
+        const lo = -P.tongue, hi = core ? Math.max(.15, 1 - P.tongue) : 0, N = 12;
+        const xs = Array.from({ length: N + 1 }, (_, k) => lo + (hi - lo) * k / N), gs = xs.map(gapAt);
+        let best = -1;
+        if (core) { for (let k = 0; k <= N; k++) if (gs[k] >= -.006 && (best < 0 || Math.abs(gs[k] - want) < Math.abs(gs[best] - want))) best = k; }
+        else { for (let k = 0; k <= N; k++) if (gs[k] >= want && (best < 0 || Math.abs(xs[k]) < Math.abs(xs[best]))) best = k; }
+        if (best < 0) return lo;                                              // (nothing clear of the fur: tongue in)
+        // refine: bisect towards the neighbour on the other side of `want`, if there is one
+        for (const nb of [best - 1, best + 1]) {
+          if (nb < 0 || nb > N || (gs[nb] - want) * (gs[best] - want) > 0) continue;
+          let a = xs[best], b = xs[nb], ga = gs[best];
+          for (let it = 0; it < 8; it++) { const m = (a + b) / 2, gm = gapAt(m); if ((gm - want) * (ga - want) > 0) { a = m; ga = gm; } else b = m; }
+          return core ? (a + b) / 2 : (gapAt(a) >= want ? a : b);
+        }
+        return xs[best];
       });
     };
     return t => {
