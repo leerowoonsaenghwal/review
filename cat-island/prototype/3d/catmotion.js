@@ -334,7 +334,7 @@ export function contactOf(rig) {
 export function settle(rig, P, { fk = [], floor = .002, iters = 12, dense = false } = {}) {
   const C = contactOf(rig);
   for (let it = 0; it < iters; it++) {
-    applyPose(rig, { ...P, breath: Math.max(P.breath || 0, 1.3) }); C.update({ face: false });   // (with the belly at its fullest breath)
+    applyPose(rig, { ...P, breath: Math.max(P.breath || 0, 1.3) }); C.update();   // (with the belly at its fullest breath)
     let moved = false;
     // body: lift the hips so the lowest trunk point (and any limb posed by joint angles) is at -floor
     let low = C.lowest(C.sets.trunk);
@@ -346,11 +346,11 @@ export function settle(rig, P, { fk = [], floor = .002, iters = 12, dense = fals
     if (hl < -floor - .001) {
       let best = null, bestY = hl;
       for (const [k, dv] of [['nkRoll', .06], ['nkRoll', -.06], ['hdRoll', .06], ['hdRoll', -.06], ['nkPitch', -.06]]) {
-        const Q = { ...P, [k]: P[k] + dv }; applyPose(rig, Q); C.update({ face: false });
+        const Q = { ...P, [k]: P[k] + dv }; applyPose(rig, Q); C.update();
         const y = C.lowest(C.sets.head); if (y > bestY + .0005) { bestY = y; best = [k, dv]; }
       }
       if (best) { P[best[0]] += best[1]; moved = true; } else if (hl < -.01) { P.hipY += -floor - hl; moved = true; }
-      applyPose(rig, P); C.update({ face: false });
+      applyPose(rig, P); C.update();
     }
     // tail: raise its root until it clears the floor
     // (with a few mm to spare: the idle tail sway dips it a little)
@@ -368,7 +368,7 @@ export function settle(rig, P, { fk = [], floor = .002, iters = 12, dense = fals
         const A = rb.d < r.d ? L + 'b' : SL;                       // (the beans stand proud of the paw's fur)
         touch(rig, P, { a: A, b: others, keys: [L + 'x', L + 'y', L + 'z', L + 'a'], bounds: { [L + 'y']: [rig.ballH * .95 - (P.rootY || 0), rig.ballH + .3], [L + 'a']: [-2.2, 1.7] }, pairless: true, iters: 10, lim: .04,
           guard: [{ a: SL, b: others }, { a: L + 'b', b: others }], maxR: mR });
-        moved = true; applyPose(rig, P); C.update({ face: false });
+        moved = true; applyPose(rig, P); C.update();
       }
     }
     if (!moved) break;
