@@ -697,25 +697,28 @@ export function makeClips(rig, opts = {}) {
   };
   // While the tongue is out it presses on the fur and drags along it: at a few points of the lick cycle the
   // head/neck pitch is solved (on the meshes) so the tongue just touches the surface, and blended in between.
-  const LICK_U = [.22, .3, .38, .46, .54, .62], LICK_ON = [.18, .66];
+  const LICK_U = Array.from({ length: 21 }, (_, i) => .22 + .02 * i), LICK_ON = [.18, .66];
   const lickTrack = (base, stroke, opts) => {
-    // the head pitch and how far / how bent the tongue is out are corrected (the lick's own shape stays)
-    const TK = ['hdPitch', 'nkPitch', 'tongue', 'tongueBend'];
+    // only how far the tongue is out is corrected, by bisection (one channel: it always converges), so the
+    // tongue just meets the fur mid-lick and never sinks into it before or after
+    const C = contactOf(S), T = C.sets.tongue ||= C.points(p => p === 'tongue', 'face', 2), onB = p => opts.b.includes(p);
     const offs = LICK_U.map(u => {
       const c0 = lickCycle(u), k0 = c0.hdPitch / .1; delete c0.hdPitch;
-      const d0 = { tongue: 0, tongueBend: 0 };
-      // the tongue channels are offsets on top of the cycle (applied after it)
-      const at = Q => { const Q2 = addTongue(Q, c0); Q2.tongue += Q2.__dt || 0; Q2.tongueBend += Q2.__db || 0; groomTongue(Q2); stroke(Q2, k0); return Q2; };
-      const P = { ...base, __dt: 0, __db: 0 };
-      const core = u >= .36 && u <= .5;                                         // pressed on the fur mid-lick; elsewhere only kept out of it
-      touch(S, P, { ...opts, a: 'tongue', at, keys: ['hdPitch', 'nkPitch', '__dt', '__db'], bounds: { hdPitch: [base.hdPitch - .35, base.hdPitch + .35], nkPitch: [base.nkPitch - .2, base.nkPitch + .2], __dt: [-.4, 0], __db: [-.7, 0] }, iters: 25, gap: core ? -.0015 : .001, apart: !core });
-      return [P.hdPitch - base.hdPitch, P.nkPitch - base.nkPitch, P.__dt, P.__db];
+      const gapAt = dt => { const Q = addTongue({ ...base }, c0); Q.tongue += dt; groomTongue(Q); stroke(Q, k0); applyPose(S, Q); C.update(); return C.gap(T, onB, .12).d; };
+      const core = u >= .36 && u <= .5, want = core ? -.001 : .001;
+      if (!core && gapAt(0) >= want) return 0;                                 // already clear
+      let lo = -.8, hi = core ? .12 : 0;                                       // gap falls as the tongue comes further out
+      if (gapAt(hi) > want) return hi;                                         // cannot reach: as far as it goes
+      for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (gapAt(m) > want) lo = m; else hi = m; }
+      return (lo + hi) / 2;
     });
+    // smoothed (a tongue does not jerk in and out), never letting the smoothing push it back into the fur
+    const sm = offs.map((o, i) => Math.min(o, (offs[Math.max(0, i - 1)] + 2 * o + offs[Math.min(offs.length - 1, i + 1)]) / 4));
+    offs.splice(0, offs.length, ...sm);
     return (P, u) => {
       const w = ss(seg(u, LICK_ON[0], LICK_U[0])) * (1 - ss(seg(u, LICK_U[LICK_U.length - 1], LICK_ON[1])));
       const f = clamp((u - LICK_U[0]) / (LICK_U[1] - LICK_U[0]), 0, LICK_U.length - 1.0001), i = Math.floor(f), v = f - i;
-      const o = j => w * lerp(offs[i][j], offs[i + 1][j], v);
-      P.hdPitch += o(0); P.nkPitch += o(1); P.tongue += o(2); P.tongueBend += o(3); groomTongue(P);
+      P.tongue = Math.max(0, P.tongue + w * lerp(offs[i], offs[i + 1], v)); groomTongue(P);
     };
   };
   const SITG = over(SIT, { tailWave: .05 });
