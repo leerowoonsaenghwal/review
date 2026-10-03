@@ -1065,7 +1065,14 @@ export function makeClips(rig, opts = {}) {
     // the paw is raised well over the toy whatever the leg length (a Munchkin's half-leg is lower than the toy),
     // the tap comes down onto the toy's top (TOY_TOP), not through it to the floor; and back: first lifted off
     // the toy, then drawn back and set down behind it
-    const lift = Math.max(.5 * h, TOY_TOP + .06), tapLow = clamp(TOY_TOP / lift, .1, .9);
+    const lift = Math.max(.5 * h, TOY_TOP + .06);
+    // where the tap stops is measured on the mesh: the lowest point of the paw (curled toes, beans) on the toy top
+    const tapLow = (() => {
+      const C = contactOf(S), at = k => { const Q = { ...P0 }; Q.FLy += k * lift; Q.FLz += Math.max(.36 * h, .11); Q.FLx *= .85; Q.FLa = lerp(.3, -1.5, k); Q.FLt = k; applyPose(S, Q); C.update(); return Math.min(C.lowest(C.sets.FL), C.lowest(C.sets.FLb)); };
+      let lo = .05, hi = 1;
+      for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (at(m) < TOY_TOP + .002) lo = m; else hi = m; }
+      return hi;
+    })();
     const v = clamp((u - .5) / .5, 0, 1);
     const up = u < .35 ? mj(u / .35) : u < .5 ? 1 - (1 - tapLow) * mj((u - .35) / .15) : tapLow * (1 - mj(seg(v, .5, 1))) + .45 * mj(seg(v, 0, .3)) * (1 - mj(seg(v, .55, 1)));
     const fwd = u < .5 ? mj(Math.min(1, u / .4)) : 1 - mj(seg(v, .3, 1));
