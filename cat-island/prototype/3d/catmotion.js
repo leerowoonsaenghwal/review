@@ -207,7 +207,7 @@ export function gaitFeet(rig, g, t) {
       // stance: lands slightly reaching, yields under load, rolls over the toes (heel-off) before lift-off
       a = fr ? K([[0, .3], [.25, .1], [.75, -.3], [1, -.6]], u) : K([[0, .25], [.3, .05], [.8, -.55], [1, -.85]], u);
       toe = fr ? K([[0, -.05], [.8, 0], [1, -.15]], u) : K([[0, 0], [.85, 0], [1, -.2]], u);
-      if (!fr) y += .5 * rig.d.pawR * clamp(-a - .1, 0, 1);         // rolling up onto the toes lifts the paw ball
+      y += (fr ? .4 : .5) * rig.d.pawR * clamp(-a - .1, 0, 1);       // rolling up onto the toes lifts the paw ball
     } else {
       u = (c - duty) / (1 - duty);
       z = zt + g.S * mj(u);
@@ -237,7 +237,7 @@ export function gaitFeet(rig, g, t) {
   return out;
 }
 
-function gaitPose(rig, g, t) {
+export function gaitPose(rig, g, t) {
   const P = stand(rig), gf = gaitFeet(rig, g, t), h = rig.hipH, ph = t / g.T;
   for (const f of FOOT_KEYS) { const q = gf.feet[f]; P[f + 'x'] = q.x; P[f + 'y'] = q.y; P[f + 'z'] = q.z; P[f + 'a'] = q.a; P[f + 't'] = q.t; }
   P.rootZ = gf.rootZ;
@@ -360,10 +360,10 @@ export function settle(rig, P, { fk = [], floor = .002, iters = 12, dense = fals
       const pl = C.lowest(C.sets[L]);                              // a folded paw tucked under the floor
       if (pl < -floor - .001) { P[L + 'y'] += -floor - pl; moved = true; }
       const others = ['torso', 'head', 'tail', ...LIMBS.flatMap(M => M === L ? [] : [M, M + 'u'])];
-      const SL = dense ? L : L + '_s', mR = dense ? .06 : .035;                // (held postures: every other vertex)
+      const SL = dense ? L : L + '_s', mR = .06;                // (held postures: every other vertex)
       const r = C.depth(C.sets[SL], p => others.includes(p), C.rest[SL], mR);
       if (r.d < -.003) {
-        touch(rig, P, { a: SL, b: others, keys: [L + 'x', L + 'y', L + 'z', L + 'a'], bounds: { [L + 'y']: [rig.ballH * .95, rig.ballH + .3], [L + 'a']: [-2.2, 1.7] }, pairless: true, iters: 10, lim: .04,
+        touch(rig, P, { a: SL, b: others, keys: [L + 'x', L + 'y', L + 'z', L + 'a'], bounds: { [L + 'y']: [rig.ballH * .95 - (P.rootY || 0), rig.ballH + .3], [L + 'a']: [-2.2, 1.7] }, pairless: true, iters: 10, lim: .04,
           guard: [{ a: SL, b: others }], maxR: mR });
         moved = true; applyPose(rig, P); C.update({ face: false });
       }
@@ -466,13 +466,17 @@ export function touchBest(rig, P, opts, starts = [], grid = null) {
 }
 // settle a moving clip: settle n+1 sampled frames and blend the corrections in between (cheap at play time)
 export function withSettle(rig, pose, dur, opts = {}, n = 12) {
+  // (worked out on first use: a clip nobody samples costs nothing)
   const keys = new Set(), deltas = [];
-  for (let i = 0; i <= n; i++) {
-    const P = pose(dur * i / n), Q = settle(rig, { ...P }, { iters: 6, ...opts }), dl = {};
-    for (const k in Q) if (typeof Q[k] === 'number' && Math.abs(Q[k] - P[k]) > 1e-6) { dl[k] = Q[k] - P[k]; keys.add(k); }
-    deltas.push(dl);
-  }
+  const build = () => {
+    for (let i = 0; i <= n; i++) {
+      const P = pose(dur * i / n), Q = settle(rig, { ...P }, { iters: 6, ...opts }), dl = {};
+      for (const k in Q) if (typeof Q[k] === 'number' && Math.abs(Q[k] - P[k]) > 1e-6) { dl[k] = Q[k] - P[k]; keys.add(k); }
+      deltas.push(dl);
+    }
+  };
   return t => {
+    if (!deltas.length) build();
     const P = pose(t), f = clamp(t / dur, 0, 1) * n, i = Math.min(n - 1, Math.floor(f)), u = f - i;
     for (const k of keys) P[k] += lerp(deltas[i][k] || 0, deltas[i + 1][k] || 0, u);
     return P;
@@ -600,13 +604,16 @@ export function makeClips(rig, opts = {}) {
   }
   // JumpUp: crouch, bum wiggle, launch, ballistic flight, front paws land first, absorb, stand
   {
-    const D = .78, Hup = .2, tLift = 1.0, tPush = 1.1;
+    const d0 = rig.d, D = .78, Hup = .2, tLift = 1.0, tPush = 1.1;
     const apex = Hup + .1, vy = Math.sqrt(2 * G * apex), Tf = vy / G + Math.sqrt(2 * (apex - Hup) / G);
     const tLand = tPush + Tf, dur = tLand + .9;
+    // short forelegs under a big head (Munchkin, Persian) leave no room to drop the chest and nod on landing:
+    // the landing crouch and nod shrink with leg length and the head is carried up instead
+    const legK = clamp(((d0.joints.UpperArm_L.y - rig.ballH) / d0.HS - .3) / .6, 0, 1);
     add('JumpUp', dur, false, withSettle(S, t => {
       const P = { ...P0 };
       const crouchA = ss(seg(t, 0, .35)) * (1 - ss(seg(t, .95, tPush)));            // before take-off
-      const crouchB = .75 * ss(seg(t, tLand - .02, tLand + .14)) * (1 - ss(seg(t, tLand + .3, tLand + .75)));
+      const crouchB = (.35 + .4 * legK) * ss(seg(t, tLand - .02, tLand + .14)) * (1 - ss(seg(t, tLand + .3, tLand + .75)));
       const crouch = Math.max(crouchA, crouchB);
       const fly = seg(t, tPush, tLand);
       // root follows the ballistic path of the body; paws are planted in world space before and after
@@ -615,12 +622,14 @@ export function makeClips(rig, opts = {}) {
       P.rootY = t < tPush ? 0 : t < tLand ? vy * tau - G * tau * tau / 2 : Hup;
       // push-off: the body extends upward from the crouch just before leaving the ground
       const push = ss(seg(t, .92, tPush)) * (1 - ss(seg(t, tPush, tPush + .08)));
-      P.hipY = -.2 * h * crouch + .1 * h * push;          // (a shallow crouch: deeper, the short forelegs press up into the chest)
-      P.hipPitch = t < tPush ? lerp(.05 * crouch, -.45, ss(seg(t, .92, tPush))) : t < tLand ? lerp(-.45, .35, ss(fly)) : lerp(.35, 0, ss(seg(t, tLand, tLand + .5)));
-      P.spPitch = t < tPush ? .08 * crouch - .25 * ss(seg(t, .95, tPush)) : t < tLand ? K([[0, -.25], [.45, .12], [1, .2]], fly) : lerp(.2, 0, ss(seg(t, tLand, tLand + .55)));
+      P.hipY = -.2 * h * (.5 + .5 * legK) * crouch + .1 * h * push;          // (a shallow crouch: deeper, the short forelegs press up into the chest)
+      const pl = .45 * legK - .1, sl = .25 * legK - .05;                               // landing pitch: nose down only with legs to land on
+      P.hipPitch = t < tPush ? lerp(.05 * crouch, -.45, ss(seg(t, .92, tPush))) : t < tLand ? lerp(-.45, pl, ss(fly)) : lerp(pl, 0, ss(seg(t, tLand, tLand + .5)));
+      P.spPitch = t < tPush ? .08 * crouch - .25 * ss(seg(t, .95, tPush)) : t < tLand ? K([[0, -.25], [.45, .12], [1, sl]], fly) : lerp(sl, 0, ss(seg(t, tLand, tLand + .55)));
       const wig = Math.sin(TAU * 5 * t) * ss(seg(t, .4, .5)) * (1 - ss(seg(t, .82, .9)));
       P.hipYaw = .1 * wig; P.hipRoll = .05 * wig;                                       // the famous bum wiggle
-      P.nkPitch = -.1 * crouch - P.hipPitch * .5; P.hdPitch = -.1 * (1 - fly) + .12 * ss(seg(t, tLand - .15, tLand + .1)) * (1 - ss(seg(t, tLand + .2, tLand + .6)));
+      const land = ss(seg(t, tLand - .3, tLand)) * (1 - ss(seg(t, tLand + .35, tLand + .8)));
+      P.nkPitch = -.1 * crouch - P.hipPitch * .5 - .45 * (1 - legK) * land; P.hdPitch = -.1 * (1 - fly) + .12 * legK * ss(seg(t, tLand - .15, tLand + .1)) * (1 - ss(seg(t, tLand + .2, tLand + .6)));
       P.tailBase = t < tPush ? -.75 + .5 * crouch + .9 * ss(seg(t, .85, tPush)) : t < tLand ? lerp(.15, -.4, ss(fly)) + .3 * Math.sin(Math.PI * fly) : lerp(-.4, -.3, ss(seg(t, tLand, dur)));
       P.tailBend = .03; P.tailWave = t < tPush ? .35 * ss(seg(t, .3, .5)) : .05; P.tailWph = t * 3;
       P.earLp = P.earRp = t < tPush ? .15 : -.2 * Math.sin(Math.PI * fly);
@@ -631,13 +640,13 @@ export function makeClips(rig, opts = {}) {
         const liftT = fr ? tLift : tPush, touchT = fr ? tLand : tLand + .07;
         let wz, wy, a = fr ? .3 : .2, toe = 0;
         const tread = !fr ? .015 * Math.max(0, Math.sin(TAU * 5 * t + (f === 'HL' ? 0 : Math.PI))) * (wig ? 1 : 0) : 0;
-        if (t < liftT) { wz = r.z + (fr ? .12 * crouch : 0); wy = rig.ballH + tread; if (!fr) a = .2 - .5 * crouch; }
+        if (t < liftT) { wz = r.z + (fr ? (.12 + .1 * (1 - legK)) * crouch : 0); wy = rig.ballH + tread; if (!fr) a = .2 - .5 * crouch; }
         else if (t >= touchT) { wz = r.z + D + (fr ? .05 * crouchB : 0); wy = Hup + rig.ballH; if (!fr) a = .2 - .5 * crouchB; else a = .3 - .2 * crouchB; }
         else {
           const u = (t - liftT) / (touchT - liftT), body = { z: P.rootZ, y: P.rootY };
           // fronts tuck to the chest then reach down for the landing; hinds trail stretched, then tuck under
           const relZ = fr ? K([[0, r.z + .02], [.35, r.z + .08], [.8, r.z + .14], [1, r.z]], u) : K([[0, r.z], [.25, r.z - .14], [.6, r.z - .06], [1, r.z]], u);
-          const relY = fr ? K([[0, rig.ballH], [.35, .5 * rig.hipY], [.8, .2 * rig.hipY], [1, rig.ballH]], u) : K([[0, rig.ballH], [.3, .2 * rig.hipY], [.7, .25 * rig.hipY], [1, rig.ballH]], u);
+          const relY = fr ? K([[0, rig.ballH], [.35, .5 * rig.hipY], [.8, .2 * rig.hipY], [1, rig.ballH]], u) : K([[0, rig.ballH], [.3, lerp(rig.ballH, .2 * rig.hipY, legK)], [.7, lerp(rig.ballH, .25 * rig.hipY, legK)], [1, rig.ballH]], u);   // (short legs trail low: tucked up they fold into the rump)
           const landing = ss(seg(u, .75, 1));
           wz = lerp(body.z + relZ, r.z + D, landing); wy = lerp(body.y + relY, Hup + rig.ballH, landing);
           a = fr ? K([[0, .3], [.3, -1.6], [.8, .4], [1, .3]], u) : K([[0, -.9], [.4, -1.2], [.85, .5], [1, .2]], u);
@@ -680,10 +689,12 @@ export function makeClips(rig, opts = {}) {
   // scratch the neck - and no paw, forearm or bean sinks into the head or body. Flanks, hind legs, belly and tail
   // were measured out of reach (25-250 mm short even with the grooming tongue), so they are not animated.
   // Each clip starts and ends sitting, so the game can chain them (see GROOM_ROUTINE).
+  const report = {};
+  // (opts.only, for quick checks: the grooming solves are skipped when none of these clips is asked for)
+  if (!opts.only || opts.only.some(n => GROOM_ROUTINE.some(g => g.clip === n))) {
   const HS = rig.d.HS, d = rig.d;
   const mouthLocal = d.mouth.clone().sub(d.joints.Head);
   const mouthAt = P => { applyPose(rig, P); return rig.B.Head.localToWorld(mouthLocal.clone()); };
-  const report = {};
   // grooming licks use the lengthened tongue (about 1.6x as far out of the mouth), growing as it comes out
   const GROOM_REACH = 1.2, groomTongue = Q => { Q.tongueStretch = GROOM_REACH * clamp(Q.tongue / .95, 0, 1); return Q; };
   // a run of licks on a solved base pose; `stroke(P, k)` moves the head along the fur for stroke amount k, and
@@ -876,6 +887,7 @@ export function makeClips(rig, opts = {}) {
       return P;
     }, { contacts: [{ a: 'FL', b: ['head'], when: (P, t) => t > .5 && t < 2.8 }] });
   }
+  }
   // stretch: play-bow with a big yawn, then each hind leg stretched out behind
   add('Stretch', 4.2, false, withSettle(S, t => {
     const bow = ss(seg(t, .2, .9)) * (1 - ss(seg(t, 2.1, 2.6)));
@@ -954,7 +966,7 @@ export function makeClips(rig, opts = {}) {
   clips.groomReport = report;
   // a grooming clip whose contact this breed's body cannot make (legs too short to reach, ...) is not shipped:
   // it is left out of the clip set and listed with the reason, so the game simply never plays it for that cat
-  const reachErr = { GroomFace: Math.max(report.pawLick, report.wash), GroomChest: report.chest, ScratchEar: report.scratch, NibbleClaws: report.nibble };
+  const reachErr = { GroomFace: Math.max(report.pawLick ?? 0, report.wash ?? 0), GroomChest: report.chest, ScratchEar: report.scratch, NibbleClaws: report.nibble };
   const out = clips.filter(c => !(reachErr[c.name] > GROOM_REACH_LIMIT));
   out.skipped = clips.filter(c => reachErr[c.name] > GROOM_REACH_LIMIT).map(c => ({ clip: c.name, reason: `contact out of reach for this body (${(reachErr[c.name] * 1000).toFixed(0)} mm short)` }));
   out.groomReport = report;

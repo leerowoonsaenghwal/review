@@ -94,8 +94,36 @@ export function makeContact(rig, { cell = .015 } = {}) {
   };
   const key = (i, j, k) => (i * 73856093) ^ (j * 19349663) ^ (k * 83492791);
   const P3 = (t, k) => { const v = B.idx[3 * t + k]; return [B.pos[3 * v], B.pos[3 * v + 1], B.pos[3 * v + 2]]; };
+  // triangles of each part, for the ray test below
+  const partTris = {};
+  for (let t = 0; t < nt; t++) if (triPart[t]) (partTris[triPart[t]] ||= []).push(t);
+  // is the point really inside `part`? The sign of the nearest surface can mislead where a part's surface
+  // folds (the chest between the front legs faces sideways, inwards): a point outside beside that fold is
+  // judged inside by it. Rays cast up, down and both ways sideways cross a closed surface an odd number of
+  // times from inside; the part is open where it joins the next one, so 3 of the 4 rays must agree.
+  const crossings = (x, y, z, ax, sg, tris) => {
+    let n = 0; const u = (ax + 1) % 3, v = (ax + 2) % 3, o = [x, y, z];
+    for (const t of tris) {
+      const a = P3(t, 0), b = P3(t, 1), c = P3(t, 2);
+      // the ray runs along axis `ax`: a 2D point-in-triangle test in the other two axes, then the hit side
+      const d1 = (b[u] - a[u]) * (o[v] - a[v]) - (b[v] - a[v]) * (o[u] - a[u]);
+      const d2 = (c[u] - b[u]) * (o[v] - b[v]) - (c[v] - b[v]) * (o[u] - b[u]);
+      const d3 = (a[u] - c[u]) * (o[v] - c[v]) - (a[v] - c[v]) * (o[u] - c[u]);
+      if ((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0)) continue;
+      const den = d1 + d2 + d3; if (!den) continue;
+      const h = (d2 * a[ax] + d3 * b[ax] + d1 * c[ax]) / den;    // (barycentric: d2 weights a, d3 b, d1 c)
+      if ((h - o[ax]) * sg > 0) n++;
+    }
+    return n;
+  };
+  const insidePart = (x, y, z, part) => {
+    const tris = partTris[part]; if (!tris) return false;
+    let odd = 0;
+    for (const [ax, sg] of [[1, 1], [1, -1], [0, 1], [0, -1]]) if (crossings(x, y, z, ax, sg, tris) % 2) odd++;
+    return odd >= 3;
+  };
   const C = {
-    M, triPart,
+    M, triPart, insidePart,
     update({ face = true } = {}) {
       for (let b = 0; b < skel.bones.length; b++) mats[b].multiplyMatrices(skel.bones[b].matrixWorld, skel.boneInverses[b]);
       skinAll(M.body); if (face) skinAll(M.face); normals();
@@ -165,22 +193,43 @@ export function makeContact(rig, { cell = .015 } = {}) {
     // deepest vertex of `set` inside a part accepted by `ok`; `base` (from depthEach in the rest pose) lets a
     // vertex already that deep in the bind pose (a long-haired breed's legs inside its fur skirt) count from there
     depth(set, ok, base = null, maxR = .06) {
-      const p = M[set.mesh].pos; let worst = { d: 0 };
+      const p = M[set.mesh].pos, cand = []; let worst = { d: 0 };
       // only points inside the bounding box of the parts tested can be inside them
-      const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
-      for (let v = 0; v < B.n; v++) if (ok(B.part[v])) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], B.pos[3 * v + k]); hi[k] = Math.max(hi[k], B.pos[3 * v + k]); }
+      const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity], box = {};
+      for (let v = 0; v < B.n; v++) if (ok(B.part[v])) {
+        const bx = box[B.part[v]] ||= [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+        for (let k = 0; k < 3; k++) { const x = B.pos[3 * v + k]; lo[k] = Math.min(lo[k], x); hi[k] = Math.max(hi[k], x); bx[k] = Math.min(bx[k], x); bx[k + 3] = Math.max(bx[k + 3], x); }
+      }
       set.ids.forEach((i, k) => {
         if (p[3 * i] < lo[0] || p[3 * i] > hi[0] || p[3 * i + 1] < lo[1] || p[3 * i + 1] > hi[1] || p[3 * i + 2] < lo[2] || p[3 * i + 2] > hi[2]) return;
         const r = C.nearest(p[3 * i], p[3 * i + 1], p[3 * i + 2], ok, maxR);
         if (!r || r.rim) return;
+        // a point outside the box of the part it was matched to cannot be inside that part (with several parts
+        // allowed, the nearest labelled triangle can be a far one whose normal faces away: not a penetration)
+        const bx = box[r.part];
+        if (r.d < 0 && bx && (p[3 * i] < bx[0] || p[3 * i] > bx[3] || p[3 * i + 1] < bx[1] || p[3 * i + 1] > bx[4] || p[3 * i + 2] < bx[2] || p[3 * i + 2] > bx[5])) return;
         const d = base ? Math.min(0, r.d - base[k]) : r.d;
-        if (d < worst.d) worst = { d, part: r.part, i };
+        if (d < -.003) cand.push({ d, part: r.part, i }); else if (d < worst.d) worst = { d, part: r.part, i };
       });
+      // deeper ones are confirmed by the ray test, deepest first
+      cand.sort((a, b) => a.d - b.d);
+      for (const c of cand) if (insidePart(p[3 * c.i], p[3 * c.i + 1], p[3 * c.i + 2], c.part)) { if (c.d < worst.d) worst = c; break; }
       return worst;
     },
     depthEach(set, ok) {
       const p = M[set.mesh].pos;
-      return Float32Array.from(set.ids, i => { const r = C.nearest(p[3 * i], p[3 * i + 1], p[3 * i + 2], ok, .06); return r && !r.rim ? Math.min(0, r.d) : 0; });
+      const box = {};
+      for (let v = 0; v < B.n; v++) if (ok(B.part[v])) {
+        const bx = box[B.part[v]] ||= [Infinity, Infinity, Infinity, -Infinity, -Infinity, -Infinity];
+        for (let k = 0; k < 3; k++) { const x = B.pos[3 * v + k]; bx[k] = Math.min(bx[k], x); bx[k + 3] = Math.max(bx[k + 3], x); }
+      }
+      return Float32Array.from(set.ids, i => {
+        const x = p[3 * i], y = p[3 * i + 1], z = p[3 * i + 2], r = C.nearest(x, y, z, ok, .06);
+        if (!r || r.rim || r.d >= 0) return 0;
+        const bx = box[r.part];                                    // (outside that part's box: not inside it, see depth)
+        if (bx && (x < bx[0] || x > bx[3] || y < bx[1] || y > bx[4] || z < bx[2] || z > bx[5])) return 0;
+        return r.d > -.003 || insidePart(x, y, z, r.part) ? r.d : 0;
+      });
     },
     // smallest signed distance from `set` to the surface of parts accepted by `ok` (with the vertex pair)
     gap(set, ok, maxR = .25) {

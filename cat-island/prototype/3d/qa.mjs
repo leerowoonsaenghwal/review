@@ -19,7 +19,7 @@ for (const id of breeds) {
   const b = BREEDS.find(x => x.id === id);
   const rig = makeRig(buildCatModel(b.shape, b.coat, { res: RES })), C = makeContact(rig);
   const longFur = b.shape.fur === 'long';
-  const allClips = makeClips(rig), clips = allClips.filter(c => !only || only.includes(c.name)); clips.skipped = allClips.skipped;
+  const allClips = makeClips(rig, { only }), clips = allClips.filter(c => !only || only.includes(c.name)); clips.skipped = allClips.skipped;
   // point sets (every other vertex is plenty at this resolution)
   const limbPts = Object.fromEntries(LIMBS.map(L => [L, C.points(p => p === L, 'body', 2)]));
   const beanPts = Object.fromEntries(LIMBS.map(L => [L, C.points(p => p === L, 'face')]));
