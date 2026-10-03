@@ -13,6 +13,7 @@
 //   stance phase details: paw lands, wrist/hock "yield" under load, then the heel lifts and the toes
 //   peel off last; in swing the front paw folds back at the wrist, then reaches forward before landing.
 import * as THREE from 'three';
+import { makeContact, LIMBS } from './catcontact.js';
 
 export const FPS = 30;
 const TAU = Math.PI * 2, G = 9.81;
@@ -60,6 +61,11 @@ export function makeRig(model) {
   rig.reachF = reach(J.UpperArm_L, [rig.L.F[0], rig.L.F[1], rig.L.F[2]], J.Fingers_L);
   rig.reachH = reach(J.Thigh_L, [rig.L.H[0], rig.L.H[1], rig.L.H[2]], J.Toes_L);
   rig.hipH = J.Thigh_L.y;
+  // the sculpted paw bottoms reach a little below the paw-ball height: lift the ground targets by that much
+  // so planted paws stand on the floor instead of sinking into it
+  const pa = model.userData.meshes.body.geometry.attributes.position; let low = Infinity;
+  for (let i = 0; i < pa.count; i++) low = Math.min(low, pa.getY(i));
+  rig.floorLift = Math.max(0, -low); rig.ballH += rig.floorLift;
   return rig;
 }
 
@@ -198,17 +204,30 @@ export function gaitFeet(rig, g, t) {
       // stance: lands slightly reaching, yields under load, rolls over the toes (heel-off) before lift-off
       a = fr ? K([[0, .3], [.25, .1], [.75, -.3], [1, -.6]], u) : K([[0, .25], [.3, .05], [.8, -.55], [1, -.85]], u);
       toe = fr ? K([[0, -.05], [.8, 0], [1, -.15]], u) : K([[0, 0], [.85, 0], [1, -.2]], u);
+      if (!fr) y += .5 * rig.d.pawR * clamp(-a - .1, 0, 1);         // rolling up onto the toes lifts the paw ball
     } else {
       u = (c - duty) / (1 - duty);
       z = zt + g.S * mj(u);
-      y += g.lift[fr ? 'F' : 'H'] * g.S * .22 * Math.pow(Math.sin(Math.PI * Math.pow(u, .8)), 1.2);
+      // (galloping, a short-legged toy cat cannot tuck its legs as high as a real one: they would fold up into
+      // its belly, so the tuck is kept lower and the wrist folds less)
+      const tuck = g.kind === 'gallop' ? .4 : g.kind === 'trot' ? .85 : 1;
+      y += tuck * g.lift[fr ? 'F' : 'H'] * g.S * .22 * Math.pow(Math.sin(Math.PI * Math.pow(u, .8)), 1.2);
       // swing: front paw folds back at the wrist, then reaches forward (E1) and flattens to land
-      a = fr ? K([[0, -.6], [.3, -1.9], [.72, .45], [1, .3]], u) : K([[0, -.85], [.35, -1.3], [.8, .4], [1, .25]], u);
-      toe = fr ? K([[0, -.15], [.25, 1.0], [.7, .4], [1, -.05]], u) : K([[0, -.2], [.3, .8], [.75, .2], [1, 0]], u);
+      a = fr ? K([[0, -.6], [.3, -1.9 * tuck], [.72, .45], [1, .3]], u) : K([[0, -.85], [.35, -1.3 * tuck], [.8, .4], [1, .25]], u);
+      toe = fr ? K([[0, -.15], [.25, 1.0], [.7, .4], [1, -.05]], u) : K([[0, -.2], [.3, .4], [.75, .2], [1, 0]], u);   // (toes curl only a little: more scrapes the floor)
     }
     // cats walk on a narrow track: paws step close to the midline
     const narrow = g.kind === 'walk' ? .72 : g.kind === 'trot' ? .8 : .85;
-    out.feet[f] = { x: r.x * narrow, y, z: z - rootZ, a, t: toe, c, u, stance };
+    // galloping, the hind paws land ahead of where the front paws were: on this short body they would meet,
+    // so the hind track runs wide (wider still mid-swing) and they pass outside the front legs
+    const wide = g.kind !== 'gallop' || fr ? 0 : .4 + (stance ? 0 : .3 * Math.sin(Math.PI * u));
+    out.feet[f] = { x: r.x * (narrow + wide), y, z: z - rootZ, a, t: toe, c, u, stance };
+  }
+  // a hind paw passing its front paw (same side) steps round it: sideways clearance grows as they close in
+  const pr = rig.d.pawR, clear = 3.2 * pr;
+  for (const [F, H] of [['FL', 'HL'], ['FR', 'HR']]) {
+    const fp = out.feet[F], hp = out.feet[H], close = Math.max(0, 1 - Math.abs(hp.z - fp.z) / clear);
+    if (close > 0) hp.x = Math.sign(hp.x) * Math.max(Math.abs(hp.x), Math.abs(fp.x) + 2.1 * pr * mj(close));
   }
   return out;
 }
@@ -283,10 +302,144 @@ export function fitSit(rig, P, opts = {}) {
   for (const f of ['HL', 'HR']) { P[f + 'z'] = hp.z + d.len.lMt * 1.05; P[f + 'x'] = rig.restFoot[f].x * 1.3; P[f + 'y'] = rig.ballH; P[f + 'a'] = 1.52; }
   return P;
 }
+// ------------------------------------------------------------------ settling a held posture on the real mesh
+// The skinned mesh is measured (catcontact.js), not the bones: the body is lifted until nothing but fur-deep
+// contact reaches below the floor, the tail is raised off it, and planted paws that sink into the body are
+// moved out along the surface normal. Used on every held posture (sit, loaf, sleep, lying) at build time.
+export function contactOf(rig) {
+  if (!rig.contact) {
+    const C = makeContact(rig);
+    C.sets = {
+      trunk: C.points((p, i, m) => p === 'torso' || p.endsWith('u'), 'body', 2),
+      head: C.points(p => p === 'head', 'body', 2),
+      tail: C.points(p => p === 'tail', 'body', 2),
+      ...Object.fromEntries(LIMBS.map(L => [L, C.points(p => p === L, 'body', 2)])),
+    };
+    rig.contact = C;
+  }
+  return rig.contact;
+}
+export function settle(rig, P, { fk = [], floor = .002, iters = 12 } = {}) {
+  const C = contactOf(rig);
+  for (let it = 0; it < iters; it++) {
+    applyPose(rig, P); C.update();
+    let moved = false;
+    // body: lift the hips so the lowest trunk point (and any limb posed by joint angles) is at -floor
+    let low = C.lowest(C.sets.trunk);
+    for (const L of fk) low = Math.min(low, C.lowest(C.sets[L]));
+    if (low < -floor - .001) { P.hipY += -floor - low; moved = true; }
+    // head: lying on its side the big head would sink into the floor; lift it on the neck (whichever small
+    // neck/head turn raises it most)
+    const hl = C.lowest(C.sets.head);
+    if (hl < -floor - .001) {
+      let best = null, bestY = hl;
+      for (const [k, dv] of [['nkRoll', .06], ['nkRoll', -.06], ['hdRoll', .06], ['hdRoll', -.06], ['nkPitch', -.06]]) {
+        const Q = { ...P, [k]: P[k] + dv }; applyPose(rig, Q); C.update();
+        const y = C.lowest(C.sets.head); if (y > bestY + .0005) { bestY = y; best = [k, dv]; }
+      }
+      if (best) { P[best[0]] += best[1]; moved = true; } else if (hl < -.01) { P.hipY += -floor - hl; moved = true; }
+      applyPose(rig, P); C.update();
+    }
+    // tail: raise its root until it clears the floor
+    // (with a few mm to spare: the idle tail sway dips it a little)
+    if (C.lowest(C.sets.tail) < .003 && P.tailBase < 1.2) { P.tailBase += .04; moved = true; }
+    // planted paws pressed into the body: step them out along the body's surface normal (sideways only)
+    for (const L of LIMBS) {
+      if (fk.includes(L) || P[L + 'fk'] > .5) continue;
+      const pl = C.lowest(C.sets[L]);                              // a folded paw tucked under the floor
+      if (pl < -floor - .001) { P[L + 'y'] += -floor - pl; moved = true; }
+      const r = C.depth(C.sets[L], p => p !== L && p !== L + 'u');
+      if (r.d < -.004) {
+        const pt = C.M.body.pos, i = r.i, n = C.nearest(pt[3 * i], pt[3 * i + 1], pt[3 * i + 2], p => p === r.part, .06).n;
+        const h = Math.hypot(n.x, n.z) || 1, step = Math.min(.02, -r.d + .002);
+        P[L + 'x'] += n.x / h * step; P[L + 'z'] += n.z / h * step; moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  applyPose(rig, P);
+  return P;
+}
+// Bring vertex set `a` (the tongue, a paw...) into touch with the surface of parts `b` - optionally only the
+// patch within zone.r of a point on a bone - by adjusting pose `keys`. Each round finds the nearest
+// vertex/surface pair on the skinned meshes, then a damped least-squares step (finite differences) closes
+// that pair to `gap` along the surface normal (negative gap: pressed into the fur). `at` turns the base pose
+// into the pose at the moment of contact (e.g. the tongue out at mid-lick).
+export function touch(rig, P, { a, b, zone = null, keys, bounds = {}, gap = .001, iters = 30, at = Q => Q, lim = .12 }) {
+  const C = contactOf(rig);
+  const A = a === 'tongue' ? (C.sets.tongue ||= C.points(p => p === 'tongue', 'face', 2))
+    : C.sets['all' + a] ||= C.points(p => p === a, 'body', 2);
+  const pa = new THREE.Vector3(), pb = new THREE.Vector3(), tmp = new THREE.Vector3();
+  let res = { d: Infinity }, bestP = { ...P }, bestErr = Infinity, step = lim;
+  const pose = Q => { applyPose(rig, at({ ...Q })); };
+  for (let it = 0; it <= iters; it++) {
+    pose(P); C.update();
+    const zc = zone ? rig.B[zone.bone].localToWorld(zone.off.clone()) : null;
+    // closest vertex pair first (brute force over the target patch), then the exact surface point near it
+    const bp = C.M.body.pos, bPart = C.M.body.part, Bv = [];
+    for (let v = 0; v < C.M.body.n; v++) if (b.includes(bPart[v]) && (!zc || Math.hypot(bp[3 * v] - zc.x, bp[3 * v + 1] - zc.y, bp[3 * v + 2] - zc.z) < zone.r)) Bv.push(v);
+    const pos = C.M[A.mesh].pos; let pi = -1, pd = Infinity;
+    for (const i of A.ids) for (const v of Bv) {
+      const dd = (pos[3 * i] - bp[3 * v]) ** 2 + (pos[3 * i + 1] - bp[3 * v + 1]) ** 2 + (pos[3 * i + 2] - bp[3 * v + 2]) ** 2;
+      if (dd < pd) { pd = dd; pi = i; }
+    }
+    const ok = (part, t) => b.includes(part) && (!zc || C.triCenter(t).distanceTo(zc) < zone.r * 1.2);
+    const r0 = pi < 0 ? null : C.nearest(pos[3 * pi], pos[3 * pi + 1], pos[3 * pi + 2], ok, Math.sqrt(pd) + .02);
+    const best = r0 && { ...r0, i: pi };
+    if (!best) break;
+    // backtracking: a step that made things worse is undone and the step size halved
+    const err = Math.abs(best.d - gap);
+    if (err > bestErr + 1e-4) { Object.assign(P, bestP); step /= 2; if (step < .005) break; continue; }
+    bestErr = err; bestP = { ...P }; step = Math.min(lim, step * 1.5);
+    res = { d: best.d, P };
+    if (Math.abs(best.d - gap) < .0008 || it === iters) break;
+    const tv = C.triVerts(best.t), n = best.n.clone();
+    const f = Q => {
+      pose(Q); C.refresh();
+      C.skin1(A.mesh, best.i, pa); pb.set(0, 0, 0);
+      tv.forEach((v, k) => pb.addScaledVector(C.skin1('body', v, tmp), best.bary.getComponent(k)));
+      return pa.clone().sub(pb);
+    };
+    const f0 = f(P), want = n.clone().multiplyScalar(gap), e = want.sub(f0);
+    const Jc = keys.map(k => f({ ...P, [k]: P[k] + .01 }).sub(f0).multiplyScalar(100));
+    const m = keys.length, M2 = Array.from({ length: m }, (_, i) => Array.from({ length: m }, (_, j) => Jc[i].dot(Jc[j]) + (i === j ? 1e-5 : 0))), bv = Jc.map(j => j.dot(e));
+    for (let i = 0; i < m; i++) for (let k = i + 1; k < m; k++) { const g = M2[k][i] / M2[i][i]; for (let j = i; j < m; j++) M2[k][j] -= g * M2[i][j]; bv[k] -= g * bv[i]; }
+    const x = new Array(m).fill(0);
+    for (let i = m - 1; i >= 0; i--) { let sum = bv[i]; for (let j = i + 1; j < m; j++) sum -= M2[i][j] * x[j]; x[i] = sum / M2[i][i]; }
+    keys.forEach((k, i) => { P[k] += clamp(x[i], -step, step); if (bounds[k]) P[k] = clamp(P[k], bounds[k][0], bounds[k][1]); });
+  }
+  Object.assign(P, bestP); applyPose(rig, P);
+  touch.last = bestErr + gap;
+  return P;
+}
+// touch() from several starting poses; keeps the closest
+export function touchBest(rig, P, opts, starts = []) {
+  let best = null, bestErr = Infinity;
+  for (const s0 of [{}, ...starts]) {
+    const Q = touch(rig, { ...P, ...s0 }, opts), e = Math.abs(touch.last - (opts.gap ?? .001));
+    if (e < bestErr) { bestErr = e; best = Q; }
+  }
+  Object.assign(P, best); applyPose(rig, P); touch.last = bestErr + (opts.gap ?? .001);
+  return P;
+}
+// settle a moving clip: settle n+1 sampled frames and blend the corrections in between (cheap at play time)
+export function withSettle(rig, pose, dur, opts = {}, n = 12) {
+  const keys = new Set(), deltas = [];
+  for (let i = 0; i <= n; i++) {
+    const P = pose(dur * i / n), Q = settle(rig, { ...P }, opts), dl = {};
+    for (const k in Q) if (typeof Q[k] === 'number' && Math.abs(Q[k] - P[k]) > 1e-6) { dl[k] = Q[k] - P[k]; keys.add(k); }
+    deltas.push(dl);
+  }
+  return t => {
+    const P = pose(t), f = clamp(t / dur, 0, 1) * n, i = Math.min(n - 1, Math.floor(f)), u = f - i;
+    for (const k of keys) P[k] += lerp(deltas[i][k] || 0, deltas[i + 1][k] || 0, u);
+    return P;
+  };
+}
 function sitPose(rig) {
   const P = stand(rig);
   Object.assign(P, { hdPitch: .02, scapL: -.05, scapR: -.05, tailBase: -1.25, tailBend: .02, tailCurl: .3, tailYaw: .45 });
-  return fitSit(rig, P);
+  return settle(rig, fitSit(rig, P));
 }
 function loafPose(rig) {
   const P = stand(rig), h = rig.hipH, chestR = rig.chestY - rig.ballH;
@@ -401,7 +554,7 @@ export function makeClips(rig) {
     const D = .78, Hup = .2, tLift = 1.0, tPush = 1.1;
     const apex = Hup + .1, vy = Math.sqrt(2 * G * apex), Tf = vy / G + Math.sqrt(2 * (apex - Hup) / G);
     const tLand = tPush + Tf, dur = tLand + .9;
-    add('JumpUp', dur, false, t => {
+    add('JumpUp', dur, false, withSettle(rig, t => {
       const P = { ...P0 };
       const crouchA = ss(seg(t, 0, .35)) * (1 - ss(seg(t, .95, tPush)));            // before take-off
       const crouchB = .75 * ss(seg(t, tLand - .02, tLand + .14)) * (1 - ss(seg(t, tLand + .3, tLand + .75)));
@@ -413,13 +566,13 @@ export function makeClips(rig) {
       P.rootY = t < tPush ? 0 : t < tLand ? vy * tau - G * tau * tau / 2 : Hup;
       // push-off: the body extends upward from the crouch just before leaving the ground
       const push = ss(seg(t, .92, tPush)) * (1 - ss(seg(t, tPush, tPush + .08)));
-      P.hipY = -.3 * h * crouch + .1 * h * push;
+      P.hipY = -.2 * h * crouch + .1 * h * push;          // (a shallow crouch: deeper, the short forelegs press up into the chest)
       P.hipPitch = t < tPush ? lerp(.05 * crouch, -.45, ss(seg(t, .92, tPush))) : t < tLand ? lerp(-.45, .35, ss(fly)) : lerp(.35, 0, ss(seg(t, tLand, tLand + .5)));
       P.spPitch = t < tPush ? .08 * crouch - .25 * ss(seg(t, .95, tPush)) : t < tLand ? K([[0, -.25], [.45, .12], [1, .2]], fly) : lerp(.2, 0, ss(seg(t, tLand, tLand + .55)));
       const wig = Math.sin(TAU * 5 * t) * ss(seg(t, .4, .5)) * (1 - ss(seg(t, .82, .9)));
       P.hipYaw = .1 * wig; P.hipRoll = .05 * wig;                                       // the famous bum wiggle
       P.nkPitch = -.1 * crouch - P.hipPitch * .5; P.hdPitch = -.1 * (1 - fly) + .12 * ss(seg(t, tLand - .15, tLand + .1)) * (1 - ss(seg(t, tLand + .2, tLand + .6)));
-      P.tailBase = t < tPush ? -1.25 + .2 * crouch : t < tLand ? lerp(-.9, .2, Math.sin(Math.PI * fly)) : lerp(-.4, -.3, ss(seg(t, tLand, dur)));
+      P.tailBase = t < tPush ? -.75 + .5 * crouch : t < tLand ? lerp(-.75, .2, Math.sin(Math.PI * fly)) : lerp(-.4, -.3, ss(seg(t, tLand, dur)));
       P.tailBend = .03; P.tailWave = t < tPush ? .35 * ss(seg(t, .3, .5)) : .05; P.tailWph = t * 3;
       P.earLp = P.earRp = t < tPush ? .15 : -.2 * Math.sin(Math.PI * fly);
       P.blink = blinkAt(t, [tLand + .05], .2) * .7;
@@ -429,41 +582,44 @@ export function makeClips(rig) {
         const liftT = fr ? tLift : tPush, touchT = fr ? tLand : tLand + .07;
         let wz, wy, a = fr ? .3 : .2, toe = 0;
         const tread = !fr ? .015 * Math.max(0, Math.sin(TAU * 5 * t + (f === 'HL' ? 0 : Math.PI))) * (wig ? 1 : 0) : 0;
-        if (t < liftT) { wz = r.z + (fr ? .03 * crouch : 0); wy = rig.ballH + tread; if (!fr) a = .2 - .5 * crouch; }
-        else if (t >= touchT) { wz = r.z + D; wy = Hup + rig.ballH; if (!fr) a = .2 - .5 * crouchB; else a = .3 - .2 * crouchB; }
+        if (t < liftT) { wz = r.z + (fr ? .12 * crouch : 0); wy = rig.ballH + tread; if (!fr) a = .2 - .5 * crouch; }
+        else if (t >= touchT) { wz = r.z + D + (fr ? .05 * crouchB : 0); wy = Hup + rig.ballH; if (!fr) a = .2 - .5 * crouchB; else a = .3 - .2 * crouchB; }
         else {
           const u = (t - liftT) / (touchT - liftT), body = { z: P.rootZ, y: P.rootY };
           // fronts tuck to the chest then reach down for the landing; hinds trail stretched, then tuck under
           const relZ = fr ? K([[0, r.z + .02], [.35, r.z + .08], [.8, r.z + .14], [1, r.z]], u) : K([[0, r.z], [.25, r.z - .14], [.6, r.z - .06], [1, r.z]], u);
-          const relY = fr ? K([[0, rig.ballH], [.35, .5 * rig.hipY], [.8, .2 * rig.hipY], [1, rig.ballH]], u) : K([[0, rig.ballH], [.3, .3 * rig.hipY], [.7, .4 * rig.hipY], [1, rig.ballH]], u);
+          const relY = fr ? K([[0, rig.ballH], [.35, .5 * rig.hipY], [.8, .2 * rig.hipY], [1, rig.ballH]], u) : K([[0, rig.ballH], [.3, .2 * rig.hipY], [.7, .25 * rig.hipY], [1, rig.ballH]], u);
           const landing = ss(seg(u, .75, 1));
           wz = lerp(body.z + relZ, r.z + D, landing); wy = lerp(body.y + relY, Hup + rig.ballH, landing);
           a = fr ? K([[0, .3], [.3, -1.6], [.8, .4], [1, .3]], u) : K([[0, -.9], [.4, -1.2], [.85, .5], [1, .2]], u);
           toe = fr ? K([[0, 0], [.3, 1.1], [.8, .2], [1, 0]], u) : K([[0, -.2], [.4, .7], [1, 0]], u);
         }
-        P[f + 'x'] = r.x; P[f + 'y'] = wy - P.rootY; P[f + 'z'] = wz - P.rootZ; P[f + 'a'] = a; P[f + 't'] = toe;
+        P[f + 'x'] = r.x * (fr ? 1 : 1 + .25 * crouch); P[f + 'y'] = wy - P.rootY;   // crouching, the hind paws set wider beside the haunches P[f + 'z'] = wz - P.rootZ; P[f + 'a'] = a; P[f + 't'] = toe;
       }
       return P;
-    }, { rootMotion: true, jump: { D, H: Hup } });
+    }, dur, {}, 30), { rootMotion: true, jump: { D, H: Hup } });
   }
   // sitting down, sitting, standing up
-  const SIT = sitPose(rig), LOAF = loafPose(rig), SLEEP = sleepPose(rig);
-  const transfer = (A, B, k, lifts = {}) => {
-    const P = mix(A, B, ss(k));
-    for (const [f, hgt] of Object.entries(lifts)) P[f + 'y'] += hgt * Math.sin(Math.PI * ss(k));
+  const SIT = sitPose(rig), LOAF = settle(rig, loafPose(rig), { floor: -.002 }), SLEEP = settle(rig, sleepPose(rig));
+  // move between two postures; `lifts` raises the named paws in an arc, `splay` swings them out sideways on the
+  // way (so a hind paw folding under the haunch passes beside it, not through it)
+  const transfer = (A, B, k, lifts = {}, splay = {}) => {
+    const P = mix(A, B, ss(k)), arc = Math.sin(Math.PI * ss(k));
+    for (const [f, hgt] of Object.entries(lifts)) P[f + 'y'] += hgt * arc;
+    for (const [f, w] of Object.entries(splay)) P[f + 'x'] += Math.sign(rig.restFoot[f].x) * w * rig.hipH * arc;
     return P;
   };
-  add('SitDown', .9, false, t => over(transfer(P0, SIT, t / .9, { HL: .02, HR: .02 }), { blink: blinkAt(t, [.75]) }));
+  add('SitDown', .9, false, t => over(transfer(P0, SIT, t / .9, { HL: .03, HR: .03 }, { HL: .3, HR: .3 }), { blink: blinkAt(t, [.75]) }));
   add('Sit', 4, true, t => over(SIT, {
     breath: Math.sin(TAU * t / 2), blink: blinkAt(t, [1.4, 3.3]), tailWave: .05, tailWph: t / 2,
     hdYaw: K([[0, 0], [1.8, 0], [2.2, .3], [3.2, .3], [3.6, 0], [4, 0]], t), earRp: K([[0, 0], [2.5, 0], [2.6, -.4], [2.85, 0], [4, 0]], t),
   }));
-  add('StandUp', .7, false, t => transfer(SIT, P0, t / .7, { HL: .015, HR: .015 }));
+  add('StandUp', .7, false, t => transfer(SIT, P0, t / .7, { HL: .03, HR: .03 }, { HL: .3, HR: .3 }));
   // lying down into a loaf, loafing, curling up to sleep
-  add('LieDown', 1.1, false, t => over(transfer(P0, LOAF, t / 1.1, { FL: .03, FR: .03 }), { blink: blinkAt(t, [.9]) }));
+  add('LieDown', 1.1, false, t => over(transfer(P0, LOAF, t / 1.1, { FL: .04, FR: .04 }, { FL: .25, FR: .25 }), { blink: blinkAt(t, [.9]) }));
   add('Loaf', 5, true, t => over(LOAF, { breath: Math.sin(TAU * t / 2.5), blink: .55 + .45 * blinkAt(t, [2]), tailWave: .04, tailWph: t / 2.5 }));
   add('Sleep', 5, true, t => over(SLEEP, { breath: 1.3 * Math.sin(TAU * t / 2.5), tailTip: .05 * Math.sin(TAU * t / 5), earLp: -.25 + .25 * bump(t, 3.2, .06) }));
-  add('FallAsleep', 2, false, t => over(transfer(LOAF, SLEEP, t / 2), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }));
+  add('FallAsleep', 2, false, t => over(transfer(LOAF, SLEEP, t / 2, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }));
   // ---------------------------------------------------------------- grooming
   // Cats groom sitting or lying, never standing, and a grooming bout runs head to tail (cephalocaudal):
   // lick the paw and wash the face and ears with it, then chest, shoulders and flanks, hind legs (the leg-up
@@ -518,6 +674,8 @@ export function makeClips(rig) {
     return P;
   };
   const SITG = over(SIT, { tailWave: .05 });
+  // the pose at the moment the tongue is on the fur (mid-lick), for solving contact
+  const lickAt = (stroke, u = .45) => Q => { const c = lickCycle(u), k = c.hdPitch / .1; delete c.hdPitch; addTongue(Q, c); stroke(Q, k); return Q; };
 
   // The toy head is as big as the body, so a head turned more than ~70 degrees or rolled flat hides the face and
   // wrings the neck. Every solve keeps the head inside these limits; where a real cat would bury its face in
@@ -548,58 +706,84 @@ export function makeClips(rig) {
   const lickSpot = pawClamp(lickP, spotAt(lickP, V(.15 * HS * sx, -.75 * HS, .95 * HS)));
   // face spots in head space, in wash order: over the ear -> brow -> eye -> cheek -> muzzle
   const WASH = [V(.7 * sx, .42, .1), V(.6 * sx, .35, .5), V(.52 * sx, .12, .7), V(.55 * sx, -.2, .66), V(.35 * sx, -.45, .82)].map(v => v.multiplyScalar(HS));
-  const washPoses = WASH.map(off => pawPose(over(SITG, UPP, { hdRoll: .35 * sx, hdPitch: .25, hdYaw: .25 * sx, nkRoll: .1 * sx }), off));
+  // every pose below is solved on the meshes: the tongue on the paw, the paw on the face (pressed 2 mm into the fur)
+  const PAWK = ['FLx', 'FLy', 'FLz'], FACEK = [...HEADK, ...PAWK, 'FLa', 'FLt'];
+  const pawUp = (P, p, a = -1.7, toe = 1.2) => { setPaw(P, p, 1, a, toe); return P; };
+  const faceStroke = (Q, s2) => { Q.hdPitch += .04 * s2; };
+  const lickBase = pawUp(over(lickP), lickSpot);
+  touchBest(rig, lickBase, { a: 'tongue', b: ['FL'], keys: [...PAWK, 'hdPitch'], bounds: { hdPitch: [.1, .6] }, at: lickAt(faceStroke) }, [{ FLy: lickBase.FLy - .02 }, { FLz: lickBase.FLz - .02 }]);
+  report.pawLick = touch.last;
+  // the point on the head's surface in the direction of a head-space offset (bind pose = Head bone frame)
+  const headSurf = off => {
+    const g = rig.model.userData.meshes.body.geometry.attributes.position, C = contactOf(rig), dir = off.clone().normalize();
+    let best = null, bd = -Infinity;
+    for (let i = 0; i < g.count; i++) {
+      if (C.M.body.part[i] !== 'head') continue;
+      const v = V(g.getX(i), g.getY(i), g.getZ(i)), r = v.clone().sub(d.Hc), sc = r.clone().normalize().dot(dir) + .2 * r.length() / HS;
+      if (sc > bd) { bd = sc; best = v; }
+    }
+    return best.sub(d.joints.Head);
+  };
+  const onFace = (off, start, bounds) => {
+    // the short arm cannot reach round the big head, so the paw stays up in front of the chest (where it was
+    // licked, a little to the side) and the head ducks and tips to bring each spot of the face onto it
+    const S0 = over(SITG, UPP, start), hs = headSurf(off);
+    const P = pawUp({ ...S0 }, V(lickBase.FLx + .25 * d.pawR * sx, lickBase.FLy + .2 * d.pawR, lickBase.FLz - .2 * d.pawR));
+    touchBest(rig, P, { a: 'FL', b: ['head'], zone: { bone: 'Head', off: hs, r: .04 }, keys: [...HEADK, ...PAWK], bounds, gap: -.002 }, [{ hdPitch: (start.hdPitch || 0) + .25, nkPitch: SITG.nkPitch + .2 }, { hdRoll: (start.hdRoll || 0) + .25 }]);
+    return { P, err: Math.abs(touch.last + .002) };
+  };
+  const washPoses = WASH.map(off => onFace(off, { hdRoll: .35 * sx, hdPitch: .25, hdYaw: .25 * sx, nkRoll: .1 * sx }, HBW));
   report.wash = Math.max(...washPoses.map(w => w.err));
+  const blendFace = (P, A, B, u, k) => { for (const key of FACEK) P[key] = lerp(P[key], lerp(A[key], B[key], u), k); };
   add('GroomFace', 6.6, true, t => {
     const P = { ...SITG };
     P.breath = Math.sin(TAU * t / 2.2);
     const up = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 6.1, 6.6)));
     const lickA = t >= .45 && t < 2.25, lickB = t >= 5.15 && t < 6.05;
     for (const [key, v] of Object.entries(UPP)) P[key] = (P[key] || 0) * (1 - up) + v * up;
-    P.hdPitch = lerp(.02, .3, up); P.hdYaw = lerp(0, .15 * sx, up); P.hdRoll = lerp(0, .1 * sx, up);
-    let paw = lickSpot;
+    blendFace(P, lickBase, lickBase, 0, up);
+    P.FLz += .03 * Math.sin(Math.PI * up);                                      // the paw comes up in front of the chest
     if (t >= 2.05 && t < 5.3) {
       // two wash strokes; each runs ear -> muzzle, then the head lifts back out for the next
       const k = mj(seg(t, 2.05, 2.45)) * (1 - mj(seg(t, 4.9, 5.3)));
       const w = frac(seg(t, 2.25, 5.05) * 2), q = w < .78 ? mj(w / .78) : 1 - mj((w - .78) / .22);
       const f = q * (WASH.length - 1), i = Math.min(WASH.length - 2, Math.floor(f)), u = f - i;
-      for (const key of HEADK) P[key] = lerp(P[key], lerp(washPoses[i].P[key], washPoses[i + 1].P[key], u), k);
-      paw = lickSpot.clone().lerp(washPoses[i].paw.clone().lerp(washPoses[i + 1].paw, u), k);
+      blendFace(P, washPoses[i].P, washPoses[i + 1].P, u, k);
       P.earLp = -.45 * k * (1 - Math.min(1, f)); P.earLy = -.3 * k;
       P.blink = Math.max(.6, k);
     } else P.blink = up > .5 ? .75 : blinkAt(t, [.2]);
-    if (lickA) licking(P, t, .45, 4, 2.2, (Q, s2) => { Q.hdPitch += .08 * s2; });
-    if (lickB) licking(P, t, 5.15, 2, 2.2, (Q, s2) => { Q.hdPitch += .08 * s2; });
-    setPaw(P, paw, up, -1.7, 1.2);
+    if (lickA) licking(P, t, .45, 4, 2.2, faceStroke);
+    if (lickB) licking(P, t, 5.15, 2, 2.2, faceStroke);
     return P;
-  });
+  }, { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.tongue > .6 }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }] });
 
   // 2. GroomEar: the paw held up beside the head, the head tipped over and rubbed against it so the paw runs
   //    over and behind the ear, eyes shut, ear flattened
   const EAR = [V(.75 * sx, .4, -.1), V(.7 * sx, .55, .12), V(.68 * sx, .3, .28)].map(v => v.multiplyScalar(HS));
-  const earPoses = EAR.map(off => pawPose(over(SITG, UPP, { hdRoll: .6 * sx, hdPitch: .3, hdYaw: .3 * sx, nkRoll: .25 * sx }), off, { ...HBW, hdPitch: [-.3, .45], nkPitch: [-.4, .4] }));
+  const earPoses = EAR.map(off => onFace(off, { hdRoll: .6 * sx, hdPitch: .3, hdYaw: .3 * sx, nkRoll: .25 * sx }, { ...HBW, hdPitch: [-.3, .45], nkPitch: [-.4, .4] }));
   report.ear = Math.max(...earPoses.map(w => w.err));
   add('GroomEar', 4, true, t => {
     const P = { ...SITG }, up = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 3.5, 4)));
     for (const [key, v] of Object.entries(UPP)) P[key] = (P[key] || 0) * (1 - up) + v * up;
     const w = frac(seg(t, .5, 3.4) * 3), q = .5 - .5 * Math.cos(TAU * w), f = q * 2, i = Math.min(1, Math.floor(f)), u = f - i;
-    for (const key of HEADK) P[key] = lerp(P[key], lerp(earPoses[i].P[key], earPoses[i + 1].P[key], u), up);
+    blendFace(P, earPoses[i].P, earPoses[i + 1].P, u, up);
+    P.FLz += .03 * Math.sin(Math.PI * up) * (1 - up);
     P.blink = up; P.breath = Math.sin(TAU * t / 2.2);
     P.earLp = -.55 * up; P.earLy = -.45 * up;
-    setPaw(P, earPoses[i].paw.clone().lerp(earPoses[i + 1].paw, u), up, -1.9, .6);
     return P;
-  });
+  }, { contacts: [{ a: 'FL', b: ['head'], when: (P, t) => t > .5 && t < 3.4 }] });
 
-  // 3. GroomChest: sitting, chin tucked down to the chest, long strokes up the bib
+  // 3. GroomChest: sitting, chin tucked down to the chest, the tongue drawn up the bib in long strokes
   {
-    const base = over(SITG, { hdPitch: .9, nkPitch: SITG.nkPitch + .5 });
-    const tgt = surf(base, 'Chest', V(0, -.15 * d.chestR, .42 * d.BLm), reachTongue);
-    reach(base, tgt, ['nkPitch', 'hdPitch', 'spPitch'], 10, null, .3, HB); report.chest = reach.last;
+    const stroke = (Q, s) => { Q.hdPitch += .05 * s; Q.nkPitch += .025 * s; };
+    const base = over(SITG, { hdPitch: .7, nkPitch: SITG.nkPitch + .4 });
+    touchBest(rig, base, { a: 'tongue', b: ['torso'], zone: { bone: 'Chest', off: V(0, -.35 * d.chestR, .75 * d.chestR), r: .06 }, keys: ['nkPitch', 'hdPitch', 'spPitch'], bounds: { ...HB, hdPitch: [0, 1.6] }, at: lickAt(stroke) }, [{ hdPitch: 1.2, nkPitch: SITG.nkPitch + .2 }, { hdPitch: 1.45, nkPitch: SITG.nkPitch + .5, spPitch: .2 }]);
+    report.chest = touch.last;
     add('GroomChest', 4.2, true, t => {
       const P = { ...SITG }, k = mj(seg(t, 0, .5)) * (1 - mj(seg(t, 3.7, 4.2)));
       Object.assign(P, mix(SITG, base, k)); P.blink = .8 * k + blinkAt(t, [.1]) * (1 - k); P.breath = Math.sin(TAU * t / 2.2);
-      return licking(P, t, .55, 7, 2.2, (Q, s) => { Q.hdPitch += .1 * s; Q.nkPitch += .05 * s; });
-    });
+      return licking(P, t, .55, 7, 2.2, stroke);
+    }, { contacts: [{ a: 'tongue', b: ['torso'], when: P => P.tongue > .6 }] });
   }
 
   // 4. GroomFlank: head turned round over the shoulder to lick the shoulder and side, strokes running forward
@@ -708,11 +892,11 @@ export function makeClips(rig) {
     return P;
   });
   // stretch: play-bow with a big yawn, then each hind leg stretched out behind
-  add('Stretch', 4.2, false, t => {
+  add('Stretch', 4.2, false, withSettle(rig, t => {
     const bow = ss(seg(t, .2, .9)) * (1 - ss(seg(t, 2.1, 2.6)));
     const P = { ...P0 };
     P.hipPitch = .38 * bow; P.spPitch = .22 * bow; P.hipY = -.04 * h * bow; P.hipZ = -.05 * h * bow;
-    P.nkPitch = -.45 * bow; P.hdPitch = -.3 * bow;
+    P.nkPitch = -.25 * bow; P.hdPitch = -.3 * bow;
     for (const f of ['FL', 'FR']) { P[f + 'z'] += .55 * h * bow; P[f + 'a'] = lerp(.3, 1.25, bow); P[f + 't'] = -.25 * bow; }
     for (const f of ['HL', 'HR']) { P[f + 'a'] = lerp(.2, .45, bow); }
     const yawn = bump(t, 1.35, .32);
@@ -727,7 +911,7 @@ export function makeClips(rig) {
     }
     P.blink = Math.max(P.blink, blinkAt(t, [2.5]));
     return P;
-  });
+  }, 4.2, {}, 28));
   // drinking: crouched over the bowl, lapping ~3.5 times a second. Like real cats (Reis et al. 2010, Science):
   // the tongue tip curls under into a J so only its top touches the surface, then whips back up, pulling a
   // column of liquid that the jaw snaps shut on. Every 8 laps a short pause to swallow.
@@ -761,13 +945,14 @@ export function makeClips(rig) {
     const FLOP = over(LOAF, { hipRoll: 1.38, hipY: -.62 * rig.hipY, spRoll: .1, hdRoll: .9, hdPitch: .05, nkPitch: .05, blink: .55, tailBase: -1.2, tailBend: .03, tailCurl: 0, tailYaw: 0, earLp: -.2, earRp: -.2 });
     for (const f of FOOT_KEYS) {
       const fr = f[0] === 'F', top = f[1] === 'L';
-      Object.assign(FLOP, { [f + 'fk']: 1, [f + 'k1']: fr ? .35 : -.25, [f + 'k2']: fr ? -.45 : .7, [f + 'k3']: fr ? .5 : -.35, [f + 'k4']: .3, [f + 'kz']: top ? .1 : -.05 });
+      Object.assign(FLOP, { [f + 'fk']: 1, [f + 'k1']: fr ? .7 : top ? -.25 : -.6, [f + 'k2']: fr ? -.45 : .7, [f + 'k3']: fr ? .5 : -.35, [f + 'k4']: .3, [f + 'kz']: fr ? (top ? .1 : -.05) : (top ? .35 : -.35) });   // forelegs reach forward clear of the head, hind legs splay off the belly
     }
-    add('Flop', 1.6, false, t => {
+    settle(rig, FLOP, { fk: FOOT_KEYS, iters: 30 });
+    add('Flop', 1.6, false, withSettle(rig, t => {
       const k = seg(t, 0, 1.4), P = transfer(P0, FLOP, k);
       P.hipY -= .06 * h * Math.sin(Math.PI * ss(k));     // sinks before rolling over
       return P;
-    });
+    }, 1.6, { fk: FOOT_KEYS }, 16));
     add('FlopIdle', 4, true, t => over(FLOP, { breath: 1.2 * Math.sin(TAU * t / 2.4), tailTip: .3 * Math.sin(TAU * t / 2 - 1), tailWave: .1, tailWph: t / 2, blink: .55 + .45 * blinkAt(t, [2.6]) }));
   }
   // paw batting: lift, tap down, return (Turkish Van at the water bowl)

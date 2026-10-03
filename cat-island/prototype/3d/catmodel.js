@@ -37,6 +37,7 @@ export const BONE_PARENTS = {
 };
 export const BONE_NAMES = Object.keys(BONE_PARENTS);
 const BI = Object.fromEntries(BONE_NAMES.map((n, i) => [n, i]));
+const TRUNK_BONES = new Set(['Root', 'Hips', 'Spine1', 'Spine2', 'Chest', 'Belly']);
 const SIDES = [['L', 1], ['R', -1]];          // the cat faces +z, so its left side is +x
 
 // planar two-bone solve in the y/z plane: middle joint for a chain from A to T, bend = +1 (forward) / -1 (back)
@@ -290,7 +291,10 @@ export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
     col.set([c.r, c.g, c.b], i * 3);
     // breathing: the belly bone takes the underside of the trunk
     const ny = (p.y - bodyY) / (.34 * B), nz = p.z / (.9 * BL);
-    const bw = .6 * sstep(-.1, -.7, ny) * sstep(.75, .3, Math.abs(nz + .05));
+    // (only on the trunk: legs and paws also sit low, and must not ride on the belly)
+    let trunk = 0, all = 0;
+    for (let k = 0; k < NB; k++) { all += W[i * NB + k]; if (TRUNK_BONES.has(BONE_NAMES[k])) trunk += W[i * NB + k]; }
+    const bw = .6 * sstep(-.1, -.7, ny) * sstep(.75, .3, Math.abs(nz + .05)) * sstep(.55, .9, all ? trunk / all : 0);
     if (bw > 0) { let sum = 0; for (let k = 0; k < NB; k++) sum += W[i * NB + k]; for (let k = 0; k < NB; k++) W[i * NB + k] *= (1 - bw); W[i * NB + BI.Belly] += bw * sum; }
     // shoulder blades: the skin over the withers rides on the scapulae
     for (const [S] of SIDES) {

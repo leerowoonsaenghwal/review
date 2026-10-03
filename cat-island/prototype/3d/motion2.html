@@ -14,7 +14,8 @@ import { buildCatModel } from './catmodel.js';
 import { makeRig, makeClips, solveAt } from './catmotion.js';
 const q = new URLSearchParams(location.search);
 const b = BREEDS.find(x => x.id === (q.get('id') || 'korean_shorthair'));
-const clipNames = (q.get('clip') || 'Walk').split(','), n = +(q.get('n') || 8), views = (q.get('view') || 'side').split(',');
+const times = q.get('t') ? q.get('t').split(',').map(Number) : null;   // &t=0.5,1.2 : exact times instead of n even steps
+const clipNames = (q.get('clip') || 'Walk').split(','), n = times ? times.length : +(q.get('n') || 8), views = (q.get('view') || 'side').split(',');
 const CW = +(q.get('cw') || 240), CH = +(q.get('ch') || 200);
 const cat = buildCatModel(b.shape, b.coat, { res: +(q.get('res') || .02) });
 const rig = makeRig(cat), clips = makeClips(rig);
@@ -30,7 +31,7 @@ sc.add(new THREE.HemisphereLight('#f2fbff', '#c9b892', 1.35));
 const sun = new THREE.DirectionalLight('#fff4dc', 2); sun.castShadow = true; sun.shadow.bias = -.0002; sun.shadow.normalBias = .01; sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -1, right: 1, top: 1, bottom: -1 }); sc.add(sun, sun.target);
 const gr = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ color: '#a8db84', roughness: 1 }));
-gr.rotation.x = -Math.PI / 2; gr.receiveShadow = true; sc.add(gr);
+gr.rotation.x = -Math.PI / 2; gr.receiveShadow = true; if (!q.has('noground')) sc.add(gr);   // &noground shows anything sunk below the floor
 // floor marks so planted paws (no sliding) are easy to judge
 for (let z = -2; z < 12; z += .1) { const m = new THREE.Mesh(new THREE.PlaneGeometry(.6, .006), new THREE.MeshBasicMaterial({ color: '#94c870' })); m.rotation.x = -Math.PI / 2; m.position.set(0, .001, z); sc.add(m); }
 sc.add(cat);
@@ -38,7 +39,7 @@ for (const cn of clipNames) {
   const clip = clips.find(c => c.name === cn);
   if (clip.jump) { const bx = new THREE.Mesh(new THREE.BoxGeometry(.5, clip.jump.H, .6), new THREE.MeshStandardMaterial({ color: '#d9b48a', roughness: .8 })); bx.position.set(0, clip.jump.H / 2, clip.jump.D + .05); bx.castShadow = bx.receiveShadow = true; sc.add(bx); }
   for (const view of views) for (let i = 0; i < n; i++) {
-    const t = clip.loop ? clip.dur * i / n : clip.dur * i / (n - 1);
+    const t = times ? times[i] : clip.loop ? clip.dur * i / n : clip.dur * i / (n - 1);
     solveAt(rig, clip, t);
     const c = rig.B.Hips.getWorldPosition(new THREE.Vector3()).lerp(rig.B.Head.getWorldPosition(new THREE.Vector3()), .45);   // frame body and head
     const dir = { side: [1, .12, 0], '34': [.8, .35, .75], '34r': [-.8, .35, .75], sider: [-1, .12, 0], front: [.15, .2, 1], back: [-.4, .3, -1], top: [.3, 1.2, .5] }[view];
