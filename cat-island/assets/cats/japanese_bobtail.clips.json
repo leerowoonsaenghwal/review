@@ -154,7 +154,7 @@
      "z": 0.5299
     },
     "crouch": 1.48,
-    "tongue": 0.08
+    "tongue": 0.14
    }
   },
   {
@@ -224,8 +224,8 @@
  "itemSpots": {
   "mouse_toy": {
    "x": 0.062,
-   "z": 0.363,
-   "yaw": -1.571,
+   "z": 0.354,
+   "yaw": 1.571,
    "clip": "PawBat"
   },
   "cushion": {
