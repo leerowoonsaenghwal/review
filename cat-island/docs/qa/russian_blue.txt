@@ -1,0 +1,41 @@
+
+러시안 블루 (russian_blue)
+  (skipped for this body: ScratchEar — failed the contact check on this body (HL into torso 4 mm at 0.67 s))
+  ok   Idle         
+  ok   Walk         
+  ok   Trot         
+  ok   Gallop       
+  ok   JumpUp       
+  ok   SitDown      
+  ok   Sit          
+  ok   StandUp      
+  ok   LieDown      
+  ok   Loaf         
+  ok   Sleep        
+  ok   FallAsleep   
+  FAIL GroomFace    tongue→FL 6x best 11mm; FL→head 1x best 0mm
+         head on FLu (warn)           -24mm  at 6.27s  (2 frames)
+         head on torso (warn)         -60mm  at 2.13s  (89 frames)
+         tongue→FL misses              11mm  at 5.80s  (3 frames)
+  warn NibbleClaws  FL→head 1x best 0mm
+         head on FLu (warn)           -26mm  at 3.07s  (2 frames)
+         head on torso (warn)         -60mm  at 0.40s  (41 frames)
+  warn Stretch      
+         head on torso (warn)         -38mm  at 1.33s  (23 frames)
+  ok   Drink        
+  ok   LickLips     
+  ok   Flop         
+  ok   FlopIdle     
+  ok   PawBat       
+
+러시안 블루 (russian_blue)
+  ok   Drink · water_bowl           nothing inside · contact 8/8
+  ok   Drink · milk_bowl            nothing inside · contact 8/8
+  ok   Drink · food_bowl            nothing inside · contact 8/8
+  ok   JumpUp · cat_tower_1         nothing inside
+  ok   Loaf · cushion               nothing inside
+  ok   Sleep · cushion              nothing inside
+  ok   Loaf · hideout               nothing inside
+  ok   PawBat · mouse_toy           nothing inside · contact 1/1
+
+all ok

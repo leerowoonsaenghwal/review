@@ -1,0 +1,38 @@
+
+스코티시 폴드 (scottish_fold)
+  (skipped for this body: GroomFace — failed the contact check on this body (FL into head 4 mm at 0.73 s); ScratchEar — failed the contact check on this body (HR into torso 5 mm at 0.20 s))
+  ok   Idle         
+  ok   Walk         
+  ok   Trot         
+  FAIL Gallop       
+         FL in torso                   -5mm  at 0.87s  (2 frames)
+  ok   JumpUp       
+  ok   SitDown      
+  ok   Sit          
+  ok   StandUp      
+  ok   LieDown      
+  ok   Loaf         
+  ok   Sleep        
+  ok   FallAsleep   
+  warn NibbleClaws  FL→head 1x best 0mm
+         head on FLu (warn)           -21mm  at 3.07s  (2 frames)
+         head on torso (warn)         -60mm  at 0.40s  (41 frames)
+  warn Stretch      
+         head on torso (warn)         -41mm  at 1.33s  (23 frames)
+  ok   Drink        
+  ok   LickLips     
+  ok   Flop         
+  ok   FlopIdle     
+  ok   PawBat       
+
+스코티시 폴드 (scottish_fold)
+  ok   Drink · water_bowl           nothing inside · contact 8/8
+  ok   Drink · milk_bowl            nothing inside · contact 8/8
+  ok   Drink · food_bowl            nothing inside · contact 8/8
+  ok   JumpUp · cat_tower_1         nothing inside
+  ok   Loaf · cushion               nothing inside
+  ok   Sleep · cushion              nothing inside
+  ok   Loaf · hideout               nothing inside
+  ok   PawBat · mouse_toy           nothing inside · contact 1/1
+
+all ok

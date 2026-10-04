@@ -486,15 +486,15 @@ export function withSettle(rig, pose, dur, opts = {}, n = 12) {
     // then every frame in between is checked; where a leg still passes into the body (the blend between two
     // settled points is not itself settled) that frame is settled too
     const C = contactOf(rig), fkOf = t => opts.fkAt ? opts.fkAt(t) : opts.fk || [], m = Math.max(2, Math.round(dur * FPS)), h = dur / m;   // (every frame; a fix also settles half a frame either side)
-    for (let round = 0; round < 2; round++) {
+    for (let round = 0; round < 3; round++) {
       const add = [];
       for (let f = 0; f <= m; f++) {
         const t = dur * f / m; if (keys.some(k => Math.abs(k.t - t) < 1e-4)) continue;
-        const P = at(t); applyPose(rig, P); C.update({ face: false });
+        const P = at(t); applyPose(rig, P); C.update();   // (the beans are on the face mesh)
         for (const L of LIMBS) {
           if (fkOf(t).includes(L) || P[L + 'fk'] > .5) continue;
           const others = ['torso', 'head', 'tail', ...LIMBS.flatMap(M => M === L ? [] : [M, M + 'u'])];
-          if (C.depth(C.sets[L], p => others.includes(p), C.rest[L], .06).d < -.003 || C.depth(C.sets[L + 'b'], p => others.includes(p), null, .06).d < -.003) { add.push(t); break; }
+          if (C.depth(C.sets[L], p => others.includes(p), C.rest[L], .06).d < -.002 || C.depth(C.sets[L + 'b'], p => others.includes(p), null, .06).d < -.002) { add.push(t); break; }
         }
       }
       if (!add.length) break;
@@ -581,6 +581,9 @@ const addTongue = (P, c, k = 1) => { for (const key in c) P[key] = key === 'hdPi
 // the part of a lick when the tongue is on the fur (the head is still coming down the stroke; after it, the
 // stroke lifts the head away)
 export const LICK_CORE = [.3, .44];
+// clips that are checked on each breed's own body like the grooming ones and left out where they fail, with
+// what the game plays instead (a toy-sized short-legged cat cannot always gallop or bat without touching itself)
+export const CHECKED_CLIPS = { Gallop: 'Trot', PawBat: 'Idle' };
 export const GROOM_REACH_LIMIT = .005;
 export const GROOM_ROUTINE = [
   { clip: 'GroomFace', region: 'front paw (lick) and face (paw wash: cheek, whisker pad, muzzle)', share: .31, from: 'Sit' },
@@ -605,7 +608,8 @@ export function makeClips(rig, opts = {}) {
         applyPose(S, P); C.update();
         for (const L of LIMBS) {
           const low = Math.min(C.lowest(C.sets[L]), C.lowest(C.sets[L + 'b'])) - fl;   // (the beans stand proud of the fur)
-          if (low < -.0015) { const k = P[L + 'fk'] > .5 ? 'hipY' : L + 'y'; e[k] = Math.max(e[k] || 0, -.0005 - low); }
+          // (a planted paw raised alone would fold its leg up into the body: the hips go up with it)
+          if (low < -.0015) { const k = P[L + 'fk'] > .5 ? 'hipY' : L + 'y'; e[k] = Math.max(e[k] || 0, -.0005 - low); e.hipY = Math.max(e.hipY || 0, -.0005 - low); }
         }
         const low = Math.min(C.lowest(C.sets.trunk), C.lowest(C.sets.head)) - fl;
         if (low < -.0015) e.hipY = Math.max(e.hipY || 0, -.0005 - low);
@@ -706,7 +710,7 @@ export function makeClips(rig, opts = {}) {
     const g = gaitParams(rig, kind);
     // every breed's body is a different shape: the paws of each gait are settled on its mesh (stepped round
     // the body where a swinging leg would pass into it, kept on the floor) at 16 points per stride
-    const raw = t => gaitPose(rig, g, t), cyc = withSettle(S, raw, g.T, { iters: 6 }, 16);
+    const raw = t => gaitPose(rig, g, t), cyc = withSettle(S, raw, g.T, { iters: 6 }, 32);
     add(name, g.T * cycles, true, t => {
       const P = cyc(((t % g.T) + g.T) % g.T), Q = raw(t);
       P.rootZ = Q.rootZ;                                                       // the cycle repeats; the root keeps moving
@@ -794,7 +798,7 @@ export function makeClips(rig, opts = {}) {
   add('LieDown', 1.1, false, withSettle(S, t => over(transfer(P0, LOAF, t / 1.1, { FL: .04, FR: .04 }, { FL: .25, FR: .25 }), { blink: blinkAt(t, [.9]) }), 1.1, {}, 10));
   add('Loaf', 5, true, t => over(LOAF, { breath: Math.sin(TAU * t / 2.5), blink: .55 + .45 * blinkAt(t, [2]), tailWave: .04, tailWph: t / 2.5 }));
   add('Sleep', 5, true, t => over(SLEEP, { breath: 1.3 * Math.sin(TAU * t / 2.5), tailTip: .05 * Math.sin(TAU * t / 5), earLp: -.25 + .25 * bump(t, 3.2, .06) }));
-  add('FallAsleep', 2, false, withSettle(S, t => { const P = over(transfer(LOAF, SLEEP, t / 2, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }); P.nkPitch += .3 * Math.sin(Math.PI * ss(t / 2)); return P; }, 2, {}, 12));   // the head draws back over the front legs on the way
+  add('FallAsleep', 2, false, withSettle(S, t => { const P = over(transfer(LOAF, SLEEP, t / 2, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }); return P; }, 2, {}, 20));   // the head draws back over the front legs on the way
   // ---------------------------------------------------------------- grooming
   // Cats groom sitting or lying, never standing, and a bout runs head to tail (cephalocaudal). Share of oral
   // grooming by region: face 31 %, hind legs 21 %, sides/back 13 %, neck/chest 11 %, anogenital 10 %,
@@ -1091,6 +1095,8 @@ export function makeClips(rig, opts = {}) {
   }
   // paw batting: lift, tap down, return (Turkish Van at the water bowl)
   let tapLow = .5;
+  // how far forward the front paw must go to come up in front of the head (not under the chin)
+  const pawHeadClear = (() => { const C = contactOf(S); applyPose(S, P0); C.update({ face: false }); let z = -Infinity; const p = C.M.body.pos; for (const i of C.sets.head.ids) z = Math.max(z, p[3 * i + 2]); return z + rig.d.pawR - rig.restFoot.FL.z; })();
   const pawBat = t => {
     const P = { ...P0 }, u = t / 1.4;
     // the paw is raised well over the toy whatever the leg length (a Munchkin's half-leg is lower than the toy),
@@ -1100,15 +1106,18 @@ export function makeClips(rig, opts = {}) {
     // (tapLow: where the tap stops, solved below on the mesh with this very pose)
 
     const v = clamp((u - .5) / .5, 0, 1);
-    const up = u < .35 ? mj(u / .35) : u < .5 ? 1 - (1 - tapLow) * mj((u - .35) / .15) : tapLow * (1 - mj(seg(v, .5, 1))) + .32 * mj(seg(v, 0, .3)) * (1 - mj(seg(v, .55, 1)));
-    const fwd = u < .5 ? mj(Math.min(1, u / .4)) : 1 - mj(seg(v, .3, 1));
-    // the paw reaches far enough to clear a toy lying in front of it, whatever the leg length
-    const reach = Math.max(.36 * h, .11);
+    // (the paw first reaches forward low, out in front of the chin, and only then comes up: raised straight
+    //  away, a short leg's paw would rise into the big head above it)
+    const up = u < .35 ? mj(seg(u, .08, .35)) : u < .5 ? 1 - (1 - tapLow) * mj((u - .35) / .15) : tapLow * (1 - mj(seg(v, .5, 1))) + .32 * mj(seg(v, 0, .3)) * (1 - mj(seg(v, .55, 1)));
+    const fwd = u < .5 ? mj(Math.min(1, u / .25)) : 1 - mj(seg(v, .3, 1));
+    // the paw reaches far enough to clear a toy lying in front of it and to come up in front of the head
+    const reach = Math.max(.36 * h, .11, pawHeadClear);
     P.FLy += up * lift; P.FLz += fwd * reach; P.FLx *= .85; P.FLt = 1.0 * up;
     // (the wrist curls the toes down for the tap only; drawn back over the toy the paw is held level, toes up)
     P.FLa = u < .5 ? lerp(.3, -1.5, up) : lerp(lerp(.3, -1.5, tapLow), .1, mj(seg(v, .2, .45))) * (1 - mj(seg(v, .7, 1))) + .3 * mj(seg(v, .7, 1));
     P.scapL = -.35 * Math.min(1, up); P.scapLy = .012 * Math.min(1, up) * h; P.hipZ = -.025 * h * up; P.hipPitch = .06 * up; P.hipRoll = -.05 * up;
-    P.hdPitch = .35 * Math.max(up, .8 * fwd) - .25 * Math.sin(Math.PI * v); P.hdYaw = .1 * fwd;   // (the head comes up as the paw is drawn back past the chin)
+    // (eyes on the toy, but the head is held up while the paw is up - bent down it would come onto the paw)
+    P.hdPitch = .25 * fwd - .2 * Math.min(1, up) - .25 * Math.sin(Math.PI * v); P.nkPitch = -.1 * Math.min(1, up); P.hdYaw = .1 * fwd;
     P.tailBase = -.2; P.tailWave = .2; P.tailWph = u * 2; P.earLp = P.earRp = .12;
     return P;
   };
@@ -1119,12 +1128,12 @@ export function makeClips(rig, opts = {}) {
     for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (at(m) < TOY_TOP + .001) lo = m; else hi = m; }
     tapLow = hi;
   }
-  add('PawBat', 1.4, true, withSettle(S, pawBat, 1.4, { fk: ['FL'] }, 14));   // (the batting paw is left where it was aimed: the toy is placed under it)
+  add('PawBat', 1.4, true, withSettle(S, pawBat, 1.4, { fkAt: t => t / 1.4 > .4 && t / 1.4 < .56 ? ['FL'] : [] }, 14));   // (the paw is left where it was aimed for the tap - the toy is placed under it - and settled out of the head on the way up and back)
   clips.groomReport = report;
   // a grooming clip whose contact this breed's body cannot make (legs too short to reach, ...) is not shipped:
   // it is left out of the clip set and listed with the reason, so the game simply never plays it for that cat
   const reachErr = { GroomFace: Math.max(report.pawLick ?? 0, report.wash ?? 0), ScratchEar: report.scratch, NibbleClaws: report.nibble };
-  // and every grooming clip that is left is played through, frame by frame, with the same rules as qa.mjs: a
+  // and every grooming clip that is left (and Gallop, PawBat: CHECKED_CLIPS) is played through, frame by frame, with the same rules as qa.mjs: a
   // paw or leg more than 4 mm into the head or body (long coats: the body's fur is soft), the head more than
   // 8 mm into a paw, a lick or rub that misses by more than 3 mm or presses in deeper than 7 mm. A clip that
   // breaks any of them is not shipped for this breed (listed with the reason), so no clip in the game shows it.
@@ -1133,7 +1142,7 @@ export function makeClips(rig, opts = {}) {
     const C = contactOf(S), fur = rig.model.userData.shape?.fur, longFur = fur === 'long' || fur === 'curly';
     const T = C.sets.tongue ||= C.points(p => p === 'tongue', 'face', 2);
     for (const c of clips) {
-      if (!GROOM_ROUTINE.some(g => g.clip === c.name) || reachErr[c.name] > GROOM_REACH_LIMIT) continue;
+      if (!(GROOM_ROUTINE.some(g => g.clip === c.name) || CHECKED_CLIPS[c.name]) || reachErr[c.name] > GROOM_REACH_LIMIT) continue;
       const n = Math.round(c.dur * FPS), runs = (c.contacts || []).map(() => []);
       let bad = null;
       for (let f = 0; f <= n && !bad; f++) {
@@ -1161,7 +1170,7 @@ export function makeClips(rig, opts = {}) {
   }
   const drop = c => reachErr[c.name] > GROOM_REACH_LIMIT || failed[c.name];
   const out = clips.filter(c => !drop(c));
-  out.skipped = clips.filter(drop).map(c => ({ clip: c.name, reason: failed[c.name] ? `failed the contact check on this body (${failed[c.name]})` : `contact out of reach for this body (${(reachErr[c.name] * 1000).toFixed(0)} mm short)` }));
+  out.skipped = clips.filter(drop).map(c => ({ clip: c.name, ...(CHECKED_CLIPS[c.name] ? { playInstead: CHECKED_CLIPS[c.name] } : {}), reason: failed[c.name] ? `failed the contact check on this body (${failed[c.name]})` : `contact out of reach for this body (${(reachErr[c.name] * 1000).toFixed(0)} mm short)` }));
   out.groomReport = report;
   return out;
 }

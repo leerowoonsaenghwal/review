@@ -1,6 +1,6 @@
 {
- "id": "scottish_fold",
- "ko": "스코티시 폴드",
+ "id": "american_curl",
+ "ko": "아메리칸 컬",
  "bones": 43,
  "clips": [
   {
@@ -51,9 +51,9 @@
    "speed": null,
    "stride": null,
    "jump": {
-    "D": 0.78,
+    "D": 0.797,
     "H": 0.2,
-    "deckBack": 0.497
+    "deckBack": 0.501
    },
    "drink": null
   },
@@ -128,6 +128,16 @@
    "drink": null
   },
   {
+   "name": "GroomFace",
+   "dur": 6.6,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
    "name": "NibbleClaws",
    "dur": 3.4,
    "loop": true,
@@ -161,10 +171,10 @@
     "surf": 0.03,
     "bowl": {
      "x": 0.0128,
-     "z": 0.5267
+     "z": 0.543
     },
-    "crouch": 1.328,
-    "tongue": 0.168
+    "crouch": 1.303,
+    "tongue": 0.186
    }
   },
   {
@@ -210,6 +220,12 @@
  ],
  "groomRoutine": [
   {
+   "clip": "GroomFace",
+   "region": "front paw (lick) and face (paw wash: cheek, whisker pad, muzzle)",
+   "share": 0.31,
+   "from": "Sit"
+  },
+  {
    "clip": "NibbleClaws",
    "region": "front claws",
    "share": 0,
@@ -218,24 +234,20 @@
  ],
  "skippedClips": [
   {
-   "clip": "GroomFace",
-   "reason": "failed the contact check on this body (FL into head 4 mm at 0.73 s)"
-  },
-  {
    "clip": "ScratchEar",
-   "reason": "failed the contact check on this body (HR into torso 5 mm at 0.20 s)"
+   "reason": "contact out of reach for this body (7 mm short)"
   }
  ],
  "itemSpots": {
   "mouse_toy": {
-   "x": 0.066,
-   "z": 0.269,
+   "x": 0.063,
+   "z": 0.282,
    "yaw": -1.571,
    "clip": "PawBat"
   },
   "cushion": {
    "x": 0,
-   "z": -0.021,
+   "z": -0.022,
    "catLift": 0.134,
    "clips": [
     "Loaf",
@@ -244,14 +256,14 @@
   },
   "hideout": {
    "x": 0,
-   "z": -0.221,
+   "z": -0.222,
    "catLift": 0.08,
    "clips": [
     "Loaf"
    ]
   }
  },
- "sculpt_tris": 103208,
+ "sculpt_tris": 103844,
  "game_tris": {
   "Body": 14000,
   "Face": "~10500 (eyes, nose, mouth, tongue, whiskers, toe beans)"
