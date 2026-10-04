@@ -235,13 +235,13 @@
  "skippedClips": [
   {
    "clip": "GroomFace",
-   "reason": "failed the contact check on this body (FL into head 4 mm at 2.53 s)"
+   "reason": "failed the contact check on this body (FL into head 5 mm at 2.57 s)"
   }
  ],
  "itemSpots": {
   "mouse_toy": {
-   "x": 0.069,
-   "z": 0.266,
+   "x": 0.077,
+   "z": 0.326,
    "yaw": -1.571,
    "clip": "PawBat"
   },
