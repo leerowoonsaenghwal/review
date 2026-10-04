@@ -486,15 +486,15 @@ export function withSettle(rig, pose, dur, opts = {}, n = 12) {
     // then every frame in between is checked; where a leg still passes into the body (the blend between two
     // settled points is not itself settled) that frame is settled too
     const C = contactOf(rig), fkOf = t => opts.fkAt ? opts.fkAt(t) : opts.fk || [], m = Math.max(2, Math.round(dur * FPS)), h = dur / m;   // (every frame; a fix also settles half a frame either side)
-    for (let round = 0; round < 2; round++) {
+    for (let round = 0; round < 3; round++) {
       const add = [];
       for (let f = 0; f <= m; f++) {
         const t = dur * f / m; if (keys.some(k => Math.abs(k.t - t) < 1e-4)) continue;
-        const P = at(t); applyPose(rig, P); C.update({ face: false });
+        const P = at(t); applyPose(rig, P); C.update();   // (the beans are on the face mesh)
         for (const L of LIMBS) {
           if (fkOf(t).includes(L) || P[L + 'fk'] > .5) continue;
           const others = ['torso', 'head', 'tail', ...LIMBS.flatMap(M => M === L ? [] : [M, M + 'u'])];
-          if (C.depth(C.sets[L], p => others.includes(p), C.rest[L], .06).d < -.003 || C.depth(C.sets[L + 'b'], p => others.includes(p), null, .06).d < -.003) { add.push(t); break; }
+          if (C.depth(C.sets[L], p => others.includes(p), C.rest[L], .06).d < -.002 || C.depth(C.sets[L + 'b'], p => others.includes(p), null, .06).d < -.002) { add.push(t); break; }
         }
       }
       if (!add.length) break;
@@ -794,7 +794,7 @@ export function makeClips(rig, opts = {}) {
   add('LieDown', 1.1, false, withSettle(S, t => over(transfer(P0, LOAF, t / 1.1, { FL: .04, FR: .04 }, { FL: .25, FR: .25 }), { blink: blinkAt(t, [.9]) }), 1.1, {}, 10));
   add('Loaf', 5, true, t => over(LOAF, { breath: Math.sin(TAU * t / 2.5), blink: .55 + .45 * blinkAt(t, [2]), tailWave: .04, tailWph: t / 2.5 }));
   add('Sleep', 5, true, t => over(SLEEP, { breath: 1.3 * Math.sin(TAU * t / 2.5), tailTip: .05 * Math.sin(TAU * t / 5), earLp: -.25 + .25 * bump(t, 3.2, .06) }));
-  add('FallAsleep', 2, false, withSettle(S, t => { const P = over(transfer(LOAF, SLEEP, t / 2, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }); P.nkPitch += .3 * Math.sin(Math.PI * ss(t / 2)); return P; }, 2, {}, 12));   // the head draws back over the front legs on the way
+  add('FallAsleep', 2, false, withSettle(S, t => { const P = over(transfer(LOAF, SLEEP, t / 2, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }); P.nkPitch += .3 * Math.sin(Math.PI * ss(t / 2)); return P; }, 2, {}, 20));   // the head draws back over the front legs on the way
   // ---------------------------------------------------------------- grooming
   // Cats groom sitting or lying, never standing, and a bout runs head to tail (cephalocaudal). Share of oral
   // grooming by region: face 31 %, hind legs 21 %, sides/back 13 %, neck/chest 11 %, anogenital 10 %,
@@ -1119,7 +1119,7 @@ export function makeClips(rig, opts = {}) {
     for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (at(m) < TOY_TOP + .001) lo = m; else hi = m; }
     tapLow = hi;
   }
-  add('PawBat', 1.4, true, withSettle(S, pawBat, 1.4, { fk: ['FL'] }, 14));   // (the batting paw is left where it was aimed: the toy is placed under it)
+  add('PawBat', 1.4, true, withSettle(S, pawBat, 1.4, { fkAt: t => t / 1.4 > .4 && t / 1.4 < .56 ? ['FL'] : [] }, 14));   // (the paw is left where it was aimed for the tap - the toy is placed under it - and settled out of the head on the way up and back)
   clips.groomReport = report;
   // a grooming clip whose contact this breed's body cannot make (legs too short to reach, ...) is not shipped:
   // it is left out of the clip set and listed with the reason, so the game simply never plays it for that cat
