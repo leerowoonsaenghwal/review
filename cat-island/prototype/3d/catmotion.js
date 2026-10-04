@@ -1139,7 +1139,10 @@ export function makeClips(rig, opts = {}) {
     P.FLa = u < .5 ? lerp(.3, -1.5, up) : lerp(lerp(.3, -1.5, tapLow), .1, mj(seg(v, .2, .45))) * (1 - mj(seg(v, .7, 1))) + .3 * mj(seg(v, .7, 1));
     P.scapL = -.35 * Math.min(1, up); P.scapLy = .012 * Math.min(1, up) * h; P.hipZ = -.025 * h * up; P.hipPitch = .06 * up; P.hipRoll = -.05 * up;
     // (eyes on the toy, but the head is held up while the paw is up - bent down it would come onto the paw)
-    P.hdPitch = .25 * fwd - .2 * Math.min(1, up) - .25 * Math.sin(Math.PI * v); P.nkPitch = -.1 * Math.min(1, up); P.hdYaw = .1 * fwd;
+    // (and only bowed towards the toy once the paw is up and out in front: bowed while a short leg's paw is still
+    //  coming up past the chin, it would come down onto it)
+    const look = u < .5 ? mj(seg(u, .3, .45)) : 1 - mj(seg(v, .3, 1));
+    P.hdPitch = .25 * look - .2 * Math.min(1, up) - .25 * Math.sin(Math.PI * v); P.nkPitch = -.1 * Math.min(1, up); P.hdYaw = .1 * fwd;
     P.tailBase = -.2; P.tailWave = .2; P.tailWph = u * 2; P.earLp = P.earRp = .12;
     return P;
   };
