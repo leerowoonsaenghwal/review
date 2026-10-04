@@ -34,16 +34,6 @@
    "drink": null
   },
   {
-   "name": "Gallop",
-   "dur": 1.033,
-   "loop": true,
-   "rootMotion": true,
-   "speed": 2.708,
-   "stride": 0.956,
-   "jump": null,
-   "drink": null
-  },
-  {
    "name": "JumpUp",
    "dur": 2.4,
    "loop": false,
@@ -234,14 +224,19 @@
  ],
  "skippedClips": [
   {
+   "clip": "Gallop",
+   "playInstead": "Trot",
+   "reason": "failed the contact check on this body (FL into HLu 12 mm at 0.00 s)"
+  },
+  {
    "clip": "ScratchEar",
-   "reason": "failed the contact check on this body (HR into torso 13 mm at 0.30 s)"
+   "reason": "failed the contact check on this body (HR into torso 12 mm at 0.30 s)"
   }
  ],
  "itemSpots": {
   "mouse_toy": {
-   "x": 0.062,
-   "z": 0.337,
+   "x": 0.067,
+   "z": 0.473,
    "yaw": -1.571,
    "clip": "PawBat"
   },

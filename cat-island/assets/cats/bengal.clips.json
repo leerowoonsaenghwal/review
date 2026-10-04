@@ -128,16 +128,6 @@
    "drink": null
   },
   {
-   "name": "NibbleClaws",
-   "dur": 3.4,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null,
-   "drink": null
-  },
-  {
    "name": "Stretch",
    "dur": 4.2,
    "loop": false,
@@ -208,28 +198,25 @@
    "drink": null
   }
  ],
- "groomRoutine": [
-  {
-   "clip": "NibbleClaws",
-   "region": "front claws",
-   "share": 0,
-   "from": "Sit"
-  }
- ],
+ "groomRoutine": [],
  "skippedClips": [
   {
    "clip": "GroomFace",
-   "reason": "failed the contact check on this body (HL into torso 4 mm at 0.27 s)"
+   "reason": "failed the contact check on this body (HR into torso 5 mm at 0.00 s)"
   },
   {
    "clip": "ScratchEar",
-   "reason": "failed the contact check on this body (HR into torso 7 mm at 0.17 s)"
+   "reason": "failed the contact check on this body (HR into torso 5 mm at 0.00 s)"
+  },
+  {
+   "clip": "NibbleClaws",
+   "reason": "failed the contact check on this body (HR into torso 5 mm at 0.00 s)"
   }
  ],
  "itemSpots": {
   "mouse_toy": {
-   "x": 0.06,
-   "z": 0.298,
+   "x": 0.066,
+   "z": 0.371,
    "yaw": -1.571,
    "clip": "PawBat"
   },
