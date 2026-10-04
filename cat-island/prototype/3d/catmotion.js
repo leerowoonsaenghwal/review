@@ -706,7 +706,7 @@ export function makeClips(rig, opts = {}) {
     const g = gaitParams(rig, kind);
     // every breed's body is a different shape: the paws of each gait are settled on its mesh (stepped round
     // the body where a swinging leg would pass into it, kept on the floor) at 16 points per stride
-    const raw = t => gaitPose(rig, g, t), cyc = withSettle(S, raw, g.T, { iters: 6 }, 16);
+    const raw = t => gaitPose(rig, g, t), cyc = withSettle(S, raw, g.T, { iters: 6 }, 32);
     add(name, g.T * cycles, true, t => {
       const P = cyc(((t % g.T) + g.T) % g.T), Q = raw(t);
       P.rootZ = Q.rootZ;                                                       // the cycle repeats; the root keeps moving
@@ -794,7 +794,7 @@ export function makeClips(rig, opts = {}) {
   add('LieDown', 1.1, false, withSettle(S, t => over(transfer(P0, LOAF, t / 1.1, { FL: .04, FR: .04 }, { FL: .25, FR: .25 }), { blink: blinkAt(t, [.9]) }), 1.1, {}, 10));
   add('Loaf', 5, true, t => over(LOAF, { breath: Math.sin(TAU * t / 2.5), blink: .55 + .45 * blinkAt(t, [2]), tailWave: .04, tailWph: t / 2.5 }));
   add('Sleep', 5, true, t => over(SLEEP, { breath: 1.3 * Math.sin(TAU * t / 2.5), tailTip: .05 * Math.sin(TAU * t / 5), earLp: -.25 + .25 * bump(t, 3.2, .06) }));
-  add('FallAsleep', 2, false, withSettle(S, t => { const P = over(transfer(LOAF, SLEEP, t / 2, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }); P.nkPitch += .3 * Math.sin(Math.PI * ss(t / 2)); return P; }, 2, {}, 20));   // the head draws back over the front legs on the way
+  add('FallAsleep', 2, false, withSettle(S, t => { const P = over(transfer(LOAF, SLEEP, t / 2, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }); P.nkPitch += .15 * Math.sin(Math.PI * ss(t / 2)); return P; }, 2, {}, 20));   // the head draws back over the front legs on the way
   // ---------------------------------------------------------------- grooming
   // Cats groom sitting or lying, never standing, and a bout runs head to tail (cephalocaudal). Share of oral
   // grooming by region: face 31 %, hind legs 21 %, sides/back 13 %, neck/chest 11 %, anogenital 10 %,
@@ -1091,6 +1091,8 @@ export function makeClips(rig, opts = {}) {
   }
   // paw batting: lift, tap down, return (Turkish Van at the water bowl)
   let tapLow = .5;
+  // how far forward the front paw must go to come up in front of the head (not under the chin)
+  const pawHeadClear = (() => { const C = contactOf(S); applyPose(S, P0); C.update({ face: false }); let z = -Infinity; const p = C.M.body.pos; for (const i of C.sets.head.ids) z = Math.max(z, p[3 * i + 2]); return z + rig.d.pawR - rig.restFoot.FL.z; })();
   const pawBat = t => {
     const P = { ...P0 }, u = t / 1.4;
     // the paw is raised well over the toy whatever the leg length (a Munchkin's half-leg is lower than the toy),
@@ -1100,10 +1102,12 @@ export function makeClips(rig, opts = {}) {
     // (tapLow: where the tap stops, solved below on the mesh with this very pose)
 
     const v = clamp((u - .5) / .5, 0, 1);
-    const up = u < .35 ? mj(u / .35) : u < .5 ? 1 - (1 - tapLow) * mj((u - .35) / .15) : tapLow * (1 - mj(seg(v, .5, 1))) + .32 * mj(seg(v, 0, .3)) * (1 - mj(seg(v, .55, 1)));
-    const fwd = u < .5 ? mj(Math.min(1, u / .4)) : 1 - mj(seg(v, .3, 1));
-    // the paw reaches far enough to clear a toy lying in front of it, whatever the leg length
-    const reach = Math.max(.36 * h, .11);
+    // (the paw first reaches forward low, out in front of the chin, and only then comes up: raised straight
+    //  away, a short leg's paw would rise into the big head above it)
+    const up = u < .35 ? mj(seg(u, .08, .35)) : u < .5 ? 1 - (1 - tapLow) * mj((u - .35) / .15) : tapLow * (1 - mj(seg(v, .5, 1))) + .32 * mj(seg(v, 0, .3)) * (1 - mj(seg(v, .55, 1)));
+    const fwd = u < .5 ? mj(Math.min(1, u / .25)) : 1 - mj(seg(v, .3, 1));
+    // the paw reaches far enough to clear a toy lying in front of it and to come up in front of the head
+    const reach = Math.max(.36 * h, .11, pawHeadClear);
     P.FLy += up * lift; P.FLz += fwd * reach; P.FLx *= .85; P.FLt = 1.0 * up;
     // (the wrist curls the toes down for the tap only; drawn back over the toy the paw is held level, toes up)
     P.FLa = u < .5 ? lerp(.3, -1.5, up) : lerp(lerp(.3, -1.5, tapLow), .1, mj(seg(v, .2, .45))) * (1 - mj(seg(v, .7, 1))) + .3 * mj(seg(v, .7, 1));
