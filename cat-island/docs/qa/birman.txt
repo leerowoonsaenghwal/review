@@ -1,0 +1,48 @@
+
+버먼 (birman)
+  (skipped for this body: ScratchEar — contact out of reach for this body (6 mm short))
+  ok   Idle         
+  ok   Walk         
+  ok   Trot         
+  warn Gallop       
+         FL in torso fur (warn)        -6mm  at 0.87s  (2 frames)
+  warn JumpUp       
+         FR in torso fur (warn)       -11mm  at 1.47s  (9 frames)
+         FL in torso fur (warn)       -17mm  at 0.47s  (9 frames)
+         head on torso (warn)         -21mm  at 1.13s  (2 frames)
+  ok   SitDown      
+  ok   Sit          
+  ok   StandUp      
+  ok   LieDown      
+  ok   Loaf         
+  ok   Sleep        
+  ok   FallAsleep   
+  FAIL GroomFace    tongue→FL 6x best 9mm; FL→head 1x best 0mm
+         head on torso (warn)         -60mm  at 4.27s  (91 frames)
+         head on FLu (warn)           -20mm  at 0.33s  (2 frames)
+         tongue→FL misses               9mm  at 5.80s  (3 frames)
+  warn NibbleClaws  FL→head 1x best 0mm
+         head on torso (warn)         -60mm  at 0.47s  (45 frames)
+  FAIL Stretch      
+         FL in torso fur (warn)        -5mm  at 0.53s  (1 frames)
+         FR in torso fur (warn)       -30mm  at 0.87s  (23 frames)
+         head on torso (warn)         -45mm  at 1.33s  (25 frames)
+         FL in head                   -16mm  at 0.80s  (1 frames)
+  ok   Drink        
+  ok   LickLips     
+  ok   Flop         
+  ok   FlopIdle     
+  warn PawBat       
+         FL in torso fur (warn)       -28mm  at 1.07s  (11 frames)
+
+버먼 (birman)
+  ok   Drink · water_bowl           nothing inside · contact 8/8
+  ok   Drink · milk_bowl            nothing inside · contact 8/8
+  ok   Drink · food_bowl            nothing inside · contact 8/8
+  FAIL JumpUp · cat_tower_1         FRu into cat_tower_1 -3mm at 1.60s
+  ok   Loaf · cushion               nothing inside
+  ok   Sleep · cushion              nothing inside
+  ok   Loaf · hideout               nothing inside
+  ok   PawBat · mouse_toy           nothing inside · contact 1/1
+
+1 FAIL
