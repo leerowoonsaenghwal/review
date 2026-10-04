@@ -73,8 +73,9 @@ for (const id of breeds) {
   // (the hideout goes where the body is inside and the head out of the door: the offset is searched and printed)
   scene('Loaf · hideout', 'hideout', 'Loaf', [mid.x, 0, mid.z - (ho.catAhead ?? 0)], { lift: ho.floor, soft: SOFT });
   // PawBat: the toy under the paw at the bottom of the tap
-  const pb = clip('PawBat'), toy = pb.toy;   // (where the game puts the toy: worked out with the clip)
-  scene('PawBat · mouse_toy', 'mouse_toy', 'PawBat', [toy.x, 0, toy.z], { touchParts: ['FL'], when: (P, t) => t > pb.dur * .42 && t < pb.dur * .58, soft: SOFT, yaw: toy.yaw });
+  const pb = clip('PawBat'), toy = pb && pb.toy;   // (where the game puts the toy: worked out with the clip)
+  if (!pb) console.log('  (PawBat left out for this breed: no toy scene)');
+  else scene('PawBat · mouse_toy', 'mouse_toy', 'PawBat', [toy.x, 0, toy.z], { touchParts: ['FL'], when: (P, t) => t > pb.dur * .42 && t < pb.dur * .58, soft: SOFT, yaw: toy.yaw });
 }
 console.log(failed ? `\n${failed} FAIL` : '\nall ok');
 process.exit(failed ? 1 : 0);

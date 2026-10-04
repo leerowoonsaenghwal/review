@@ -24,7 +24,8 @@ applyPose(rig, stand(rig)); cat.updateMatrixWorld(true);
 const mid = W('Hips').add(W('Chest')).multiplyScalar(.5), ho = itemField('hideout').anchors, cu = itemField('cushion').anchors;
 const r3 = v => +v.toFixed(3);
 const itemSpots = {
-  mouse_toy: { x: r3(pb.toy.x), z: r3(pb.toy.z), yaw: r3(pb.toy.yaw), clip: 'PawBat' },   // (yaw: about +Y, glTF / three.js sense)
+  // (yaw: about +Y, glTF / three.js sense; no toy spot when this breed's PawBat was left out - skippedClips)
+  ...(pb ? { mouse_toy: { x: r3(pb.toy.x), z: r3(pb.toy.z), yaw: r3(pb.toy.yaw), clip: 'PawBat' } } : {}),
   cushion: { x: r3(mid.x), z: r3(mid.z), catLift: r3(cu.top), clips: ['Loaf', 'Sleep'] },   // (lying flat out on its side the cat is longer than the cushion)
   hideout: { x: r3(mid.x), z: r3(mid.z - ho.catAhead), catLift: r3(ho.floor), clips: ['Loaf'] },
 };

@@ -22,12 +22,13 @@ import { makeRig, makeClips, solveAt, applyPose, stand } from './catmotion.js';
 import { itemField } from './items.js';
 const q = new URLSearchParams(location.search);
 const b = BREEDS.find(x => x.id === (q.get('id') || 'korean_shorthair')), dir = q.get('items') || 'out/items';
-const shots = (q.get('shots') || 'drink,tower,cushion,hideout,toy').split(','), CW = +(q.get('cw') || 330), CH = +(q.get('ch') || 260);
+let shots = (q.get('shots') || 'drink,tower,cushion,hideout,toy').split(','), CW = +(q.get('cw') || 330), CH = +(q.get('ch') || 260);
 ttl.textContent = `${b.ko} · 용품과 함께`;
 g.style.gridTemplateColumns = `repeat(${Math.min(+(q.get('cols') || 3), shots.length)}, ${CW}px)`;
 const cat = buildCatModel(b.shape, b.coat, { res: +(q.get('res') || .02) });
 const rig = makeRig(cat), clips = makeClips(rig, { only: ['Drink', 'JumpUp', 'Loaf', 'Sleep', 'PawBat'], solveRig: makeRig(buildCatModel(b.shape, b.coat, { res: .03 })) });
 const clip = n => clips.find(c => c.name === n);
+if (!clip('PawBat')) shots = shots.filter(s => s !== 'toy');   // (PawBat left out for this breed)
 const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 r.setPixelRatio(2); r.setSize(CW, CH); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
 r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;

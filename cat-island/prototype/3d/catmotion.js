@@ -1135,8 +1135,9 @@ export function makeClips(rig, opts = {}) {
   const TOY_YAW = Math.PI / 2, toyF = itemField('mouse_toy'), toy = { yaw: TOY_YAW };
   {
     const C = contactOf(S), FLf = C.sets.FLf ||= C.points(p => p === 'FL', 'face', 1), FLd = C.sets.FLd ||= C.points(p => p === 'FL', 'body', 1);
-    applyPose(S, pawBat(.5 * 1.4)); C.update();
-    { const p = C.M.face.pos; let y = Infinity; for (const i of FLf.ids) if (p[3 * i + 1] < y) { y = p[3 * i + 1]; toy.x = p[3 * i]; toy.z = p[3 * i + 2]; } }
+    // (under the lowest point of the whole paw - fur of the curled toes or beans - over the way down, where the
+    //  tap was solved to stop on the toy's top)
+    { let y = Infinity; for (let t = .56; t <= .705; t += .01) { applyPose(S, pawBat(t)); C.update(); for (const set of [C.sets.FL, C.sets.FLb, FLd, FLf]) { const p = C.M[set.mesh].pos; for (const i of set.ids) if (p[3 * i + 1] < y) { y = p[3 * i + 1]; toy.x = p[3 * i]; toy.z = p[3 * i + 2]; } } } }
     const cy = Math.cos(TOY_YAW), sy = Math.sin(TOY_YAW);
     const toyD = (x, y, z) => { x -= toy.x; z -= toy.z; return toyF.d(cy * x - sy * z, y, sy * x + cy * z); };
     const gap = () => { let d = Infinity; for (const set of [FLd, FLf]) { const p = C.M[set.mesh].pos; for (const i of set.ids) d = Math.min(d, toyD(p[3 * i], p[3 * i + 1], p[3 * i + 2])); } return d; };
@@ -1153,7 +1154,8 @@ export function makeClips(rig, opts = {}) {
     }
     // (held over the neighbouring samples and eased, so the paw rises before it reaches the toy, not on it)
     const held = raw.map((_, k) => Math.max(...raw.slice(Math.max(0, k - 3), k + 4)));
-    toyClear = held.map((_, k) => { let s = 0, w = 0; for (let j = -2; j <= 2; j++) { const q = held[k + j]; if (q === undefined) continue; const ww = 3 - Math.abs(j); s += ww * Math.max(q, held[k]); w += ww; } return s / w; });
+    // (never into the tap itself: there the paw comes down onto the toy as solved)
+    toyClear = held.map((_, k) => { const u = k / N; if (u > .4 && u < .62) return 0; let s = 0, w = 0; for (let j = -2; j <= 2; j++) { const q = held[k + j]; if (q === undefined) continue; const ww = 3 - Math.abs(j); s += ww * Math.max(q, held[k]); w += ww; } return s / w; });
   }
   function toyClearAt(u) { const f = clamp(u, 0, 1) * (toyClear.length - 1), i = Math.min(toyClear.length - 2, Math.floor(f)); return lerp(toyClear[i], toyClear[i + 1], f - i); }
   add('PawBat', 1.4, true, withSettle(S, pawBat, 1.4, { fkAt: t => t / 1.4 > .4 && t / 1.4 < .56 ? ['FL'] : [] }, 14), { toy: { id: 'mouse_toy', x: +toy.x.toFixed(4), z: +toy.z.toFixed(4), yaw: +TOY_YAW.toFixed(4) } });   // (the paw is left where it was aimed for the tap - the toy is placed under it - and settled out of the head on the way up and back)
