@@ -174,7 +174,7 @@
      "z": 0.5494
     },
     "crouch": 1.293,
-    "tongue": 0.166
+    "tongue": 0.228
    }
   },
   {
@@ -206,16 +206,6 @@
    "stride": null,
    "jump": null,
    "drink": null
-  },
-  {
-   "name": "PawBat",
-   "dur": 1.4,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null,
-   "drink": null
   }
  ],
  "groomRoutine": [
@@ -236,15 +226,14 @@
   {
    "clip": "ScratchEar",
    "reason": "contact out of reach for this body (6 mm short)"
+  },
+  {
+   "clip": "PawBat",
+   "playInstead": "Idle",
+   "reason": "failed the contact check on this body (FL into head 5 mm at 0.30 s)"
   }
  ],
  "itemSpots": {
-  "mouse_toy": {
-   "x": 0.063,
-   "z": 0.343,
-   "yaw": -1.571,
-   "clip": "PawBat"
-  },
   "cushion": {
    "x": 0,
    "z": -0.022,
