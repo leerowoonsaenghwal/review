@@ -1115,7 +1115,7 @@ export function makeClips(rig, opts = {}) {
     add('FlopIdle', 4, true, t => over(FLOP, { breath: 1.2 * Math.sin(TAU * t / 2.4), tailTip: .3 * Math.sin(TAU * t / 2 - 1), tailWave: .1, tailWph: t / 2, blink: .55 + .45 * blinkAt(t, [2.6]) }));
   }
   // paw batting: lift, tap down, return (Turkish Van at the water bowl)
-  let tapLow = .5, tapFwd = 1, toyClear = null;
+  let tapLow = .5, tapFwd = 1, toyClear = null, chinLift = 0;
   // how far forward the front paw must go to come up in front of the head (not under the chin)
   const pawHeadClear = (() => { const C = contactOf(S); applyPose(S, P0); C.update({ face: false }); let z = -Infinity; const p = C.M.body.pos; for (const i of C.sets.head.ids) z = Math.max(z, p[3 * i + 2]); return z + rig.d.pawR - rig.restFoot.FL.z; })();
   const pawBat = t => {
@@ -1142,9 +1142,10 @@ export function makeClips(rig, opts = {}) {
     // (and only bowed towards the toy once the paw is up and out in front: bowed while a short leg's paw is still
     //  coming up past the chin, it would come down onto it)
     // (on the way back the head comes up as the paw lifts off the toy, so the paw drawn back passes under the chin;
-    //  on the way up the chin is lifted out of the way of the rising paw)
+    //  chinLift: on the way up the chin is lifted out of the way of the rising paw - used only for a body whose
+    //  PawBat fails its check without it, see below)
     const look = u < .5 ? mj(seg(u, .3, .45)) : 1 - mj(seg(v, 0, .3));
-    P.hdPitch = .25 * look - .2 * Math.min(1, up) - .25 * Math.sin(Math.PI * v); P.nkPitch = -.1 * Math.min(1, up) - .12 * Math.sin(Math.PI * v) - .18 * (u < .5 ? Math.sin(Math.PI * seg(u, .05, .45)) : 0); P.hdYaw = .1 * fwd;
+    P.hdPitch = .25 * look - .2 * Math.min(1, up) - .25 * Math.sin(Math.PI * v); P.nkPitch = -.1 * Math.min(1, up) - .12 * Math.sin(Math.PI * v) - chinLift * (u < .5 ? Math.sin(Math.PI * seg(u, .05, .45)) : 0); P.hdYaw = .1 * fwd;
     P.tailBase = -.2; P.tailWave = .2; P.tailWph = u * 2; P.earLp = P.earRp = .12;
     return P;
   };
@@ -1191,7 +1192,8 @@ export function makeClips(rig, opts = {}) {
     toyClear = held.map((_, k) => { const u = k / N; if (u > .4 && u < .62) return 0; let s = 0, w = 0; for (let j = -2; j <= 2; j++) { const q = held[k + j]; if (q === undefined) continue; const ww = 3 - Math.abs(j); s += ww * Math.max(q, held[k]); w += ww; } return s / w; });
   }
   function toyClearAt(u) { const f = clamp(u, 0, 1) * (toyClear.length - 1), i = Math.min(toyClear.length - 2, Math.floor(f)); return lerp(toyClear[i], toyClear[i + 1], f - i); }
-  add('PawBat', 1.4, true, withSettle(S, pawBat, 1.4, { fkAt: t => t / 1.4 > .4 && t / 1.4 < .56 ? ['FL'] : [] }, 14), { toy: { id: 'mouse_toy', x: +toy.x.toFixed(4), z: +toy.z.toFixed(4), yaw: +TOY_YAW.toFixed(4) } });   // (the paw is left where it was aimed for the tap - the toy is placed under it - and settled out of the head on the way up and back)
+  const addPawBat = () => add('PawBat', 1.4, true, withSettle(S, pawBat, 1.4, { fkAt: t => t / 1.4 > .4 && t / 1.4 < .56 ? ['FL'] : [] }, 14), { toy: { id: 'mouse_toy', x: +toy.x.toFixed(4), z: +toy.z.toFixed(4), yaw: +TOY_YAW.toFixed(4) } });   // (the paw is left where it was aimed for the tap - the toy is placed under it - and settled out of the head on the way up and back)
+  addPawBat();
   clips.groomReport = report;
   // a grooming clip whose contact this breed's body cannot make (legs too short to reach, ...) is not shipped:
   // it is left out of the clip set and listed with the reason, so the game simply never plays it for that cat
@@ -1204,8 +1206,7 @@ export function makeClips(rig, opts = {}) {
   if (!opts.noVerify) {
     const C = contactOf(S), fur = rig.model.userData.shape?.fur, longFur = fur === 'long' || fur === 'curly';
     const T = C.sets.tongue ||= C.points(p => p === 'tongue', 'face', 2);
-    for (const c of clips) {
-      if (!(GROOM_ROUTINE.some(g => g.clip === c.name) || CHECKED_CLIPS[c.name]) || reachErr[c.name] > GROOM_REACH_LIMIT) continue;
+    const verify = c => {
       const n = Math.round(c.dur * FPS), runs = (c.contacts || []).map(() => []);
       let bad = null;
       for (let f = 0; f <= n && !bad; f++) {
@@ -1228,7 +1229,19 @@ export function makeClips(rig, opts = {}) {
         });
       }
       if (!bad) (c.contacts || []).forEach((k, i) => { for (const r of runs[i]) if (!bad && (r.best > .003 || r.deep < -.007)) bad = `${k.a} on ${k.b.join('/')} ${r.best > .003 ? `misses by ${(r.best * 1000).toFixed(0)} mm` : `presses in ${(-r.deep * 1000).toFixed(0)} mm`} at ${r.t.toFixed(2)} s`; });
+      return bad;
+    };
+    for (const c of clips) {
+      if (!(GROOM_ROUTINE.some(g => g.clip === c.name) || CHECKED_CLIPS[c.name]) || reachErr[c.name] > GROOM_REACH_LIMIT) continue;
+      const bad = verify(c);
       if (bad) failed[c.name] = bad;
+    }
+    // a PawBat that fails (a short leg's paw rising into a big low head) is tried once more with the chin lifted
+    // out of the way while the paw comes up
+    if (failed.PawBat) {
+      clips.splice(clips.findIndex(c => c.name === 'PawBat'), 1); chinLift = .18; addPawBat();
+      const bad = verify(clips[clips.length - 1]);
+      if (bad) failed.PawBat = bad; else delete failed.PawBat;
     }
   }
   const drop = c => reachErr[c.name] > GROOM_REACH_LIMIT || failed[c.name];
