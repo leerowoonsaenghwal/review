@@ -10,7 +10,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Walk",
@@ -19,7 +20,8 @@
    "rootMotion": true,
    "speed": 0.366,
    "stride": 0.249,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Trot",
@@ -28,7 +30,8 @@
    "rootMotion": true,
    "speed": 0.928,
    "stride": 0.339,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Gallop",
@@ -37,7 +40,8 @@
    "rootMotion": true,
    "speed": 2.009,
    "stride": 0.513,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "JumpUp",
@@ -48,8 +52,10 @@
    "stride": null,
    "jump": {
     "D": 0.78,
-    "H": 0.2
-   }
+    "H": 0.2,
+    "deckBack": 0.512
+   },
+   "drink": null
   },
   {
    "name": "SitDown",
@@ -58,7 +64,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Sit",
@@ -67,7 +74,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "StandUp",
@@ -76,7 +84,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "LieDown",
@@ -85,7 +94,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Loaf",
@@ -94,7 +104,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Sleep",
@@ -103,7 +114,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "FallAsleep",
@@ -112,70 +124,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
-  },
-  {
-   "name": "GroomFace",
-   "dur": 6.6,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null
-  },
-  {
-   "name": "GroomEar",
-   "dur": 4,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null
-  },
-  {
-   "name": "GroomChest",
-   "dur": 4.2,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null
-  },
-  {
-   "name": "GroomFlank",
-   "dur": 4.6,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null
-  },
-  {
-   "name": "GroomLeg",
-   "dur": 5.6,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null
-  },
-  {
-   "name": "GroomBelly",
-   "dur": 5,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null
-  },
-  {
-   "name": "GroomTail",
-   "dur": 4.6,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "ScratchEar",
@@ -184,16 +134,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
-  },
-  {
-   "name": "NibbleClaws",
-   "dur": 3.4,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Stretch",
@@ -202,7 +144,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Drink",
@@ -211,7 +154,18 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": {
+    "laps": 8,
+    "rate": 3.5,
+    "surf": 0.03,
+    "bowl": {
+     "x": 0.013,
+     "z": 0.4367
+    },
+    "crouch": 1.543,
+    "tongue": 0.319
+   }
   },
   {
    "name": "LickLips",
@@ -220,7 +174,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Flop",
@@ -229,7 +184,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "FlopIdle",
@@ -238,7 +194,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "PawBat",
@@ -247,65 +204,53 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   }
  ],
  "groomRoutine": [
   {
-   "clip": "GroomFace",
-   "region": "face (paw wash)",
-   "share": 0.22,
-   "from": "Sit"
-  },
-  {
-   "clip": "GroomEar",
-   "region": "ears",
-   "share": 0.09,
-   "from": "Sit"
-  },
-  {
-   "clip": "GroomChest",
-   "region": "neck / chest",
-   "share": 0.11,
-   "from": "Sit"
-  },
-  {
-   "clip": "GroomFlank",
-   "region": "shoulder / side",
-   "share": 0.13,
-   "from": "Sit"
-  },
-  {
-   "clip": "GroomLeg",
-   "region": "hind legs (+ anogenital)",
-   "share": 0.31,
-   "from": "Loaf"
-  },
-  {
-   "clip": "GroomBelly",
-   "region": "belly",
-   "share": 0.09,
-   "from": "Loaf"
-  },
-  {
-   "clip": "GroomTail",
-   "region": "tail",
-   "share": 0.05,
-   "from": "Sit"
-  },
-  {
    "clip": "ScratchEar",
-   "region": "ear (hind-foot scratch)",
-   "share": 0,
-   "from": "Sit"
-  },
-  {
-   "clip": "NibbleClaws",
-   "region": "front claws",
+   "region": "neck behind the jaw (hind-foot scratch)",
    "share": 0,
    "from": "Sit"
   }
  ],
+ "skippedClips": [
+  {
+   "clip": "GroomFace",
+   "reason": "failed the contact check on this body (FL into head 5 mm at 2.23 s)"
+  },
+  {
+   "clip": "NibbleClaws",
+   "reason": "failed the contact check on this body (FL into head 9 mm at 0.33 s)"
+  }
+ ],
+ "itemSpots": {
+  "mouse_toy": {
+   "x": 0.081,
+   "z": 0.276,
+   "yaw": -1.571,
+   "clip": "PawBat"
+  },
+  "cushion": {
+   "x": 0,
+   "z": -0.018,
+   "catLift": 0.134,
+   "clips": [
+    "Loaf",
+    "Sleep"
+   ]
+  },
+  "hideout": {
+   "x": 0,
+   "z": -0.218,
+   "catLift": 0.08,
+   "clips": [
+    "Loaf"
+   ]
+  }
+ },
  "sculpt_tris": 102740,
  "game_tris": {
   "Body": 14000,

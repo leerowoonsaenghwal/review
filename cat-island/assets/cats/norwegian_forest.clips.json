@@ -1,6 +1,6 @@
 {
- "id": "siamese",
- "ko": "샴",
+ "id": "norwegian_forest",
+ "ko": "노르웨이 숲",
  "bones": 43,
  "clips": [
   {
@@ -15,11 +15,11 @@
   },
   {
    "name": "Walk",
-   "dur": 1.667,
+   "dur": 1.633,
    "loop": true,
    "rootMotion": true,
-   "speed": 0.442,
-   "stride": 0.372,
+   "speed": 0.282,
+   "stride": 0.235,
    "jump": null,
    "drink": null
   },
@@ -28,8 +28,8 @@
    "dur": 0.867,
    "loop": true,
    "rootMotion": true,
-   "speed": 1.145,
-   "stride": 0.511,
+   "speed": 0.766,
+   "stride": 0.331,
    "jump": null,
    "drink": null
   },
@@ -39,7 +39,7 @@
    "loop": true,
    "rootMotion": true,
    "speed": 2.446,
-   "stride": 0.775,
+   "stride": 0.751,
    "jump": null,
    "drink": null
   },
@@ -51,9 +51,9 @@
    "speed": null,
    "stride": null,
    "jump": {
-    "D": 0.909,
+    "D": 0.878,
     "H": 0.2,
-    "deckBack": 0.583
+    "deckBack": 0.565
    },
    "drink": null
   },
@@ -128,6 +128,16 @@
    "drink": null
   },
   {
+   "name": "ScratchEar",
+   "dur": 3,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
    "name": "Stretch",
    "dur": 4.2,
    "loop": false,
@@ -150,11 +160,11 @@
     "rate": 3.5,
     "surf": 0.03,
     "bowl": {
-     "x": 0.0128,
-     "z": 0.624
+     "x": 0.0143,
+     "z": 0.6018
     },
-    "crouch": 1.335,
-    "tongue": 0.365
+    "crouch": 1.373,
+    "tongue": 0.131
    }
   },
   {
@@ -198,31 +208,34 @@
    "drink": null
   }
  ],
- "groomRoutine": [],
+ "groomRoutine": [
+  {
+   "clip": "ScratchEar",
+   "region": "neck behind the jaw (hind-foot scratch)",
+   "share": 0,
+   "from": "Sit"
+  }
+ ],
  "skippedClips": [
   {
    "clip": "GroomFace",
-   "reason": "failed the contact check on this body (FL into head 5 mm at 0.40 s)"
-  },
-  {
-   "clip": "ScratchEar",
-   "reason": "contact out of reach for this body (15 mm short)"
+   "reason": "failed the contact check on this body (FL into head 7 mm at 2.23 s)"
   },
   {
    "clip": "NibbleClaws",
-   "reason": "failed the contact check on this body (FL into head 6 mm at 0.43 s)"
+   "reason": "failed the contact check on this body (FL into head 5 mm at 0.43 s)"
   }
  ],
  "itemSpots": {
   "mouse_toy": {
-   "x": 0.054,
-   "z": 0.416,
+   "x": 0.078,
+   "z": 0.382,
    "yaw": -1.571,
    "clip": "PawBat"
   },
   "cushion": {
    "x": 0,
-   "z": -0.027,
+   "z": -0.025,
    "catLift": 0.134,
    "clips": [
     "Loaf",
@@ -231,14 +244,14 @@
   },
   "hideout": {
    "x": 0,
-   "z": -0.227,
+   "z": -0.225,
    "catLift": 0.08,
    "clips": [
     "Loaf"
    ]
   }
  },
- "sculpt_tris": 105356,
+ "sculpt_tris": 116024,
  "game_tris": {
   "Body": 14000,
   "Face": "~10500 (eyes, nose, mouth, tongue, whiskers, toe beans)"
