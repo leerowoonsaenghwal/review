@@ -1115,7 +1115,7 @@ export function makeClips(rig, opts = {}) {
     add('FlopIdle', 4, true, t => over(FLOP, { breath: 1.2 * Math.sin(TAU * t / 2.4), tailTip: .3 * Math.sin(TAU * t / 2 - 1), tailWave: .1, tailWph: t / 2, blink: .55 + .45 * blinkAt(t, [2.6]) }));
   }
   // paw batting: lift, tap down, return (Turkish Van at the water bowl)
-  let tapLow = .5, toyClear = null;
+  let tapLow = .5, tapFwd = 1, toyClear = null;
   // how far forward the front paw must go to come up in front of the head (not under the chin)
   const pawHeadClear = (() => { const C = contactOf(S); applyPose(S, P0); C.update({ face: false }); let z = -Infinity; const p = C.M.body.pos; for (const i of C.sets.head.ids) z = Math.max(z, p[3 * i + 2]); return z + rig.d.pawR - rig.restFoot.FL.z; })();
   const pawBat = t => {
@@ -1130,7 +1130,8 @@ export function makeClips(rig, opts = {}) {
     // (the paw first reaches forward low, out in front of the chin, and only then comes up: raised straight
     //  away, a short leg's paw would rise into the big head above it)
     const up = u < .35 ? mj(seg(u, .08, .35)) : u < .5 ? 1 - (1 - tapLow) * mj((u - .35) / .15) : tapLow * (1 - mj(seg(v, .5, 1))) + .32 * mj(seg(v, 0, .3)) * (1 - mj(seg(v, .55, 1)));
-    const fwd = u < .5 ? mj(Math.min(1, u / .25)) : 1 - mj(seg(v, .3, 1));
+    // (and comes back in a little on the way down if a short leg reaching that far out cannot get down to the toy)
+    const fwd = u < .35 ? mj(Math.min(1, u / .25)) : u < .5 ? 1 - (1 - tapFwd) * mj((u - .35) / .15) : tapFwd * (1 - mj(seg(v, .3, 1)));
     // the paw reaches far enough to clear a toy lying in front of it and to come up in front of the head
     const reach = Math.max(.36 * h, .11, pawHeadClear);
     P.FLy += up * lift + (toyClear ? toyClearAt(u) : 0); P.FLz += fwd * reach; P.FLx *= .85; P.FLt = 1.0 * up;
@@ -1145,6 +1146,12 @@ export function makeClips(rig, opts = {}) {
   {
     // the lowest point of the paw (curled toes, beans) at the bottom of the tap stops on the toy top
     const C = contactOf(S), at = k => { tapLow = k; let y = Infinity; for (let t = .56; t <= .705; t += .02) { applyPose(S, pawBat(t)); C.update(); y = Math.min(y, C.lowest(C.sets.FL), C.lowest(C.sets.FLb)); } return y; };   // (over the whole way down: the curled toes swing lowest just before the stop)
+    // (reaching right out, the leg may be at full stretch above the toy: then the paw comes in until it can reach)
+    if (at(.05) > TOY_TOP + .002) {
+      let a = .2, b = 1;
+      for (let it = 0; it < 10; it++) { tapFwd = (a + b) / 2; if (at(.05) <= TOY_TOP + .001) a = tapFwd; else b = tapFwd; }
+      tapFwd = a;
+    }
     let lo = .05, hi = 1;
     for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (at(m) < TOY_TOP + .001) lo = m; else hi = m; }
     tapLow = hi;
