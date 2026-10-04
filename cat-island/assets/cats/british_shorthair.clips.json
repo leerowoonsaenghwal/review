@@ -206,7 +206,7 @@
   },
   {
    "clip": "ScratchEar",
-   "reason": "failed the contact check on this body (HL into torso 6 mm at 0.30 s)"
+   "reason": "failed the contact check on this body (HL into torso 5 mm at 0.30 s)"
   },
   {
    "clip": "NibbleClaws",
@@ -215,8 +215,8 @@
  ],
  "itemSpots": {
   "mouse_toy": {
-   "x": 0.072,
-   "z": 0.258,
+   "x": 0.081,
+   "z": 0.302,
    "yaw": -1.571,
    "clip": "PawBat"
   },
