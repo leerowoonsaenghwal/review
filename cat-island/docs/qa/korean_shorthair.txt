@@ -1,0 +1,41 @@
+
+코리안 숏헤어 (korean_shorthair)
+  (skipped for this body: ScratchEar — contact out of reach for this body (7 mm short))
+  ok   Idle         
+  ok   Walk         
+  ok   Trot         
+  ok   Gallop       
+  ok   JumpUp       
+  ok   SitDown      
+  ok   Sit          
+  ok   StandUp      
+  ok   LieDown      
+  ok   Loaf         
+  ok   Sleep        
+  ok   FallAsleep   
+  FAIL GroomFace    tongue→FL 6x best 28mm; FL→head 1x best 0mm
+         head on FLu (warn)           -18mm  at 6.27s  (2 frames)
+         head on torso (warn)         -60mm  at 5.93s  (89 frames)
+         tongue→FL misses              28mm  at 5.80s  (4 frames)
+  warn NibbleClaws  FL→head 1x best 0mm
+         head on FLu (warn)           -27mm  at 3.07s  (3 frames)
+         head on torso (warn)         -60mm  at 0.47s  (41 frames)
+  warn Stretch      
+         head on torso (warn)         -43mm  at 1.33s  (25 frames)
+  ok   Drink        
+  ok   LickLips     
+  ok   Flop         
+  ok   FlopIdle     
+  ok   PawBat       
+
+코리안 숏헤어 (korean_shorthair)
+  ok   Drink · water_bowl           nothing inside · contact 8/8
+  ok   Drink · milk_bowl            nothing inside · contact 8/8
+  ok   Drink · food_bowl            nothing inside · contact 8/8
+  ok   JumpUp · cat_tower_1         nothing inside
+  ok   Loaf · cushion               nothing inside
+  ok   Sleep · cushion              nothing inside
+  ok   Loaf · hideout               nothing inside
+  ok   PawBat · mouse_toy           nothing inside · contact 1/1
+
+all ok
