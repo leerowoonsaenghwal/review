@@ -34,16 +34,6 @@
    "drink": null
   },
   {
-   "name": "Gallop",
-   "dur": 0.933,
-   "loop": true,
-   "rootMotion": true,
-   "speed": 2.446,
-   "stride": 0.775,
-   "jump": null,
-   "drink": null
-  },
-  {
    "name": "JumpUp",
    "dur": 2.4,
    "loop": false,
@@ -148,16 +138,6 @@
    "drink": null
   },
   {
-   "name": "NibbleClaws",
-   "dur": 3.4,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null,
-   "drink": null
-  },
-  {
    "name": "Stretch",
    "dur": 4.2,
    "loop": false,
@@ -240,19 +220,23 @@
    "region": "neck behind the jaw (hind-foot scratch)",
    "share": 0,
    "from": "Sit"
+  }
+ ],
+ "skippedClips": [
+  {
+   "clip": "Gallop",
+   "playInstead": "Trot",
+   "reason": "failed the contact check on this body (FL into HLu 7 mm at 0.00 s)"
   },
   {
    "clip": "NibbleClaws",
-   "region": "front claws",
-   "share": 0,
-   "from": "Sit"
+   "reason": "failed the contact check on this body (FL into head 4 mm at 0.43 s)"
   }
  ],
- "skippedClips": [],
  "itemSpots": {
   "mouse_toy": {
-   "x": 0.049,
-   "z": 0.282,
+   "x": 0.054,
+   "z": 0.382,
    "yaw": -1.571,
    "clip": "PawBat"
   },
