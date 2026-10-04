@@ -581,6 +581,9 @@ const addTongue = (P, c, k = 1) => { for (const key in c) P[key] = key === 'hdPi
 // the part of a lick when the tongue is on the fur (the head is still coming down the stroke; after it, the
 // stroke lifts the head away)
 export const LICK_CORE = [.3, .44];
+// clips that are checked on each breed's own body like the grooming ones and left out where they fail, with
+// what the game plays instead (a toy-sized short-legged cat cannot always gallop or bat without touching itself)
+export const CHECKED_CLIPS = { Gallop: 'Trot', PawBat: 'Idle' };
 export const GROOM_REACH_LIMIT = .005;
 export const GROOM_ROUTINE = [
   { clip: 'GroomFace', region: 'front paw (lick) and face (paw wash: cheek, whisker pad, muzzle)', share: .31, from: 'Sit' },
@@ -1130,7 +1133,7 @@ export function makeClips(rig, opts = {}) {
   // a grooming clip whose contact this breed's body cannot make (legs too short to reach, ...) is not shipped:
   // it is left out of the clip set and listed with the reason, so the game simply never plays it for that cat
   const reachErr = { GroomFace: Math.max(report.pawLick ?? 0, report.wash ?? 0), ScratchEar: report.scratch, NibbleClaws: report.nibble };
-  // and every grooming clip that is left is played through, frame by frame, with the same rules as qa.mjs: a
+  // and every grooming clip that is left (and Gallop, PawBat: CHECKED_CLIPS) is played through, frame by frame, with the same rules as qa.mjs: a
   // paw or leg more than 4 mm into the head or body (long coats: the body's fur is soft), the head more than
   // 8 mm into a paw, a lick or rub that misses by more than 3 mm or presses in deeper than 7 mm. A clip that
   // breaks any of them is not shipped for this breed (listed with the reason), so no clip in the game shows it.
@@ -1139,7 +1142,7 @@ export function makeClips(rig, opts = {}) {
     const C = contactOf(S), fur = rig.model.userData.shape?.fur, longFur = fur === 'long' || fur === 'curly';
     const T = C.sets.tongue ||= C.points(p => p === 'tongue', 'face', 2);
     for (const c of clips) {
-      if (!GROOM_ROUTINE.some(g => g.clip === c.name) || reachErr[c.name] > GROOM_REACH_LIMIT) continue;
+      if (!(GROOM_ROUTINE.some(g => g.clip === c.name) || CHECKED_CLIPS[c.name]) || reachErr[c.name] > GROOM_REACH_LIMIT) continue;
       const n = Math.round(c.dur * FPS), runs = (c.contacts || []).map(() => []);
       let bad = null;
       for (let f = 0; f <= n && !bad; f++) {
@@ -1167,7 +1170,7 @@ export function makeClips(rig, opts = {}) {
   }
   const drop = c => reachErr[c.name] > GROOM_REACH_LIMIT || failed[c.name];
   const out = clips.filter(c => !drop(c));
-  out.skipped = clips.filter(drop).map(c => ({ clip: c.name, reason: failed[c.name] ? `failed the contact check on this body (${failed[c.name]})` : `contact out of reach for this body (${(reachErr[c.name] * 1000).toFixed(0)} mm short)` }));
+  out.skipped = clips.filter(drop).map(c => ({ clip: c.name, ...(CHECKED_CLIPS[c.name] ? { playInstead: CHECKED_CLIPS[c.name] } : {}), reason: failed[c.name] ? `failed the contact check on this body (${failed[c.name]})` : `contact out of reach for this body (${(reachErr[c.name] * 1000).toFixed(0)} mm short)` }));
   out.groomReport = report;
   return out;
 }
