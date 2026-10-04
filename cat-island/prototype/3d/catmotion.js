@@ -1144,16 +1144,16 @@ export function makeClips(rig, opts = {}) {
     return P;
   };
   {
-    // the lowest point of the paw (curled toes, beans) at the bottom of the tap stops on the toy top
+    // the lowest point of the paw (curled toes, beans) at the bottom of the tap presses 2 mm into the (soft) toy's top
     const C = contactOf(S), at = k => { tapLow = k; let y = Infinity; for (let t = .56; t <= .705; t += .02) { applyPose(S, pawBat(t)); C.update(); y = Math.min(y, C.lowest(C.sets.FL), C.lowest(C.sets.FLb)); } return y; };   // (over the whole way down: the curled toes swing lowest just before the stop)
     // (reaching right out, the leg may be at full stretch above the toy: then the paw comes in until it can reach)
-    if (at(.05) > TOY_TOP + .002) {
+    if (at(.05) > TOY_TOP) {
       let a = .2, b = 1;
-      for (let it = 0; it < 10; it++) { tapFwd = (a + b) / 2; if (at(.05) <= TOY_TOP + .001) a = tapFwd; else b = tapFwd; }
+      for (let it = 0; it < 10; it++) { tapFwd = (a + b) / 2; if (at(.05) <= TOY_TOP - .002) a = tapFwd; else b = tapFwd; }
       tapFwd = a;
     }
     let lo = .05, hi = 1;
-    for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (at(m) < TOY_TOP + .001) lo = m; else hi = m; }
+    for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (at(m) < TOY_TOP - .002) lo = m; else hi = m; }
     tapLow = hi;
   }
   // the toy (the game puts it where clip.toy says): under the lowest point of the paw at the bottom of the tap,
