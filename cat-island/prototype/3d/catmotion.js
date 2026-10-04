@@ -1141,8 +1141,9 @@ export function makeClips(rig, opts = {}) {
     // (eyes on the toy, but the head is held up while the paw is up - bent down it would come onto the paw)
     // (and only bowed towards the toy once the paw is up and out in front: bowed while a short leg's paw is still
     //  coming up past the chin, it would come down onto it)
-    const look = u < .5 ? mj(seg(u, .3, .45)) : 1 - mj(seg(v, .3, 1));
-    P.hdPitch = .25 * look - .2 * Math.min(1, up) - .25 * Math.sin(Math.PI * v); P.nkPitch = -.1 * Math.min(1, up); P.hdYaw = .1 * fwd;
+    // (on the way back the head comes up as the paw lifts off the toy, so the paw drawn back passes under the chin)
+    const look = u < .5 ? mj(seg(u, .3, .45)) : 1 - mj(seg(v, 0, .3));
+    P.hdPitch = .25 * look - .2 * Math.min(1, up) - .25 * Math.sin(Math.PI * v); P.nkPitch = -.1 * Math.min(1, up) - .12 * Math.sin(Math.PI * v); P.hdYaw = .1 * fwd;
     P.tailBase = -.2; P.tailWave = .2; P.tailWph = u * 2; P.earLp = P.earRp = .12;
     return P;
   };
