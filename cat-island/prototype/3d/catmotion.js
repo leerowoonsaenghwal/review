@@ -680,6 +680,26 @@ export function makeClips(rig, opts = {}) {
       return P;
     };
   };
+  // drinking, last of all, on the finished pose: the tongue is lengthened (or shortened) once for every lap so
+  // that at the bottom of a lap its lowest point is just under the surface (BOWL_SURF), whatever the settle and
+  // floor passes changed since the crouch and tongue were solved. Worked out on first use.
+  const drinkFix = (pose, dur, dk) => {
+    let k = null;
+    const build = () => {
+      const C = contactOf(S), T = C.sets.tongue ||= C.points(p => p === 'tongue', 'face', 2), want = BOWL_SURF - .0015;
+      const lowAt = kk => { let y = Infinity; for (let lap = 0; lap < 2; lap++) for (const u of [.3, .33, .36, .4, .44, .48]) { const P = pose((lap + u) / dk.rate); P.tongueStretch = (P.tongueStretch || 0) + kk * P.tongue; applyPose(S, P); C.update(); y = Math.min(y, C.lowest(T)); } return y; };
+      let lo = -.3, hi = 1.5;
+      if (lowAt(lo) <= want) hi = lo;
+      else for (let it = 0; it < 12; it++) { const m = (lo + hi) / 2; if (lowAt(m) > want) lo = m; else hi = m; }
+      k = hi; dk.tongue = +(dk.tongue + k).toFixed(3);
+    };
+    return t => {
+      if (k === null) build();
+      const P = pose(t);
+      if (t < dk.laps / dk.rate) P.tongueStretch = (P.tongueStretch || 0) + k * P.tongue;
+      return P;
+    };
+  };
   // looping clips are stretched to a whole number of frames so the last frame meets the first exactly
   let tAdd = performance.now();
   const add = (name, dur, loop, pose, extra = {}) => {
@@ -689,6 +709,7 @@ export function makeClips(rig, opts = {}) {
     let fn = floorFix(f === 1 ? pose : t => pose(t * f), d2, extra.jump ? P => (P.rootZ >= .8 * extra.jump.D ? extra.jump.H : 0) : undefined);
     const tc = (extra.contacts || []).find(c => c.a === 'tongue');
     if (tc) fn = tongueFix(fn, d2, tc.b);
+    if (extra.drink) fn = drinkFix(fn, d2, extra.drink);
     const clip = { name, dur: d2, loop, pose: fn, ...extra };
     if (clip.speed) { clip.speed /= f; clip.cycle = clip.cycle / f; }
     clips.push(clip);
