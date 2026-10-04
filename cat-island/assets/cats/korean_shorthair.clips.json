@@ -10,7 +10,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Walk",
@@ -19,7 +20,8 @@
    "rootMotion": true,
    "speed": 0.4,
    "stride": 0.307,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Trot",
@@ -28,7 +30,8 @@
    "rootMotion": true,
    "speed": 1.06,
    "stride": 0.42,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Gallop",
@@ -37,7 +40,8 @@
    "rootMotion": true,
    "speed": 2.271,
    "stride": 0.636,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "JumpUp",
@@ -47,9 +51,11 @@
    "speed": null,
    "stride": null,
    "jump": {
-    "D": 0.78,
-    "H": 0.2
-   }
+    "D": 0.797,
+    "H": 0.2,
+    "deckBack": 0.501
+   },
+   "drink": null
   },
   {
    "name": "SitDown",
@@ -58,7 +64,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Sit",
@@ -67,7 +74,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "StandUp",
@@ -76,7 +84,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "LieDown",
@@ -85,7 +94,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Loaf",
@@ -94,7 +104,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Sleep",
@@ -103,7 +114,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "FallAsleep",
@@ -112,7 +124,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "GroomFace",
@@ -121,70 +134,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
-  },
-  {
-   "name": "GroomEar",
-   "dur": 4,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null
-  },
-  {
-   "name": "GroomChest",
-   "dur": 4.2,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null
-  },
-  {
-   "name": "GroomFlank",
-   "dur": 4.6,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null
-  },
-  {
-   "name": "GroomLeg",
-   "dur": 5.6,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null
-  },
-  {
-   "name": "GroomBelly",
-   "dur": 5,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null
-  },
-  {
-   "name": "GroomTail",
-   "dur": 4.6,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null
-  },
-  {
-   "name": "ScratchEar",
-   "dur": 3,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "NibbleClaws",
@@ -193,7 +144,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Stretch",
@@ -202,7 +154,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Drink",
@@ -211,7 +164,18 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": {
+    "laps": 8,
+    "rate": 3.5,
+    "surf": 0.03,
+    "bowl": {
+     "x": 0.0128,
+     "z": 0.543
+    },
+    "crouch": 1.303,
+    "tongue": 0.186
+   }
   },
   {
    "name": "LickLips",
@@ -220,7 +184,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "Flop",
@@ -229,7 +194,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "FlopIdle",
@@ -238,7 +204,8 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   },
   {
    "name": "PawBat",
@@ -247,56 +214,15 @@
    "rootMotion": false,
    "speed": null,
    "stride": null,
-   "jump": null
+   "jump": null,
+   "drink": null
   }
  ],
  "groomRoutine": [
   {
    "clip": "GroomFace",
-   "region": "face (paw wash)",
-   "share": 0.22,
-   "from": "Sit"
-  },
-  {
-   "clip": "GroomEar",
-   "region": "ears",
-   "share": 0.09,
-   "from": "Sit"
-  },
-  {
-   "clip": "GroomChest",
-   "region": "neck / chest",
-   "share": 0.11,
-   "from": "Sit"
-  },
-  {
-   "clip": "GroomFlank",
-   "region": "shoulder / side",
-   "share": 0.13,
-   "from": "Sit"
-  },
-  {
-   "clip": "GroomLeg",
-   "region": "hind legs (+ anogenital)",
+   "region": "front paw (lick) and face (paw wash: cheek, whisker pad, muzzle)",
    "share": 0.31,
-   "from": "Loaf"
-  },
-  {
-   "clip": "GroomBelly",
-   "region": "belly",
-   "share": 0.09,
-   "from": "Loaf"
-  },
-  {
-   "clip": "GroomTail",
-   "region": "tail",
-   "share": 0.05,
-   "from": "Sit"
-  },
-  {
-   "clip": "ScratchEar",
-   "region": "ear (hind-foot scratch)",
-   "share": 0,
    "from": "Sit"
   },
   {
@@ -306,6 +232,37 @@
    "from": "Sit"
   }
  ],
+ "skippedClips": [
+  {
+   "clip": "ScratchEar",
+   "reason": "contact out of reach for this body (7 mm short)"
+  }
+ ],
+ "itemSpots": {
+  "mouse_toy": {
+   "x": 0.063,
+   "z": 0.282,
+   "yaw": -1.571,
+   "clip": "PawBat"
+  },
+  "cushion": {
+   "x": 0,
+   "z": -0.022,
+   "catLift": 0.134,
+   "clips": [
+    "Loaf",
+    "Sleep"
+   ]
+  },
+  "hideout": {
+   "x": 0,
+   "z": -0.222,
+   "catLift": 0.08,
+   "clips": [
+    "Loaf"
+   ]
+  }
+ },
  "sculpt_tris": 103844,
  "game_tris": {
   "Body": 14000,
