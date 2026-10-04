@@ -1,0 +1,12 @@
+
+코리안 숏헤어 (korean_shorthair)
+  ok   Drink · water_bowl           nothing inside · contact 8/8
+  ok   Drink · milk_bowl            nothing inside · contact 8/8
+  ok   Drink · food_bowl            nothing inside · contact 8/8
+  ok   JumpUp · cat_tower_1         nothing inside
+  ok   Loaf · cushion               nothing inside
+  ok   Sleep · cushion              nothing inside
+  ok   Loaf · hideout               nothing inside
+  ok   PawBat · mouse_toy           nothing inside · contact 1/1
+
+all ok
