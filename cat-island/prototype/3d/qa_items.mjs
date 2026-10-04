@@ -45,7 +45,7 @@ for (const id of breeds) {
         const d = F.d(x - at[0], y - at[1], z - at[2]);
         if (touchParts && touchParts.includes(part)) { gapT = Math.min(gapT, d); if (d < SOFT * 2) worst = d < worst.d ? { d, part, t } : worst; continue; }
         if (ignore.includes(part)) continue;
-        if (d < soft && d < worst.d) worst = { d, part, t };
+        if (d < soft && d < worst.d) worst = { d, part, t, p: [x - at[0], y - at[1], z - at[2]] };
       }
       if (when) {
         if (when(P, t)) { if (!open) runs.push(open = { best: Infinity, t }); open.best = Math.min(open.best, Math.max(0, gapT)); }
@@ -55,7 +55,7 @@ for (const id of breeds) {
     const misses = runs.filter(r => r.best > TOUCH);
     const bad = worst.d < soft || misses.length || (when && !runs.length);
     if (bad) failed++;
-    console.log(`  ${bad ? 'FAIL' : 'ok  '} ${name.padEnd(28)} ${worst.d < 0 ? `${worst.part} into ${itemId} ${(worst.d * 1000).toFixed(0)}mm at ${worst.t.toFixed(2)}s` : 'nothing inside'}${when ? ` · contact ${runs.length - misses.length}/${runs.length}${misses.length ? ` (misses up to ${(Math.max(...misses.map(r => r.best)) * 1000).toFixed(0)}mm)` : ''}` : ''}`);
+    console.log(`  ${bad ? 'FAIL' : 'ok  '} ${name.padEnd(28)} ${worst.d < 0 ? `${worst.part} into ${itemId} ${(worst.d * 1000).toFixed(0)}mm at ${worst.t.toFixed(2)}s${worst.p ? ` (item space ${worst.p.map(v => (v * 100).toFixed(1)).join(', ')} cm)` : ''}` : 'nothing inside'}${when ? ` · contact ${runs.length - misses.length}/${runs.length}${misses.length ? ` (misses up to ${(Math.max(...misses.map(r => r.best)) * 1000).toFixed(0)}mm)` : ''}` : ''}`);
   };
   // Drink: bowl where the clip says
   const dk = clip('Drink'), bw = dk.drink.bowl, lap = (P, t) => t < dk.drink.laps / dk.drink.rate && (t * dk.drink.rate % 1) > .3 && (t * dk.drink.rate % 1) < .55;   // (the tongue is down around .36-.46 of a lap: at 30 fps a lap has 1-2 frames near it)
