@@ -599,10 +599,13 @@ export function makeClips(rig, opts = {}) {
   // last pass on every clip, at every frame: nothing below the floor. (The settle passes run at a dozen or so
   // points per clip; between them a rolling paw or a turning body can dip a few mm under.) A planted leg's paw
   // is raised; a body, head or leg posed by joint angles raises the hips. Worked out on first use.
-  const floorFix = (pose, dur, floorAt = () => 0) => {
+  const floorFix = (pose, dur, floorAt = () => 0, dense = false) => {
     let lift = null;
     const build = () => {
       const C = contactOf(S), n = Math.max(2, Math.ceil(dur * FPS)), raw = [];
+      // (dense: every vertex of the trunk and upper legs - landing crouched on a deck, an elbow is sharp enough to
+      //  slip between every-other ones)
+      const TR = dense ? (C.sets.trunkAll ||= C.points(p => p === 'torso' || p.endsWith('u'), 'body', 1)) : C.sets.trunk;
       for (let i = 0; i <= n; i++) {
         const P = pose(dur * i / n), e = {}, fl = floorAt(P);
         applyPose(S, P); C.update();
@@ -611,14 +614,14 @@ export function makeClips(rig, opts = {}) {
           // (a planted paw raised alone would fold its leg up into the body: the hips go up with it)
           if (low < -.0015) { const k = P[L + 'fk'] > .5 ? 'hipY' : L + 'y'; e[k] = Math.max(e[k] || 0, -.0005 - low); e.hipY = Math.max(e.hipY || 0, -.0005 - low); }
         }
-        const low = Math.min(C.lowest(C.sets.trunk), C.lowest(C.sets.head)) - fl;
+        const low = Math.min(C.lowest(TR), C.lowest(C.sets.head)) - fl;
         if (low < -.0015) e.hipY = Math.max(e.hipY || 0, -.0005 - low);
         // checked again with the lifts on: a leg already stretched to its full length cannot lift its paw by its
         // target alone (lying on the side), so whatever is still under the floor raises the whole body
         if (Object.keys(e).length) {
           const Q = { ...P }; for (const k in e) Q[k] += e[k];
           applyPose(S, Q); C.update();
-          let lo2 = Math.min(C.lowest(C.sets.trunk), C.lowest(C.sets.head));
+          let lo2 = Math.min(C.lowest(TR), C.lowest(C.sets.head));
           for (const L of LIMBS) lo2 = Math.min(lo2, C.lowest(C.sets[L]), C.lowest(C.sets[L + 'b']));
           if (lo2 - fl < -.0015) e.hipY = (e.hipY || 0) + (-.0005 - (lo2 - fl));
         }
@@ -706,7 +709,7 @@ export function makeClips(rig, opts = {}) {
     if (globalThis.__timing) { const n = performance.now(); console.log('  ' + name, Math.round(n - tAdd) + 'ms'); tAdd = n; }
     const frames = Math.max(2, Math.round(dur * FPS)), d2 = frames / FPS, f = dur / d2;
     // (after a jump has carried the root onto the deck, the deck top is the floor)
-    let fn = floorFix(f === 1 ? pose : t => pose(t * f), d2, extra.jump ? P => (P.rootZ >= .8 * extra.jump.D ? extra.jump.H : 0) : undefined);
+    let fn = floorFix(f === 1 ? pose : t => pose(t * f), d2, extra.jump ? P => (P.rootZ >= .8 * extra.jump.D ? extra.jump.H : 0) : undefined, !!extra.jump);
     const tc = (extra.contacts || []).find(c => c.a === 'tongue');
     if (tc) fn = tongueFix(fn, d2, tc.b);
     if (extra.drink) fn = drinkFix(fn, d2, extra.drink);
