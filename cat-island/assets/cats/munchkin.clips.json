@@ -1,6 +1,6 @@
 {
- "id": "scottish_fold",
- "ko": "스코티시 폴드",
+ "id": "munchkin",
+ "ko": "먼치킨",
  "bones": 43,
  "clips": [
   {
@@ -15,31 +15,31 @@
   },
   {
    "name": "Walk",
-   "dur": 1.5,
+   "dur": 1.133,
    "loop": true,
    "rootMotion": true,
-   "speed": 0.4,
-   "stride": 0.307,
+   "speed": 0.306,
+   "stride": 0.174,
    "jump": null,
    "drink": null
   },
   {
    "name": "Trot",
-   "dur": 0.8,
+   "dur": 0.6,
    "loop": true,
    "rootMotion": true,
-   "speed": 1.06,
-   "stride": 0.42,
+   "speed": 0.795,
+   "stride": 0.235,
    "jump": null,
    "drink": null
   },
   {
    "name": "Gallop",
-   "dur": 0.867,
+   "dur": 0.633,
    "loop": true,
    "rootMotion": true,
-   "speed": 2.271,
-   "stride": 0.636,
+   "speed": 1.66,
+   "stride": 0.356,
    "jump": null,
    "drink": null
   },
@@ -51,9 +51,9 @@
    "speed": null,
    "stride": null,
    "jump": {
-    "D": 0.78,
+    "D": 0.797,
     "H": 0.2,
-    "deckBack": 0.497
+    "deckBack": 0.501
    },
    "drink": null
   },
@@ -128,16 +128,6 @@
    "drink": null
   },
   {
-   "name": "NibbleClaws",
-   "dur": 3.4,
-   "loop": true,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null,
-   "drink": null
-  },
-  {
    "name": "Stretch",
    "dur": 4.2,
    "loop": false,
@@ -161,10 +151,10 @@
     "surf": 0.03,
     "bowl": {
      "x": 0.0128,
-     "z": 0.5267
+     "z": 0.5633
     },
-    "crouch": 1.328,
-    "tongue": 0.168
+    "crouch": 1.03,
+    "tongue": 0.341
    }
   },
   {
@@ -208,34 +198,31 @@
    "drink": null
   }
  ],
- "groomRoutine": [
-  {
-   "clip": "NibbleClaws",
-   "region": "front claws",
-   "share": 0,
-   "from": "Sit"
-  }
- ],
+ "groomRoutine": [],
  "skippedClips": [
   {
    "clip": "GroomFace",
-   "reason": "failed the contact check on this body (FL into head 4 mm at 0.73 s)"
+   "reason": "contact out of reach for this body (27 mm short)"
   },
   {
    "clip": "ScratchEar",
-   "reason": "failed the contact check on this body (HR into torso 5 mm at 0.20 s)"
+   "reason": "contact out of reach for this body (52 mm short)"
+  },
+  {
+   "clip": "NibbleClaws",
+   "reason": "contact out of reach for this body (37 mm short)"
   }
  ],
  "itemSpots": {
   "mouse_toy": {
-   "x": 0.066,
-   "z": 0.269,
+   "x": 0.065,
+   "z": 0.26,
    "yaw": -1.571,
    "clip": "PawBat"
   },
   "cushion": {
    "x": 0,
-   "z": -0.021,
+   "z": -0.022,
    "catLift": 0.134,
    "clips": [
     "Loaf",
@@ -244,14 +231,14 @@
   },
   "hideout": {
    "x": 0,
-   "z": -0.221,
+   "z": -0.222,
    "catLift": 0.08,
    "clips": [
     "Loaf"
    ]
   }
  },
- "sculpt_tris": 103208,
+ "sculpt_tris": 97012,
  "game_tris": {
   "Body": 14000,
   "Face": "~10500 (eyes, nose, mouth, tongue, whiskers, toe beans)"
