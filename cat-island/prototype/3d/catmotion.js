@@ -605,7 +605,8 @@ export function makeClips(rig, opts = {}) {
         applyPose(S, P); C.update();
         for (const L of LIMBS) {
           const low = Math.min(C.lowest(C.sets[L]), C.lowest(C.sets[L + 'b'])) - fl;   // (the beans stand proud of the fur)
-          if (low < -.0015) { const k = P[L + 'fk'] > .5 ? 'hipY' : L + 'y'; e[k] = Math.max(e[k] || 0, -.0005 - low); }
+          // (a planted paw raised alone would fold its leg up into the body: the hips go up with it)
+          if (low < -.0015) { const k = P[L + 'fk'] > .5 ? 'hipY' : L + 'y'; e[k] = Math.max(e[k] || 0, -.0005 - low); e.hipY = Math.max(e.hipY || 0, -.0005 - low); }
         }
         const low = Math.min(C.lowest(C.sets.trunk), C.lowest(C.sets.head)) - fl;
         if (low < -.0015) e.hipY = Math.max(e.hipY || 0, -.0005 - low);
@@ -794,7 +795,7 @@ export function makeClips(rig, opts = {}) {
   add('LieDown', 1.1, false, withSettle(S, t => over(transfer(P0, LOAF, t / 1.1, { FL: .04, FR: .04 }, { FL: .25, FR: .25 }), { blink: blinkAt(t, [.9]) }), 1.1, {}, 10));
   add('Loaf', 5, true, t => over(LOAF, { breath: Math.sin(TAU * t / 2.5), blink: .55 + .45 * blinkAt(t, [2]), tailWave: .04, tailWph: t / 2.5 }));
   add('Sleep', 5, true, t => over(SLEEP, { breath: 1.3 * Math.sin(TAU * t / 2.5), tailTip: .05 * Math.sin(TAU * t / 5), earLp: -.25 + .25 * bump(t, 3.2, .06) }));
-  add('FallAsleep', 2, false, withSettle(S, t => { const P = over(transfer(LOAF, SLEEP, t / 2, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }); P.nkPitch += .15 * Math.sin(Math.PI * ss(t / 2)); return P; }, 2, {}, 20));   // the head draws back over the front legs on the way
+  add('FallAsleep', 2, false, withSettle(S, t => { const P = over(transfer(LOAF, SLEEP, t / 2, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }); return P; }, 2, {}, 20));   // the head draws back over the front legs on the way
   // ---------------------------------------------------------------- grooming
   // Cats groom sitting or lying, never standing, and a bout runs head to tail (cephalocaudal). Share of oral
   // grooming by region: face 31 %, hind legs 21 %, sides/back 13 %, neck/chest 11 %, anogenital 10 %,
@@ -1112,7 +1113,8 @@ export function makeClips(rig, opts = {}) {
     // (the wrist curls the toes down for the tap only; drawn back over the toy the paw is held level, toes up)
     P.FLa = u < .5 ? lerp(.3, -1.5, up) : lerp(lerp(.3, -1.5, tapLow), .1, mj(seg(v, .2, .45))) * (1 - mj(seg(v, .7, 1))) + .3 * mj(seg(v, .7, 1));
     P.scapL = -.35 * Math.min(1, up); P.scapLy = .012 * Math.min(1, up) * h; P.hipZ = -.025 * h * up; P.hipPitch = .06 * up; P.hipRoll = -.05 * up;
-    P.hdPitch = .35 * Math.max(up, .8 * fwd) - .25 * Math.sin(Math.PI * v); P.hdYaw = .1 * fwd;   // (the head comes up as the paw is drawn back past the chin)
+    // (eyes on the toy, but the head is held up while the paw is up - bent down it would come onto the paw)
+    P.hdPitch = .25 * fwd - .2 * Math.min(1, up) - .25 * Math.sin(Math.PI * v); P.nkPitch = -.1 * Math.min(1, up); P.hdYaw = .1 * fwd;
     P.tailBase = -.2; P.tailWave = .2; P.tailWph = u * 2; P.earLp = P.earRp = .12;
     return P;
   };
