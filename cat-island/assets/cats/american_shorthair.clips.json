@@ -34,16 +34,6 @@
    "drink": null
   },
   {
-   "name": "Gallop",
-   "dur": 0.867,
-   "loop": true,
-   "rootMotion": true,
-   "speed": 2.271,
-   "stride": 0.642,
-   "jump": null,
-   "drink": null
-  },
-  {
    "name": "JumpUp",
    "dur": 2.4,
    "loop": false,
@@ -121,16 +111,6 @@
    "name": "FallAsleep",
    "dur": 2,
    "loop": false,
-   "rootMotion": false,
-   "speed": null,
-   "stride": null,
-   "jump": null,
-   "drink": null
-  },
-  {
-   "name": "GroomFace",
-   "dur": 6.6,
-   "loop": true,
    "rootMotion": false,
    "speed": null,
    "stride": null,
@@ -220,12 +200,6 @@
  ],
  "groomRoutine": [
   {
-   "clip": "GroomFace",
-   "region": "front paw (lick) and face (paw wash: cheek, whisker pad, muzzle)",
-   "share": 0.31,
-   "from": "Sit"
-  },
-  {
    "clip": "NibbleClaws",
    "region": "front claws",
    "share": 0,
@@ -234,14 +208,23 @@
  ],
  "skippedClips": [
   {
+   "clip": "Gallop",
+   "playInstead": "Trot",
+   "reason": "failed the contact check on this body (FL into torso 7 mm at 0.00 s)"
+  },
+  {
+   "clip": "GroomFace",
+   "reason": "failed the contact check on this body (FL into head 4 mm at 0.63 s)"
+  },
+  {
    "clip": "ScratchEar",
-   "reason": "failed the contact check on this body (HL into torso 11 mm at 0.30 s)"
+   "reason": "failed the contact check on this body (HR into torso 10 mm at 0.13 s)"
   }
  ],
  "itemSpots": {
   "mouse_toy": {
-   "x": 0.066,
-   "z": 0.282,
+   "x": 0.073,
+   "z": 0.343,
    "yaw": -1.571,
    "clip": "PawBat"
   },
