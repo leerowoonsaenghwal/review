@@ -19,13 +19,12 @@ const clips = defs.map(d => bakeClip(rig, d));
 // where this cat's items go (root space, metres; docs/ITEMS.md): the toy under the paw at the bottom of the
 // PawBat tap, the cushion / hideout under the middle of the trunk
 const W = n => rig.B[n].getWorldPosition(new THREE.Vector3());
-const pb = defs.find(d => d.name === 'PawBat'); solveAt(rig, pb, pb.dur * .5); cat.updateMatrixWorld(true);
-const tap = W('Fingers_L');
+const pb = defs.find(d => d.name === 'PawBat');   // (the toy spot is worked out with the clip: clip.toy)
 applyPose(rig, stand(rig)); cat.updateMatrixWorld(true);
 const mid = W('Hips').add(W('Chest')).multiplyScalar(.5), ho = itemField('hideout').anchors, cu = itemField('cushion').anchors;
 const r3 = v => +v.toFixed(3);
 const itemSpots = {
-  mouse_toy: { x: r3(tap.x), z: r3(tap.z), yaw: r3(-Math.PI / 2), clip: 'PawBat' },
+  mouse_toy: { x: r3(pb.toy.x), z: r3(pb.toy.z), yaw: r3(pb.toy.yaw), clip: 'PawBat' },   // (yaw: about +Y, glTF / three.js sense)
   cushion: { x: r3(mid.x), z: r3(mid.z), catLift: r3(cu.top), clips: ['Loaf', 'Sleep'] },   // (lying flat out on its side the cat is longer than the cushion)
   hideout: { x: r3(mid.x), z: r3(mid.z - ho.catAhead), catLift: r3(ho.floor), clips: ['Loaf'] },
 };

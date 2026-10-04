@@ -73,10 +73,8 @@ for (const id of breeds) {
   // (the hideout goes where the body is inside and the head out of the door: the offset is searched and printed)
   scene('Loaf · hideout', 'hideout', 'Loaf', [mid.x, 0, mid.z - (ho.catAhead ?? 0)], { lift: ho.floor, soft: SOFT });
   // PawBat: the toy under the paw at the bottom of the tap
-  const pb = clip('PawBat'); solveAt(rig, pb, pb.dur * .5); C.update();
-  let px = 0, pz = 0, py = Infinity; { const M = C.M.face; for (let i = 0; i < M.n; i++) if (M.part[i] === 'FL' && M.pos[3 * i + 1] < py) { py = M.pos[3 * i + 1]; px = M.pos[3 * i]; pz = M.pos[3 * i + 2]; } }
-  // (turned side-on, nose out to the paw's side: its tail then lies across in front of the cat, not under its paws)
-  scene('PawBat · mouse_toy', 'mouse_toy', 'PawBat', [px, 0, pz], { touchParts: ['FL'], when: (P, t) => t > pb.dur * .42 && t < pb.dur * .58, soft: SOFT, yaw: Math.PI / 2 });
+  const pb = clip('PawBat'), toy = pb.toy;   // (where the game puts the toy: worked out with the clip)
+  scene('PawBat · mouse_toy', 'mouse_toy', 'PawBat', [toy.x, 0, toy.z], { touchParts: ['FL'], when: (P, t) => t > pb.dur * .42 && t < pb.dur * .58, soft: SOFT, yaw: toy.yaw });
 }
 console.log(failed ? `\n${failed} FAIL` : '\nall ok');
 process.exit(failed ? 1 : 0);

@@ -14,7 +14,7 @@
 //   peel off last; in swing the front paw folds back at the wrist, then reaches forward before landing.
 import * as THREE from 'three';
 import { makeContact, LIMBS } from './catcontact.js';
-import { BOWL_SURF, TOY_TOP } from './items.js';
+import { BOWL_SURF, TOY_TOP, itemField } from './items.js';
 
 export const FPS = 30;
 const TAU = Math.PI * 2, G = 9.81;
@@ -1094,7 +1094,7 @@ export function makeClips(rig, opts = {}) {
     add('FlopIdle', 4, true, t => over(FLOP, { breath: 1.2 * Math.sin(TAU * t / 2.4), tailTip: .3 * Math.sin(TAU * t / 2 - 1), tailWave: .1, tailWph: t / 2, blink: .55 + .45 * blinkAt(t, [2.6]) }));
   }
   // paw batting: lift, tap down, return (Turkish Van at the water bowl)
-  let tapLow = .5;
+  let tapLow = .5, toyClear = null;
   // how far forward the front paw must go to come up in front of the head (not under the chin)
   const pawHeadClear = (() => { const C = contactOf(S); applyPose(S, P0); C.update({ face: false }); let z = -Infinity; const p = C.M.body.pos; for (const i of C.sets.head.ids) z = Math.max(z, p[3 * i + 2]); return z + rig.d.pawR - rig.restFoot.FL.z; })();
   const pawBat = t => {
@@ -1112,7 +1112,7 @@ export function makeClips(rig, opts = {}) {
     const fwd = u < .5 ? mj(Math.min(1, u / .25)) : 1 - mj(seg(v, .3, 1));
     // the paw reaches far enough to clear a toy lying in front of it and to come up in front of the head
     const reach = Math.max(.36 * h, .11, pawHeadClear);
-    P.FLy += up * lift; P.FLz += fwd * reach; P.FLx *= .85; P.FLt = 1.0 * up;
+    P.FLy += up * lift + (toyClear ? toyClearAt(u) : 0); P.FLz += fwd * reach; P.FLx *= .85; P.FLt = 1.0 * up;
     // (the wrist curls the toes down for the tap only; drawn back over the toy the paw is held level, toes up)
     P.FLa = u < .5 ? lerp(.3, -1.5, up) : lerp(lerp(.3, -1.5, tapLow), .1, mj(seg(v, .2, .45))) * (1 - mj(seg(v, .7, 1))) + .3 * mj(seg(v, .7, 1));
     P.scapL = -.35 * Math.min(1, up); P.scapLy = .012 * Math.min(1, up) * h; P.hipZ = -.025 * h * up; P.hipPitch = .06 * up; P.hipRoll = -.05 * up;
@@ -1128,7 +1128,35 @@ export function makeClips(rig, opts = {}) {
     for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (at(m) < TOY_TOP + .001) lo = m; else hi = m; }
     tapLow = hi;
   }
-  add('PawBat', 1.4, true, withSettle(S, pawBat, 1.4, { fkAt: t => t / 1.4 > .4 && t / 1.4 < .56 ? ['FL'] : [] }, 14));   // (the paw is left where it was aimed for the tap - the toy is placed under it - and settled out of the head on the way up and back)
+  // the toy (the game puts it where clip.toy says): under the lowest point of the paw at the bottom of the tap,
+  // turned side-on with its nose out to the paw's side, so its tail lies across in front of the cat and not
+  // under its paws. On the way out and back the paw is carried over it: wherever the paw would pass into the
+  // toy (reaching out low, or set down while still over it), it is raised until it clears it by 4 mm
+  const TOY_YAW = Math.PI / 2, toyF = itemField('mouse_toy'), toy = { yaw: TOY_YAW };
+  {
+    const C = contactOf(S), FLf = C.sets.FLf ||= C.points(p => p === 'FL', 'face', 1), FLd = C.sets.FLd ||= C.points(p => p === 'FL', 'body', 1);
+    applyPose(S, pawBat(.5 * 1.4)); C.update();
+    { const p = C.M.face.pos; let y = Infinity; for (const i of FLf.ids) if (p[3 * i + 1] < y) { y = p[3 * i + 1]; toy.x = p[3 * i]; toy.z = p[3 * i + 2]; } }
+    const cy = Math.cos(TOY_YAW), sy = Math.sin(TOY_YAW);
+    const toyD = (x, y, z) => { x -= toy.x; z -= toy.z; return toyF.d(cy * x - sy * z, y, sy * x + cy * z); };
+    const gap = () => { let d = Infinity; for (const set of [FLd, FLf]) { const p = C.M[set.mesh].pos; for (const i of set.ids) d = Math.min(d, toyD(p[3 * i], p[3 * i + 1], p[3 * i + 2])); } return d; };
+    const N = 56, raw = [];
+    for (let k = 0; k <= N; k++) {
+      const u = k / N;
+      // (the tap itself, from the paw coming down onto the toy to its lifting off again, touches it on purpose)
+      if (u > .4 && u < .62) { raw.push(0); continue; }
+      const P = pawBat(u * 1.4), at = dy => { applyPose(S, { ...P, FLy: P.FLy + dy }); C.update(); return gap(); };
+      if (at(0) >= .004) { raw.push(0); continue; }
+      let lo = 0, hi = .02; while (at(hi) < .004 && hi < .2) hi *= 2;
+      for (let it = 0; it < 10; it++) { const m = (lo + hi) / 2; if (at(m) < .004) lo = m; else hi = m; }
+      raw.push(hi);
+    }
+    // (held over the neighbouring samples and eased, so the paw rises before it reaches the toy, not on it)
+    const held = raw.map((_, k) => Math.max(...raw.slice(Math.max(0, k - 3), k + 4)));
+    toyClear = held.map((_, k) => { let s = 0, w = 0; for (let j = -2; j <= 2; j++) { const q = held[k + j]; if (q === undefined) continue; const ww = 3 - Math.abs(j); s += ww * Math.max(q, held[k]); w += ww; } return s / w; });
+  }
+  function toyClearAt(u) { const f = clamp(u, 0, 1) * (toyClear.length - 1), i = Math.min(toyClear.length - 2, Math.floor(f)); return lerp(toyClear[i], toyClear[i + 1], f - i); }
+  add('PawBat', 1.4, true, withSettle(S, pawBat, 1.4, { fkAt: t => t / 1.4 > .4 && t / 1.4 < .56 ? ['FL'] : [] }, 14), { toy: { id: 'mouse_toy', x: +toy.x.toFixed(4), z: +toy.z.toFixed(4), yaw: +TOY_YAW.toFixed(4) } });   // (the paw is left where it was aimed for the tap - the toy is placed under it - and settled out of the head on the way up and back)
   clips.groomReport = report;
   // a grooming clip whose contact this breed's body cannot make (legs too short to reach, ...) is not shipped:
   // it is left out of the clip set and listed with the reason, so the game simply never plays it for that cat
