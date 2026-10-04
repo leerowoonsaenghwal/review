@@ -603,8 +603,6 @@ export function makeClips(rig, opts = {}) {
     let lift = null;
     const build = () => {
       const C = contactOf(S), n = Math.max(2, Math.ceil(dur * FPS)), raw = [];
-      // (every vertex of the trunk and upper legs: an elbow is sharp enough to slip between every-other ones)
-      const TR = C.sets.trunkAll ||= C.points(p => p === 'torso' || p.endsWith('u'), 'body', 1);
       for (let i = 0; i <= n; i++) {
         const P = pose(dur * i / n), e = {}, fl = floorAt(P);
         applyPose(S, P); C.update();
@@ -613,14 +611,14 @@ export function makeClips(rig, opts = {}) {
           // (a planted paw raised alone would fold its leg up into the body: the hips go up with it)
           if (low < -.0015) { const k = P[L + 'fk'] > .5 ? 'hipY' : L + 'y'; e[k] = Math.max(e[k] || 0, -.0005 - low); e.hipY = Math.max(e.hipY || 0, -.0005 - low); }
         }
-        const low = Math.min(C.lowest(TR), C.lowest(C.sets.head)) - fl;
+        const low = Math.min(C.lowest(C.sets.trunk), C.lowest(C.sets.head)) - fl;
         if (low < -.0015) e.hipY = Math.max(e.hipY || 0, -.0005 - low);
         // checked again with the lifts on: a leg already stretched to its full length cannot lift its paw by its
         // target alone (lying on the side), so whatever is still under the floor raises the whole body
         if (Object.keys(e).length) {
           const Q = { ...P }; for (const k in e) Q[k] += e[k];
           applyPose(S, Q); C.update();
-          let lo2 = Math.min(C.lowest(TR), C.lowest(C.sets.head));
+          let lo2 = Math.min(C.lowest(C.sets.trunk), C.lowest(C.sets.head));
           for (const L of LIMBS) lo2 = Math.min(lo2, C.lowest(C.sets[L]), C.lowest(C.sets[L + 'b']));
           if (lo2 - fl < -.0015) e.hipY = (e.hipY || 0) + (-.0005 - (lo2 - fl));
         }
