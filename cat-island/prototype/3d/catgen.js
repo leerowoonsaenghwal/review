@@ -174,7 +174,8 @@ export function makeCoat(spec) {
         s = Math.max(s, .55 * sstep(.6, .72, vnoise(p.x * 26 + 7, p.y * 26, p.z * 26)) * sstep(-.5, .2, ny));
       }
     }
-    return c.lerp(dark, Math.min(1, s));
+    c.lerp(dark, Math.min(1, s));
+    return spec.bold ? c.lerp(C('#fff8ec'), .1) : c;   // (bold / style 'ac': a cleaner, slightly lighter coat)
   };
 }
 

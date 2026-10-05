@@ -113,7 +113,7 @@ if (q.get('shot') === 'face') {   // close-up on the face: the head is the top o
   const hb = cat.getObjectByName('Head') || cat; const hp = new THREE.Vector3(); hb.getWorldPosition(hp);
   const hc = new THREE.Vector3(hp.x, box.max.y - .2, hp.z + .05), dir = new THREE.Vector3(Math.sin(cat.rotation.y), 0, Math.cos(cat.rotation.y));
   cam.position.copy(hc).addScaledVector(dir, dist).add(new THREE.Vector3(0, dist * .18, 0)); cam.lookAt(hc);
-} else { cam.position.set(ctr.x + .6, ctr.y + Math.sin(el) * dist, ctr.z + Math.cos(el) * dist); cam.lookAt(ctr.x, ctr.y + .25, ctr.z - 1.0); }
+} else { cam.position.set(ctr.x + .6, ctr.y + Math.sin(el) * dist, ctr.z + Math.cos(el) * dist); cam.lookAt(ctr.x, ctr.y + .45, ctr.z - 1.4); }
 r.render(sc, cam);
 window.__info = { box: [box.min.toArray(), box.max.toArray()] };
 window.__done = true;

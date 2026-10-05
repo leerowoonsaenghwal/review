@@ -522,8 +522,8 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
       // short whisker marks lying on the cheek, in a darker shade of the coat (drawn on, not sticking out)
       const pts = [], wy = -HS * (.1 + w * .075), dir = .12 - w * .12;
       for (let k = 0; k <= 8; k++) { const t = k / 8, px = x * (HS * (.5 + t * .2)), py = wy + dir * t * HS * .2; let lo = 0, hi = 2 * HS; for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (F.eval(Hc.x + px, Hc.y + py, Hc.z + m) > 0) hi = m; else lo = m; } pts.push(V(px, py, lo + HS * .006)); }   // on the sculpted cheek
-      const wc = C(coatSpec.base || '#999999').multiplyScalar(.55);
-      faceAdd(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 8, HS * .014, 5, false), wc, HM, 0);
+      const wc = C(coatSpec.base || '#999999').multiplyScalar(.38);
+      faceAdd(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 8, HS * .02, 6, false), wc, HM, 0);
     }
     if (!AC && s.whisker !== 'none') for (const [, x] of SIDES) for (let w = 0; w < 3; w++) {
       const pts = [], a = (w - 1) * .22, cw = s.whisker === 'curly', Lw = HS * (cw ? .6 : .85);
