@@ -131,18 +131,24 @@ namespace CatIsland
     /// <summary>캣타워 1단. 고양이가 점프해 오르는 판 높이는 JSON decks[0].y.</summary>
     public class CatTower : MonoBehaviour
     {
-        [Serializable] class Deck { public float y = 0.2f; public float z; }
+        [Serializable] class Deck { public float y = 0.2f; public float z; public float[] size; }
         [Serializable] class Anchors { public Deck[] decks; }
         [Serializable] class Info { public Anchors anchors = new Anchors(); }
 
         public float DeckHeight { get; private set; } = 0.2f;
+        public Vector2 DeckSize { get; private set; } = new Vector2(0.72f, 1f);   // (가로, 앞뒤)
 
         public static CatTower Create(Transform parent, Vector3 pos, float yaw)
         {
             var go = ItemLoader.Spawn("cat_tower_1", parent, pos, yaw);
             var t = go.AddComponent<CatTower>();
             var info = JsonUtility.FromJson<Info>(ItemLoader.InfoText("cat_tower_1") ?? "{}");
-            if (info.anchors.decks != null && info.anchors.decks.Length > 0) t.DeckHeight = info.anchors.decks[0].y;
+            if (info.anchors.decks != null && info.anchors.decks.Length > 0)
+            {
+                t.DeckHeight = info.anchors.decks[0].y;
+                var sz = info.anchors.decks[0].size;
+                if (sz != null && sz.Length == 2) t.DeckSize = new Vector2(sz[0], sz[1]);
+            }
             var col = go.AddComponent<BoxCollider>();
             col.center = new Vector3(0f, 0.11f, 0f);
             col.size = new Vector3(0.8f, 0.22f, 1.08f);

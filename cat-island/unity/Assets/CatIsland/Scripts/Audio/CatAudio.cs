@@ -3,14 +3,19 @@ using UnityEngine;
 namespace CatIsland
 {
     /// <summary>
-    /// 소리 파일 없이 코드로 합성한 효과음: 골골송, 야옹, 오도독, 사료 붓기, 뿅.
-    /// 시제품 단계용이다. 정식 소리는 4부 출시 범위에서 녹음, 제작으로 바꾼다.
+    /// 고양이 소리: 야옹, 반가운 "프릇", 살짝 깨물 때 "먀!", 골골송, 방석 누를 때 "뿅".
+    /// 소리 파일 없이 코드로 만든다. 잡음(노이즈)은 쓰지 않는다: 아이폰 스피커에서 "지지직"으로 들린다.
+    /// 모든 소리는 최대 크기를 절반 아래로 두어, 겹쳐도 넘쳐서 찌그러지지 않게 한다.
+    /// 밥그릇 누를 때는 오르골 같은 "똑똑똑", 먹을 때는 작고 둥근 "냠냠" (둘 다 음정 있는 소리).
     /// </summary>
     public class CatAudio : MonoBehaviour
     {
-        const int Rate = 44100;
+        public const int Rate = 44100;
+        public const float Peak = 0.45f;
+
         AudioSource purrSrc, sfx;
-        AudioClip purr, crunch, kibble, pop, nip, chirp;
+        AudioClip purr, pop, nip, chirp, kibble;
+        AudioClip[] noms;
         AudioClip[] meows;
         float purrTarget;
         public float PurrVolume => purrSrc ? purrSrc.volume : 0f;
@@ -27,33 +32,32 @@ namespace CatIsland
             sfx.playOnAwake = false;
             sfx.spatialBlend = 0f;
 
-            purr = MakePurr();
-            meows = new[] { MakeMeow(640f, 0.5f, 1), MakeMeow(720f, 0.42f, 2), MakeMeow(580f, 0.6f, 3) };
-            crunch = MakeCrunch();
-            kibble = MakeKibble();
-            pop = MakePop();
-            nip = MakeTrill(430f, 0.26f, 34f, -0.15f, "nip");
-            chirp = MakeTrill(520f, 0.3f, 26f, 0.5f, "chirp");
+            purr = Clip("purr", Synth.Purr());
+            meows = new[] { Clip("meow1", Synth.Meow(640f, 0.5f)), Clip("meow2", Synth.Meow(720f, 0.42f)), Clip("meow3", Synth.Meow(580f, 0.6f)) };
+            chirp = Clip("chirp", Synth.Chirp());
+            nip = Clip("nip", Synth.Meow(820f, 0.2f));
+            pop = Clip("pop", Synth.Pop());
+            kibble = Clip("kibble", Synth.Kibble());
+            noms = new[] { Clip("nom1", Synth.Nom(520f)), Clip("nom2", Synth.Nom(600f)), Clip("nom3", Synth.Nom(470f)) };
             purrSrc.clip = purr;
         }
 
-        /// <summary>0이면 꺼짐. 손을 떼면 바로 끊기지 않고 잦아든다.</summary>
         public void SetPurr(float amount) { purrTarget = Mathf.Clamp01(amount); }
 
         void Update()
         {
-            float v = Mathf.MoveTowards(purrSrc.volume, purrTarget * 0.85f, Time.deltaTime * (purrTarget > purrSrc.volume ? 1.2f : 0.5f));
+            float v = Mathf.MoveTowards(purrSrc.volume, purrTarget * 0.6f, Time.deltaTime * (purrTarget > purrSrc.volume ? 1.0f : 0.5f));
             purrSrc.volume = v;
             if (v > 0.001f && !purrSrc.isPlaying) purrSrc.Play();
             else if (v <= 0.001f && purrSrc.isPlaying) purrSrc.Stop();
         }
 
-        public void Meow() => Play(meows[Random.Range(0, meows.Length)], 0.7f, Random.Range(0.95f, 1.08f));
-        public void Crunch() => Play(crunch, 0.5f, Random.Range(0.9f, 1.15f));
-        public void Kibble() => Play(kibble, 0.6f, 1f);
-        public void Pop() => Play(pop, 0.45f, Random.Range(0.95f, 1.1f));
-        public void Nip() => Play(nip, 0.65f, 1f);
-        public void Chirp() => Play(chirp, 0.6f, Random.Range(0.95f, 1.08f));
+        public void Meow() => Play(meows[Random.Range(0, meows.Length)], 0.8f, Random.Range(0.95f, 1.08f));
+        public void Pop() => Play(pop, 0.5f, Random.Range(0.95f, 1.1f));
+        public void Nip() => Play(nip, 0.7f, 1f);
+        public void Kibble() => Play(kibble, 0.55f, 1f);
+        public void Crunch() => Play(noms[Random.Range(0, noms.Length)], 0.35f, Random.Range(0.96f, 1.05f));
+        public void Chirp() => Play(chirp, 0.7f, Random.Range(0.96f, 1.06f));
 
         void Play(AudioClip c, float vol, float pitch)
         {
@@ -62,160 +66,144 @@ namespace CatIsland
             PlayedCount++;
         }
 
-        // ---------------- 합성 ----------------
-
         static AudioClip Clip(string name, float[] d)
         {
-            float peak = 0f;
-            foreach (var x in d) peak = Mathf.Max(peak, Mathf.Abs(x));
-            if (peak > 0f) for (int i = 0; i < d.Length; i++) d[i] /= peak;
             var c = AudioClip.Create(name, d.Length, 1, Rate, false);
             c.SetData(d, 0);
             return c;
         }
 
-        static float Smooth01(float x) => x <= 0f ? 0f : x >= 1f ? 1f : x * x * (3f - 2f * x);
-
-        static AudioClip MakePurr()
+        /// <summary>합성 (테스트에서 직접 검사한다).</summary>
+        public static class Synth
         {
-            // 들숨 1.1초 + 날숨 1.3초를 한 주기로, 끝과 처음이 이어지게
-            float inhale = 1.1f, exhale = 1.3f, total = inhale + exhale;
-            int n = Mathf.RoundToInt(total * Rate);
-            var d = new float[n];
-            var rng = new System.Random(7);
-            float lp = 0f, lp2 = 0f, phase = 0f;
-            for (int i = 0; i < n; i++)
+            static float Smooth01(float x) => x <= 0f ? 0f : x >= 1f ? 1f : x * x * (3f - 2f * x);
+
+            public static float[] Normalize(float[] d, float peak = Peak)
             {
-                float t = i / (float)Rate;
-                bool inh = t < inhale;
-                float local = inh ? t / inhale : (t - inhale) / exhale;
-                float env = Smooth01(local / 0.18f) * Smooth01((1f - local) / 0.22f);
-                env *= inh ? 0.65f : 1f;
-                float f = inh ? 23f : 26f;
-                phase += f / Rate;
-                float ph = phase - Mathf.Floor(phase);
-                float pulse = Mathf.Exp(-ph * 5.5f);
-                float noise = (float)(rng.NextDouble() * 2.0 - 1.0);
-                lp += (noise - lp) * 0.045f;
-                lp2 += (lp - lp2) * 0.08f;
-                float body = Mathf.Sin(phase * Mathf.PI * 2f * 2f) * 0.25f;
-                d[i] = (lp2 * 6f + body * 0.4f) * pulse * env;
+                float m = 0f;
+                foreach (var x in d) m = Mathf.Max(m, Mathf.Abs(x));
+                if (m > 0f) for (int i = 0; i < d.Length; i++) d[i] *= peak / m;
+                return d;
             }
-            return Clip("purr", d);
-        }
 
-        static AudioClip MakeMeow(float baseF, float dur, int seed)
-        {
-            int n = Mathf.RoundToInt(dur * Rate);
-            var d = new float[n];
-            var rng = new System.Random(seed);
-            float phase = 0f;
-            for (int i = 0; i < n; i++)
+            /// <summary>
+            /// 골골송: 낮은 음(약 95 Hz와 배음)을 초당 24번 부드럽게 오르내리게 하고, 들숨·날숨으로 숨결을 준다.
+            /// 펄스를 둥근 모양(코사인)으로 해서 웅웅거리지 않는다. 한 주기(2.4초)가 끝과 처음이 이어진다.
+            /// </summary>
+            public static float[] Purr()
             {
-                float t = i / (float)Rate;
-                float k = t / dur;
-                // 음높이: 올라갔다가 내려옴
-                float contour = k < 0.35f ? Mathf.Lerp(0.82f, 1.25f, Smooth01(k / 0.35f)) : Mathf.Lerp(1.25f, 0.88f, Smooth01((k - 0.35f) / 0.65f));
-                float f0 = baseF * contour * (1f + Mathf.Sin(t * 2f * Mathf.PI * 6f) * 0.012f);
-                phase += f0 / Rate;
-                // 입모양: 미 → 아 → 우
-                float formant = k < 0.3f ? Mathf.Lerp(900f, 1800f, k / 0.3f) : Mathf.Lerp(1800f, 1050f, (k - 0.3f) / 0.7f);
-                float s = 0f;
-                for (int h = 1; h <= 9; h++)
+                float inhale = 1.1f, exhale = 1.3f, total = inhale + exhale;
+                int n = Mathf.RoundToInt(total * Rate);
+                var d = new float[n];
+                // 정수 배가 되도록 주파수를 맞춰 반복 이음매에서 위상이 끊기지 않게
+                float f0 = Mathf.Round(95f * total) / total, am = Mathf.Round(24f * total) / total;
+                for (int i = 0; i < n; i++)
                 {
-                    float fh = f0 * h;
-                    float w = Mathf.Exp(-Mathf.Pow((fh - formant) / 650f, 2f)) + 0.25f / h;
-                    s += Mathf.Sin(phase * h * Mathf.PI * 2f) * w;
+                    float t = i / (float)Rate;
+                    bool inh = t < inhale;
+                    float local = inh ? t / inhale : (t - inhale) / exhale;
+                    float env = Smooth01(local / 0.25f) * Smooth01((1f - local) / 0.25f) * (inh ? 0.6f : 1f);
+                    float pulse = 0.5f - 0.5f * Mathf.Cos(2f * Mathf.PI * am * t);         // 둥근 펄스
+                    pulse = 0.35f + 0.65f * pulse * pulse;
+                    float w = 2f * Mathf.PI * f0 * t;
+                    float tone = Mathf.Sin(w) + 0.55f * Mathf.Sin(2f * w) + 0.25f * Mathf.Sin(3f * w) + 0.08f * Mathf.Sin(4f * w);
+                    d[i] = tone * pulse * env;
                 }
-                float breath = (float)(rng.NextDouble() * 2.0 - 1.0) * 0.04f;
-                float env = Smooth01(k / 0.08f) * Smooth01((1f - k) / 0.3f);
-                d[i] = (s + breath) * env;
+                return Normalize(d, 0.4f);
             }
-            return Clip("meow" + seed, d);
-        }
 
-        static AudioClip MakeTrill(float baseF, float dur, float trillHz, float rise, string name)
-        {
-            int n = Mathf.RoundToInt(dur * Rate);
-            var d = new float[n];
-            float phase = 0f;
-            for (int i = 0; i < n; i++)
+            /// <summary>야옹: 음높이가 올라갔다 내려오고, 입모양(미→아→우)에 따라 배음이 바뀐다.</summary>
+            public static float[] Meow(float baseF, float dur)
             {
-                float t = i / (float)Rate;
-                float k = t / dur;
-                float f0 = baseF * (1f + rise * k);
-                phase += f0 / Rate;
-                float am = 0.55f + 0.45f * Mathf.Sin(t * trillHz * Mathf.PI * 2f);
-                float s = Mathf.Sin(phase * Mathf.PI * 2f) + Mathf.Sin(phase * 2f * Mathf.PI * 2f) * 0.45f + Mathf.Sin(phase * 3f * Mathf.PI * 2f) * 0.2f;
-                float env = Smooth01(k / 0.1f) * Smooth01((1f - k) / 0.35f);
-                d[i] = s * am * env;
-            }
-            return Clip(name, d);
-        }
-
-        static AudioClip MakeCrunch()
-        {
-            float dur = 0.16f;
-            int n = Mathf.RoundToInt(dur * Rate);
-            var d = new float[n];
-            var rng = new System.Random(3);
-            float[] hits = { 0f, 0.035f, 0.07f, 0.1f };
-            float prev = 0f;
-            for (int i = 0; i < n; i++)
-            {
-                float t = i / (float)Rate;
-                float s = 0f;
-                foreach (var h in hits)
+                int n = Mathf.RoundToInt(dur * Rate);
+                var d = new float[n];
+                float phase = 0f;
+                for (int i = 0; i < n; i++)
                 {
-                    float lt = t - h;
-                    if (lt < 0f) continue;
-                    float noise = (float)(rng.NextDouble() * 2.0 - 1.0);
-                    s += noise * Mathf.Exp(-lt * 90f);
+                    float t = i / (float)Rate;
+                    float k = t / dur;
+                    float contour = k < 0.35f ? Mathf.Lerp(0.82f, 1.25f, Smooth01(k / 0.35f)) : Mathf.Lerp(1.25f, 0.88f, Smooth01((k - 0.35f) / 0.65f));
+                    float f0 = baseF * contour * (1f + Mathf.Sin(t * 2f * Mathf.PI * 6f) * 0.012f);
+                    phase += f0 / Rate;
+                    float formant = k < 0.3f ? Mathf.Lerp(900f, 1800f, k / 0.3f) : Mathf.Lerp(1800f, 1050f, (k - 0.3f) / 0.7f);
+                    float s = 0f;
+                    for (int h = 1; h <= 7; h++)
+                    {
+                        float fh = f0 * h;
+                        float w = Mathf.Exp(-Mathf.Pow((fh - formant) / 650f, 2f)) + 0.25f / h;
+                        s += Mathf.Sin(phase * h * Mathf.PI * 2f) * w;
+                    }
+                    float env = Smooth01(k / 0.1f) * Smooth01((1f - k) / 0.35f);
+                    d[i] = s * env;
                 }
-                float hp = s - prev; // 고음 강조
-                prev = s;
-                d[i] = hp * 0.7f + s * 0.3f;
+                return Normalize(d);
             }
-            return Clip("crunch", d);
-        }
 
-        static AudioClip MakeKibble()
-        {
-            float dur = 0.75f;
-            int n = Mathf.RoundToInt(dur * Rate);
-            var d = new float[n];
-            var rng = new System.Random(11);
-            int clicks = 46;
-            for (int c = 0; c < clicks; c++)
+            /// <summary>반가운 "프릇": 짧게 위로 올라가는 두 음 (야옹과 같은 목소리).</summary>
+            public static float[] Chirp()
             {
-                float start = Mathf.Pow((float)rng.NextDouble(), 1.4f) * (dur - 0.06f);
-                float freq = 2200f + (float)rng.NextDouble() * 2600f;
-                float amp = 0.4f + (float)rng.NextDouble() * 0.6f;
-                int s0 = Mathf.RoundToInt(start * Rate);
-                int len = Mathf.RoundToInt(0.035f * Rate);
-                for (int i = 0; i < len && s0 + i < n; i++)
+                var a = Meow(560f, 0.12f);
+                var b = Meow(760f, 0.16f);
+                int gap = Mathf.RoundToInt(0.03f * Rate);
+                var d = new float[a.Length + gap + b.Length];
+                a.CopyTo(d, 0);
+                b.CopyTo(d, a.Length + gap);
+                return Normalize(d);
+            }
+
+            /// <summary>오르골 한 음: 사인 + 맑은 배음, 짧은 시작과 긴 울림.</summary>
+            public static void Bell(float[] d, int start, float f, float amp, float decay)
+            {
+                for (int i = start; i < d.Length; i++)
                 {
-                    float lt = i / (float)Rate;
-                    d[s0 + i] += Mathf.Sin(lt * freq * Mathf.PI * 2f) * Mathf.Exp(-lt * 160f) * amp;
+                    float t = (i - start) / (float)Rate;
+                    float env = Smooth01(t / 0.004f) * Mathf.Exp(-t * decay);
+                    if (env < 1e-4f && t > 0.05f) break;
+                    float w = 2f * Mathf.PI * f * t;
+                    d[i] += amp * env * (Mathf.Sin(w) + 0.3f * Mathf.Sin(2f * w) * Mathf.Exp(-t * decay * 1.5f) + 0.1f * Mathf.Sin(3f * w) * Mathf.Exp(-t * decay * 3f));
                 }
             }
-            return Clip("kibble", d);
-        }
 
-        static AudioClip MakePop()
-        {
-            float dur = 0.12f;
-            int n = Mathf.RoundToInt(dur * Rate);
-            var d = new float[n];
-            float phase = 0f;
-            for (int i = 0; i < n; i++)
+            /// <summary>사료 붓기: 높은 오르골 음 다섯 개가 또르르 (C장조 펜타토닉으로 내려옴).</summary>
+            public static float[] Kibble()
             {
-                float t = i / (float)Rate;
-                float f = Mathf.Lerp(380f, 980f, Mathf.Sqrt(t / dur));
-                phase += f / Rate;
-                d[i] = Mathf.Sin(phase * Mathf.PI * 2f) * Mathf.Exp(-t * 32f) * Smooth01(t / 0.004f);
+                var d = new float[Mathf.RoundToInt(0.9f * Rate)];
+                float[] notes = { 2093f, 1760f, 1568f, 1319f, 1175f };   // C7 A6 G6 E6 D6
+                for (int k = 0; k < notes.Length; k++) Bell(d, Mathf.RoundToInt((0.02f + k * 0.075f) * Rate), notes[k], 1f - k * 0.1f, 9f);
+                return Normalize(d, 0.32f);
             }
-            return Clip("pop", d);
+
+            /// <summary>먹는 소리 "냠": 낮고 짧은 둥근 톡 (나무 블록 같은 소리).</summary>
+            public static float[] Nom(float f)
+            {
+                float dur = 0.12f;
+                var d = new float[Mathf.RoundToInt(dur * Rate)];
+                for (int i = 0; i < d.Length; i++)
+                {
+                    float t = i / (float)Rate;
+                    float pitch = f * (1f - 0.25f * t / dur);                  // 살짝 내려가는 음
+                    float env = Smooth01(t / 0.006f) * Mathf.Exp(-t * 38f);
+                    d[i] = env * (Mathf.Sin(2f * Mathf.PI * pitch * t) + 0.2f * Mathf.Sin(4f * Mathf.PI * pitch * t));
+                }
+                return Normalize(d, 0.3f);
+            }
+
+            /// <summary>방석 "뿅": 부드러운 사인 상승음.</summary>
+            public static float[] Pop()
+            {
+                float dur = 0.14f;
+                int n = Mathf.RoundToInt(dur * Rate);
+                var d = new float[n];
+                float phase = 0f;
+                for (int i = 0; i < n; i++)
+                {
+                    float t = i / (float)Rate;
+                    float f = Mathf.Lerp(380f, 760f, Mathf.Sqrt(t / dur));
+                    phase += f / Rate;
+                    d[i] = Mathf.Sin(phase * Mathf.PI * 2f) * Mathf.Exp(-t * 26f) * Smooth01(t / 0.006f);
+                }
+                return Normalize(d, 0.35f);
+            }
         }
     }
 }

@@ -53,6 +53,9 @@ namespace CatIsland
         float savedAffection, heightY;
         Vector3 jumpStart, jumpDir;
         Quaternion flopFacing;
+        bool leaveTower;
+        Vector3 leaveToward;
+        float turnedIn;
         float jumpFrom, jumpTo;
 
         const string PrefAffection = "cat.affection";
@@ -101,7 +104,7 @@ namespace CatIsland
         public void OnTapGround(Vector3 world)
         {
             NoteUserActivity();
-            if (OnTower && IsFree()) { BeginJumpDown(ClampToIsland(world)); return; }
+            if (OnTower && IsFree()) { leaveTower = true; leaveToward = ClampToIsland(world); if (State != CatState.OnTower) Enter(CatState.OnTower); return; }
             if (!IsFree() || OnTower) return;
             moveTarget = ClampToIsland(world);
             audioOut?.Chirp();
@@ -466,7 +469,7 @@ namespace CatIsland
             crunchTimer -= dt;
             if (crunchTimer <= 0f)
             {
-                crunchTimer = UnityEngine.Random.Range(0.3f, 0.45f);
+                crunchTimer = UnityEngine.Random.Range(0.45f, 0.7f);
                 audioOut?.Crunch();
             }
             if (bowl) bowl.Consume(GameConfig.EatGainPerSec * 0.8f * dt);
@@ -527,10 +530,14 @@ namespace CatIsland
 
         // ---- 캣타워
 
+        /// <summary>
+        /// 점프 출발점: 판의 뒤쪽 끝이 출발점에서 clips.json 의 deckBack 만큼 앞에 오게 (qa_items.mjs 가 검사한 배치와 같다).
+        /// 착지하면 고양이는 판 가운데보다 조금 뒤에 선다.
+        /// </summary>
         Vector3 TowerStart()
         {
-            float d = Rig.Info.jump != null && Rig.Info.jump.forward.Length > 0 ? Rig.Info.jump.forward[Rig.Info.jump.forward.Length - 1] : 0.8f;
-            return tower.transform.position - tower.transform.forward * d;
+            float fromCentre = Rig.Info.deckBack + tower.DeckSize.y * 0.5f;
+            return tower.transform.position - tower.transform.forward * fromCentre;
         }
 
         void TickGoToTower(float dt)
@@ -550,13 +557,25 @@ namespace CatIsland
             else if (StateTime > 16f) Enter(CatState.Idle);
         }
 
+        bool HasJumpDownClip => Rig.Info.jumpDown != null && Rig.Info.jumpDown.forward != null && Rig.Info.jumpDown.forward.Length > 1 && Rig.HasClip("JumpDown");
+
+        /// <summary>
+        /// 내려가기: 올라온 쪽(판 뒤쪽 끝)을 향해 돌아서며 판 안쪽으로 turnIn 만큼 들어온 뒤 JumpDown 을 재생한다.
+        /// qa_items.mjs 의 JumpDown 장면과 같은 자리·방향이다. (예전 에셋은 JumpUp 을 재사용)
+        /// </summary>
         void BeginJumpDown(Vector3 toward)
         {
-            Vector3 dir = Flat(toward - transform.position);
-            if (dir.sqrMagnitude < 0.01f) dir = -tower.transform.forward;
+            if (!tower) return;
+            Vector3 dir;
+            if (HasJumpDownClip) dir = -tower.transform.forward;
+            else
+            {
+                dir = Flat(toward - transform.position);
+                if (dir.sqrMagnitude < 0.01f) dir = -tower.transform.forward;
+            }
             dir.Normalize();
             transform.rotation = Quaternion.LookRotation(dir);
-            BeginJump(transform.position, dir, tower ? tower.DeckHeight : 0f, 0f, CatState.JumpDown);
+            BeginJump(transform.position, dir, tower.DeckHeight, 0f, CatState.JumpDown);
         }
 
         void BeginJump(Vector3 start, Vector3 dir, float fromY, float toY, CatState s)
@@ -567,7 +586,7 @@ namespace CatIsland
             jumpDir = dir;
             jumpFrom = fromY;
             jumpTo = toY;
-            Rig.PlayAction("JumpUp", false, 0.2f);
+            Rig.PlayAction(s == CatState.JumpDown && HasJumpDownClip ? "JumpDown" : "JumpUp", false, 0.2f);
         }
 
         /// <summary>
@@ -577,7 +596,7 @@ namespace CatIsland
         void TickJump(float dt)
         {
             Speed = 0f;
-            var c = Rig.Info.jump;
+            var c = State == CatState.JumpDown && HasJumpDownClip ? Rig.Info.jumpDown : Rig.Info.jump;
             float t = Rig.ActionTime;
             float fi = Mathf.Clamp(t * c.fps, 0f, c.forward.Length - 1);
             int i0 = Mathf.FloorToInt(fi), i1 = Mathf.Min(i0 + 1, c.forward.Length - 1);
@@ -605,13 +624,32 @@ namespace CatIsland
         {
             Speed = 0f;
             if (StateTime < 0.1f) stateTimer = UnityEngine.Random.Range(8f, 14f);
-            if (StateTime > 1.2f && Rig.Current == Posture.Stand && !Rig.Busy) Rig.Request(UnityEngine.Random.value < 0.5f ? Posture.Sit : Posture.Loaf);
-            if (cam && Rig.Current != Posture.Loaf) faceDir = Flat(cam.position - transform.position);
+            if (!leaveTower && StateTime > 1.2f && Rig.Current == Posture.Stand && !Rig.Busy) Rig.Request(UnityEngine.Random.value < 0.5f ? Posture.Sit : Posture.Loaf);
+            if (!leaveTower && cam && Rig.Current != Posture.Loaf) faceDir = Flat(cam.position - transform.position);
             stateTimer -= dt;
-            if (stateTimer <= 0f || Needs.IsHungry || Needs.IsSleepy)
+            if (stateTimer <= 0f || Needs.IsHungry || Needs.IsSleepy) leaveTower = true;
+            if (!leaveTower) return;
+            if (Rig.Current != Posture.Stand) { Rig.Request(Posture.Stand); return; }
+            if (Rig.Busy) return;
+            // 내려가기 전에: 올라온 쪽으로 천천히 돌아서며 판 안쪽으로 조금 들어온다 (JumpDown 의 출발 자리)
+            Vector3 dir = HasJumpDownClip ? -tower.transform.forward : Flat(leaveToward - transform.position);
+            if (dir.sqrMagnitude < 0.01f) dir = -tower.transform.forward;
+            faceDir = null;
+            float angle = Vector3.SignedAngle(transform.forward, dir, Vector3.up);
+            transform.Rotate(0f, Mathf.Clamp(angle, -150f * dt, 150f * dt), 0f);
+            Speed = 0.12f;   // (발을 옮기며 도는 것처럼 걷기를 아주 느리게 재생)
+            if (HasJumpDownClip && turnedIn < Rig.Info.turnIn)
             {
-                if (Rig.Current != Posture.Stand) { Rig.Request(Posture.Stand); return; }
-                if (!Rig.Busy) BeginJumpDown(Vector3.zero);
+                float step = Mathf.Min(Rig.Info.turnIn - turnedIn, Rig.Info.turnIn * dt / 0.8f);
+                transform.position += tower.transform.forward * step;
+                turnedIn += step;
+            }
+            if (Mathf.Abs(angle) < 2f && (!HasJumpDownClip || turnedIn >= Rig.Info.turnIn - 1e-4f))
+            {
+                leaveTower = false;
+                Speed = 0f;
+                turnedIn = 0f;
+                BeginJumpDown(leaveToward);
             }
         }
 

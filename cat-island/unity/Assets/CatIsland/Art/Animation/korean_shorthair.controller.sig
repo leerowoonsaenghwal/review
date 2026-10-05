@@ -1,1 +1,1 @@
-Drink,FallAsleep,Flop,FlopIdle,Gallop,GroomFace,Idle,JumpUp,LickLips,LieDown,Loaf,NibbleClaws,PawBat,Sit,SitDown,Sleep,StandUp,Stretch,Trot,Walk|v2
+Drink,FallAsleep,Flop,FlopIdle,Gallop,GroomFace,Idle,JumpDown,JumpUp,LickLips,LieDown,Loaf,NibbleClaws,PawBat,ScratchEar,Sit,SitDown,Sleep,StandUp,Stretch,Trot,Walk|v2

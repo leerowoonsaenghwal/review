@@ -1048,6 +1048,10 @@ export function makeClips(rig, opts = {}) {
     //  foot: with roll and pitch alone the foot stopped ~8 mm short behind the jaw on most short-legged builds)
     const SKEYS = ['HLk1', 'HLk2', 'HLk3', 'HLkz', 'hdRoll', 'hdPitch', 'nkRoll', 'nkPitch', 'hipRoll', 'spRoll', 'nkYaw', 'hdYaw', 'HLk4'];
     const SB = { ...HB, hipRoll: [-.7, 0], HLk1: [-3, -1], HLkz: [-.2, 1.2], spRoll: [-.4, .4] };
+    // (the neck and head turn and bow only a little - as in the designed pose (hdPitch .35): turned or bowed
+    //  further, the solve reached the foot by hiding the face from the game camera, and the cat should show its
+    //  squeezed eyes while it scratches. The spine roll does the reaching instead.)
+    Object.assign(SB, { nkYaw: [-.25, .25], hdYaw: [-.25, .25], hdPitch: [-.3, .35], nkPitch: [-.5, .35] });
     for (const sp of SPOTS) {
       const Q = { ...base };
       touchBest(S, Q, { a: 'HL', b: ['head'], zone: { bone: 'Head', off: headSurf(V(sp[0] * sx, sp[1], sp[2]).multiplyScalar(HS)), r: .06 }, keys: SKEYS, bounds: SB, gap: .002, iters: 40,

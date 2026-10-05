@@ -22,7 +22,8 @@ namespace CatIsland.EditorTools
 
         [Serializable] class XZ { public float x; public float z; }
         [Serializable] class DrinkInfo { public XZ bowl; }
-        [Serializable] class ClipInfo { public string name; public float dur; public bool loop; public bool rootMotion; public DrinkInfo drink; }
+        [Serializable] class JumpInfo { public float D; public float H; public float deckBack; public float turnIn; }
+        [Serializable] class ClipInfo { public string name; public float dur; public bool loop; public bool rootMotion; public DrinkInfo drink; public JumpInfo jump; }
         [Serializable] class CushionSpot { public float x; public float z; public float catLift; }
         [Serializable] class ItemSpots { public CushionSpot cushion; }
         [Serializable] class SkipInfo { public string clip; public string reason; public string playInstead; }
@@ -35,9 +36,11 @@ namespace CatIsland.EditorTools
             public string[] clips;
             public string[] loops;
             public RootCurve jump;
+            public RootCurve jumpDown;   // JumpDown 이 있는 에셋만
             public float headRadius;
             public float bowlX, bowlZ, cushionZ, cushionLift;
             public Vector3 flopBelly;   // 발라당(FlopIdle) 자세에서 배가 향하는 방향 (고양이 기준)
+            public float jumpD, jumpH, deckBack, turnIn; // clips.json JumpUp.jump: 판 뒤쪽 끝이 출발점에서 deckBack 앞 (qa_items 와 같은 배치)
         }
 
         [MenuItem("CatIsland/Import Art")]
@@ -190,9 +193,14 @@ namespace CatIsland.EditorTools
                 clips = allClips.Where(c => !skipped.Contains(c.name)).Select(c => c.name).ToArray(),
                 loops = loops.ToArray(),
                 jump = SampleRoot(Clip("JumpUp")),
+                jumpDown = Clip("JumpDown") ? SampleRoot(Clip("JumpDown")) : null,
             };
             var drink = json.clips.FirstOrDefault(c => c.name == "Drink")?.drink;
             if (drink?.bowl != null) { info.bowlX = drink.bowl.x; info.bowlZ = drink.bowl.z; }
+            var jj = json.clips.FirstOrDefault(c => c.name == "JumpUp")?.jump;
+            if (jj != null) { info.jumpD = jj.D; info.jumpH = jj.H; info.deckBack = jj.deckBack; }
+            var jdn = json.clips.FirstOrDefault(c => c.name == "JumpDown")?.jump;
+            if (jdn != null) info.turnIn = jdn.turnIn;
             if (json.itemSpots?.cushion != null) { info.cushionZ = json.itemSpots.cushion.z; info.cushionLift = json.itemSpots.cushion.catLift; }
 
             // 6. 프리팹

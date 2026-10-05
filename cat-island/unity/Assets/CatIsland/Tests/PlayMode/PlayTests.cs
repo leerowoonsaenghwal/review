@@ -230,12 +230,25 @@ namespace CatIsland.Tests
             Assert.AreEqual(CatState.OnTower, Cat.State, "jumped up");
             Assert.IsTrue(Cat.OnTower);
             Assert.AreEqual(game.Tower.DeckHeight, Cat.transform.position.y, 0.01f, "standing on the deck");
-            Assert.Less(Flat(Cat.transform.position, game.Tower.transform.position), 0.1f, "landed on the deck centre");
+            // qa_items.mjs 와 같은 배치: 판 뒤쪽 끝이 출발점에서 deckBack 앞 → 착지 지점은 판 중심에서 (deckBack + 깊이/2 - D) 뒤
+            float expectBehind = Cat.Rig.Info.deckBack + game.Tower.DeckSize.y * 0.5f - Cat.Rig.Info.jumpD;
+            Vector3 rel = game.Tower.transform.InverseTransformPoint(Cat.transform.position);
+            Assert.AreEqual(-expectBehind, rel.z, 0.03f, "landed where qa_items checked the jump");
+            Assert.Less(Mathf.Abs(rel.x), 0.03f);
             Assert.Greater(maxY, game.Tower.DeckHeight, "arc goes above the deck");
 
             Cat.OnTapGround(new Vector3(0f, 0f, 0.5f));
-            yield return WaitUntil(() => Cat.State == CatState.JumpDown, 10f);
+            yield return WaitUntil(() => Cat.State == CatState.JumpDown, 15f);
             Assert.AreEqual(CatState.JumpDown, Cat.State);
+            if (Cat.Rig.HasClip("JumpDown"))
+            {
+                // 전용 내려오기: 올라온 쪽을 향해, 판 안쪽으로 turnIn 들어온 자리에서 출발 (qa_items JumpDown 장면과 같은 자리)
+                Assert.AreEqual("JumpDown", Cat.Rig.ActionClip);
+                Assert.Greater(Vector3.Dot(Cat.transform.forward, -game.Tower.transform.forward), 0.99f, "faces back the way it came up");
+                Vector3 relStart = game.Tower.transform.InverseTransformPoint(Cat.transform.position);
+                float expect = -(Cat.Rig.Info.deckBack + game.Tower.DeckSize.y * 0.5f - Cat.Rig.Info.jumpD) + Cat.Rig.Info.turnIn;
+                Assert.AreEqual(expect, relStart.z, 0.03f, "starts where qa_items checked the jump down");
+            }
             yield return WaitUntil(() => Cat.State != CatState.JumpDown, 10f);
             Assert.IsFalse(Cat.OnTower);
             Assert.AreEqual(0f, Cat.transform.position.y, 0.01f, "back on the ground");

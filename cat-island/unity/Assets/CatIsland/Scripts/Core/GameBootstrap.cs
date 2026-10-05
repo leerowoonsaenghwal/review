@@ -83,6 +83,7 @@ namespace CatIsland
 
             gameObject.AddComponent<DebugOverlay>();
             gameObject.AddComponent<PerfMonitor>();
+            gameObject.AddComponent<BackgroundMusic>();
         }
 
         static string DeviceGenerationName()
