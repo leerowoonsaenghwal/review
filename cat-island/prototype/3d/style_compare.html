@@ -20,7 +20,7 @@ const b = BREEDS.find(x => x.id === (q.get('breed') || 'korean_shorthair'));
 const C = h => new THREE.Color(h);
 
 // ---- the cat, sitting
-const cat = buildCatModel(b.shape, b.coat, { res: +(q.get('res') || .016), style: AC ? 'ac' : undefined });
+const cat = buildCatModel(b.shape, b.coat, { res: +(q.get('res') || .016), style: AC ? 'ac' : undefined, whiskers: q.get('whiskers') || undefined });
 const rig = makeRig(cat); applyPose(rig, sitPose(rig)); cat.updateMatrixWorld(true);
 cat.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.frustumCulled = false; } });
 cat.rotation.y = +(q.get('yaw') ?? .65);

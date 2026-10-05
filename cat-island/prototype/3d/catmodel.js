@@ -518,12 +518,39 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
         });
       }
     }
-    if (AC && s.whisker !== 'none') for (const [, x] of SIDES) for (let w = 0; w < 3; w++) {
+    // whiskers in style 'ac' (opts.whiskers): 'short' real whiskers, tapering to a point, sticking out a little
+    // from the whisker pad; 'dots' the same plus three whisker-pad dots; 'long' a longer version; 'marks' short
+    // lines drawn on the cheek
+    const WS = opts.whiskers || 'short';
+    const coatLum = (() => { const b0 = C(coatSpec.base || '#999999'); return .2126 * b0.r + .7152 * b0.g + .0722 * b0.b; })();
+    const wCol = C(coatSpec.whiskerColor || (coatLum > .55 ? '#d9cfc2' : '#fbf8f2'));
+    const taper = (curve, segs, r0) => {   // a tube that thins to a fine tip
+      const g = new THREE.TubeGeometry(curve, segs, r0, 6, false), q = g.attributes.position, rs = 7;
+      for (let i = 0; i < q.count; i++) { const ring = Math.floor(i / rs), t = ring / segs, c0 = curve.getPointAt(Math.min(1, t)), k = 1 - .82 * t;
+        q.setXYZ(i, c0.x + (q.getX(i) - c0.x) * k, c0.y + (q.getY(i) - c0.y) * k, c0.z + (q.getZ(i) - c0.z) * k); }
+      g.computeVertexNormals(); return g;
+    };
+    const surfAt = (px, py) => { let lo = 0, hi = 2 * HS; for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (F.eval(Hc.x + px, Hc.y + py, Hc.z + m) > 0) hi = m; else lo = m; } return lo; };
+    if (AC && s.whisker !== 'none' && WS === 'marks') for (const [, x] of SIDES) for (let w = 0; w < 3; w++) {
       // short whisker marks lying on the cheek, in a darker shade of the coat (drawn on, not sticking out)
       const pts = [], wy = -HS * (.1 + w * .075), dir = .12 - w * .12;
       for (let k = 0; k <= 8; k++) { const t = k / 8, px = x * (HS * (.5 + t * .2)), py = wy + dir * t * HS * .2; let lo = 0, hi = 2 * HS; for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (F.eval(Hc.x + px, Hc.y + py, Hc.z + m) > 0) hi = m; else lo = m; } pts.push(V(px, py, lo + HS * .006)); }   // on the sculpted cheek
       const wc = C(coatSpec.base || '#999999').multiplyScalar(.38);
       faceAdd(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 8, HS * .02, 6, false), wc, HM, 0);
+    }
+    if (AC && s.whisker !== 'none' && WS !== 'marks') for (const [, x] of SIDES) {
+      const Lw = HS * (WS === 'long' ? .72 : .5) * (s.whisker === 'curly' ? .8 : 1);
+      for (let w = 0; w < 3; w++) {
+        const ox = x * HS * .3, oy = -HS * (.17 + w * .045), oz = surfAt(ox, oy) - HS * .01, fan = (1 - w) * .32, pts = [];
+        for (let k = 0; k <= 10; k++) { const t = k / 10, cw = s.whisker === 'curly' ? Math.sin(t * 8) * HS * .03 * t : 0;
+          pts.push(V(ox + x * t * Lw, oy + Math.sin(fan) * t * Lw * .55 - t * t * HS * .06 + cw, oz + t * HS * .05 - t * t * HS * .12)); }
+        faceAdd(taper(new THREE.CatmullRomCurve3(pts), 10, HS * .016), wCol, HM, 0);
+      }
+      if (WS === 'dots') for (let d = 0; d < 3; d++) {   // whisker-pad dots
+        const dx = x * HS * (.17 + (d % 2) * .06), dy = -HS * (.12 + d * .04);
+        const dg = ell(HS * .014, 1, 1, .5, 8); dg.translate(dx, dy, surfAt(dx, dy) + HS * .002);
+        faceAdd(dg, C(coatSpec.base || '#999999').multiplyScalar(.45), HM, 0);
+      }
     }
     if (!AC && s.whisker !== 'none') for (const [, x] of SIDES) for (let w = 0; w < 3; w++) {
       const pts = [], a = (w - 1) * .22, cw = s.whisker === 'curly', Lw = HS * (cw ? .6 : .85);
