@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+"""cat-island/assets/ 의 고양이·용품 파일을 Unity 프로젝트(Assets/CatIsland/Art)로 가져온다.
+
+원본은 assets/ 하나뿐이다. 여기 사본은 git에 올리지 않고(.gitignore), Unity 설정(.meta)만 올린다.
+파이프라인(export_cats.py, export_items.py)으로 고양이·용품을 다시 만든 뒤 이 스크립트를 돌리면 된다.
+"""
+import json
+import shutil
+import sys
+from pathlib import Path
+
+UNITY = Path(__file__).resolve().parent.parent
+ASSETS = UNITY.parent / "assets"
+ART = UNITY / "Assets" / "CatIsland" / "Art"
+
+
+def copy(src: Path, dst: Path) -> bool:
+    if not src.exists():
+        print(f"  없음: {src}")
+        return False
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if dst.exists() and dst.stat().st_size == src.stat().st_size and dst.stat().st_mtime >= src.stat().st_mtime:
+        return True
+    shutil.copy2(src, dst)
+    print(f"  복사: {src.relative_to(ASSETS)}")
+    return True
+
+
+def main() -> int:
+    manifest = json.loads((UNITY / "tools" / "art_manifest.json").read_text())
+    ok = True
+    for cat in manifest["cats"]:
+        for ext in (".fbx", ".clips.json"):
+            ok &= copy(ASSETS / "cats" / f"{cat}{ext}", ART / "Cats" / f"{cat}{ext}")
+    for item in manifest["items"]:
+        for name in (f"{item}.fbx", f"{item}_color.jpg", f"{item}_normal.png", f"{item}.json"):
+            ok &= copy(ASSETS / "items" / item / name, ART / "Items" / item / name)
+    print("완료" if ok else "일부 파일이 없습니다")
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

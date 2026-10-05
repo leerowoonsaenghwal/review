@@ -1,0 +1,6 @@
+{
+    "name": "CatIsland.Runtime",
+    "rootNamespace": "CatIsland",
+    "references": ["Unity.InputSystem", "Unity.RenderPipelines.Universal.Runtime"],
+    "autoReferenced": true
+}

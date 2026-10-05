@@ -1,0 +1,24 @@
+# Unity 생성물
+/Library/
+/Temp/
+/Obj/
+/Logs/
+/UserSettings/
+/Build/
+/Builds/
+/Shots/
+*.csproj
+*.sln
+*.pidb
+*.userprefs
+.vs/
+.idea/
+
+# 고양이·용품 원본은 cat-island/assets/ 에 있다. tools/sync_art.py 가 여기로 가져온다.
+# 바이너리는 올리지 않고, Unity 가져오기 설정(.meta)만 올린다 (GUID 고정).
+/Assets/CatIsland/Art/**/*.fbx
+/Assets/CatIsland/Art/**/*.glb
+/Assets/CatIsland/Art/**/*.jpg
+/Assets/CatIsland/Art/**/*.png
+/Assets/CatIsland/Art/**/*.json
+!/Assets/CatIsland/Art/**/*.meta

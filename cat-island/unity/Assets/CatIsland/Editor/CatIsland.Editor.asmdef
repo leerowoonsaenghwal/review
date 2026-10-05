@@ -1,0 +1,6 @@
+{
+    "name": "CatIsland.Editor",
+    "rootNamespace": "CatIsland.EditorTools",
+    "references": ["CatIsland.Runtime", "Unity.RenderPipelines.Universal.Runtime", "Unity.RenderPipelines.Core.Runtime", "Unity.InputSystem"],
+    "includePlatforms": ["Editor"]
+}
