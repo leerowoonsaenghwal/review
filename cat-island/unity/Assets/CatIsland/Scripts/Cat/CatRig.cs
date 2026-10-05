@@ -38,13 +38,14 @@ namespace CatIsland
 
         public Posture Current { get; private set; } = Posture.Stand;
         public Posture Target { get; private set; } = Posture.Stand;
-        public string Playing { get; private set; } = "Locomotion";
+        public string Playing { get; private set; } = "Idle";
         public string ActionClip { get; private set; }
         public bool InTransition => transitionLeft > 0f;
         public bool Busy => InTransition || ActionClip != null;
         public bool CanMove => Current == Posture.Stand && !Busy;
 
-        Transform neck;
+        Transform neck, rootBone;
+        Vector3 rootBindLocal;   // Root 뼈의 기본 위치 (고양이 기준)
         Transform[] tail;
         SkinnedMeshRenderer face;
         int blinkIdx = -1, mouthIdx = -1;
@@ -82,6 +83,8 @@ namespace CatIsland
 
             var bones = Model.GetComponentsInChildren<Transform>(true).ToDictionary(t => t.name, t => t);
             Head = bones["Head"];
+            rootBone = bones["Root"];
+            rootBindLocal = transform.InverseTransformPoint(rootBone.position);
             neck = bones["Neck"];
             tail = Enumerable.Range(1, 10).Select(i => bones.TryGetValue("Tail" + i, out var t) ? t : null).Where(t => t != null).ToArray();
 
@@ -193,7 +196,9 @@ namespace CatIsland
             Anim.CrossFadeInFixedTime(state, fade);
         }
 
-        static string BaseClip(Posture p)
+        bool walking;
+
+        string BaseClip(Posture p)
         {
             switch (p)
             {
@@ -201,8 +206,18 @@ namespace CatIsland
                 case Posture.Loaf: return "Loaf";
                 case Posture.Sleep: return "Sleep";
                 case Posture.Flop: return "FlopIdle";
-                default: return "Locomotion";
+                default: return walking ? "Move" : "Idle";
             }
+        }
+
+        /// <summary>서 있을 때: 멈춤은 Idle, 움직이면 Move(걷기·종종걸음·달리기 블렌드). 경계에서 깜빡이지 않게 여유를 둔다.</summary>
+        void UpdateStand(float dt)
+        {
+            if (!walking && moveSpeed > 0.06f) walking = true;
+            else if (walking && moveSpeed < 0.025f) walking = false;
+            Play(walking ? "Move" : "Idle", walking ? 0.2f : 0.3f);
+            Anim.SetFloat("Speed", Mathf.Max(moveSpeed, 0.4f));
+            Anim.SetFloat("MoveRate", moveSpeed < 0.4f ? Mathf.Clamp(moveSpeed / 0.4f, 0.3f, 1f) : 1f);
         }
 
         /// <summary>자세 바꾸기. 필요하면 전환 동작을 거친다. 지금 하던 단발 동작은 끝낸다.</summary>
@@ -300,11 +315,7 @@ namespace CatIsland
             }
             Step();
 
-            if (Current == Posture.Stand && ActionClip == null && !InTransition)
-            {
-                Play("Locomotion", 0.25f);
-                Anim.SetFloat("Speed", moveSpeed, 0.08f, dt);
-            }
+            if (Current == Posture.Stand && ActionClip == null && !InTransition) UpdateStand(dt);
         }
 
         // ------------------------------------------------------------------ 표정과 시선 (동작 위에 더함)
@@ -313,6 +324,8 @@ namespace CatIsland
         {
             float dt = Time.deltaTime;
             if (dt <= 0f || Model == null) return;
+
+            PinRoot();
 
             // 눈: 무작위 깜빡임 + 기분 좋게 감기
             blinkTimer -= dt;
@@ -365,6 +378,22 @@ namespace CatIsland
 
             BubbleAnchor.position = Head.position + up * (HeadRadius + 0.32f);
         }
+
+        /// <summary>
+        /// 동작 클립에 들어 있는 루트 이동(걷기 한 주기에 0.3~0.8 m 전진)을 지운다.
+        /// 지우지 않으면 몸이 앞으로 갔다가 주기가 바뀔 때 제자리로 튕겨 돌아온다. 실제 이동은 CatBrain 이 한다.
+        /// 높이는 자세 보정(바닥 위로 올리기)에 쓰일 수 있어 남기고, 점프 중에만 함께 지운다 (점프 높이는 코드가 곡선대로).
+        /// </summary>
+        void PinRoot()
+        {
+            Vector3 r = transform.InverseTransformPoint(rootBone.position);
+            r.x = rootBindLocal.x;
+            r.z = rootBindLocal.z;
+            if (ActionClip == "JumpUp") r.y = rootBindLocal.y;
+            rootBone.position = transform.TransformPoint(r);
+        }
+
+        public Vector3 RootOffset => transform.InverseTransformPoint(rootBone.position) - rootBindLocal;
 
         // 예전 API 호환 (통통 튀는 연출은 동작 클립이 대신한다)
         public void Squash(float amount) { }

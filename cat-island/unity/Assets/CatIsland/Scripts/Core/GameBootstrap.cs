@@ -82,6 +82,7 @@ namespace CatIsland
             Router.audioOut = Audio;
 
             gameObject.AddComponent<DebugOverlay>();
+            gameObject.AddComponent<PerfMonitor>();
         }
 
         static string DeviceGenerationName()
@@ -123,6 +124,24 @@ namespace CatIsland
             RenderSettings.ambientGroundColor = Palette.Hex("c4dfa0");
             RenderSettings.ambientIntensity = 0.8f;
             RenderSettings.fog = false;
+        }
+    }
+
+    /// <summary>프레임 시간 기록: 5초마다 평균 fps, 가장 긴 프레임, 25 ms 넘은 프레임 수를 로그로 남긴다 (실기기 버벅임 진단).</summary>
+    public class PerfMonitor : MonoBehaviour
+    {
+        float acc, worst; int frames, slow;
+        void Update()
+        {
+            float dt = Time.unscaledDeltaTime;
+            acc += dt; frames++;
+            worst = Mathf.Max(worst, dt);
+            if (dt > 0.025f) slow++;
+            if (acc >= 5f)
+            {
+                Debug.Log($"[CatIsland] perf fps={frames / acc:F1} worst={worst * 1000f:F1}ms slow(>25ms)={slow} target={Application.targetFrameRate} vsync={QualitySettings.vSyncCount}");
+                acc = 0f; frames = 0; slow = 0; worst = 0f;
+            }
         }
     }
 

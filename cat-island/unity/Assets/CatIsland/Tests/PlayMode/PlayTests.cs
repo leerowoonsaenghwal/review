@@ -125,6 +125,27 @@ namespace CatIsland.Tests
         }
 
         [UnityTest]
+        public IEnumerator Walking_BodyStaysOnTheCat_NoSnapBack()
+        {
+            // 클립의 루트 이동이 남아 있으면 몸이 앞으로 밀려 나갔다가 주기마다 제자리로 튕긴다
+            Cat.Needs.SetForTest(1f, 1f);
+            var hips = System.Array.Find(Cat.Rig.Model.GetComponentsInChildren<Transform>(), b => b.name == "Hips");
+            float bindZ = Cat.transform.InverseTransformPoint(hips.position).z;
+            Cat.OnTapGround(new Vector3(0f, 0f, 3.5f));
+            float t = 0f, maxDev = 0f, maxJump = 0f, prev = bindZ;
+            while (t < 4f)
+            {
+                yield return null;
+                t += Time.deltaTime;
+                float z = Cat.transform.InverseTransformPoint(hips.position).z;
+                if (Cat.Rig.Playing == "Move") { maxDev = Mathf.Max(maxDev, Mathf.Abs(z - bindZ)); maxJump = Mathf.Max(maxJump, Mathf.Abs(z - prev)); }
+                prev = z;
+            }
+            Assert.Less(maxDev, 0.08f, "hips stay within a few cm of their place while walking");
+            Assert.Less(maxJump, 0.03f, "no per-frame snap");
+        }
+
+        [UnityTest]
         public IEnumerator HoldingStillOnCat_IsNotPetting()
         {
             Cat.Needs.SetForTest(1f, 1f);

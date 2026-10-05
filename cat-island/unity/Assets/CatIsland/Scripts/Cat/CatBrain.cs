@@ -326,7 +326,9 @@ namespace CatIsland
             float angle = Vector3.SignedAngle(transform.forward, dir, Vector3.up);
             float turn = Mathf.Clamp(angle, -GameConfig.TurnSpeedDeg * dt, GameConfig.TurnSpeedDeg * dt);
             transform.Rotate(0f, turn, 0f);
-            float align = Mathf.Clamp01(1f - Mathf.Abs(angle) / 80f);
+            // 크게 꺾을 때만 멈춰서 돌고, 웬만한 방향 바꾸기는 걸으면서 돈다 (제자리에서 미끄러지듯 도는 것 방지)
+            float a = Mathf.Abs(angle);
+            float align = a > 120f ? 0f : Mathf.Lerp(0.35f, 1f, Mathf.Clamp01(1f - a / 90f));
             float targetSpeed = maxSpeed * align * Mathf.Clamp01(dist / (0.25f + maxSpeed * 0.35f) + 0.15f);
             Speed = Mathf.MoveTowards(Speed, targetSpeed, dt * (maxSpeed > 1.5f ? 4f : 2.5f));
             Vector3 next = pos + transform.forward * Speed * dt;

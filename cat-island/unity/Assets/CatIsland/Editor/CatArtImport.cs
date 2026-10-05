@@ -173,7 +173,7 @@ namespace CatIsland.EditorTools
             var skipped = new HashSet<string>((json.skippedClips ?? new SkipInfo[0]).Select(s => s.clip));
             string ctrlPath = $"{Art}/Animation/{id}.controller";
             // 동작 구성이 같으면 Animator 를 다시 만들지 않는다 (git 에 의미 없는 변경이 쌓이지 않게)
-            string signature = string.Join(",", allClips.Where(c => !skipped.Contains(c.name)).Select(c => c.name).OrderBy(n => n)) + "|v1";
+            string signature = string.Join(",", allClips.Where(c => !skipped.Contains(c.name)).Select(c => c.name).OrderBy(n => n)) + "|v2";
             string sigPath = $"{Art}/Animation/{id}.controller.sig";
             var existing = AssetDatabase.LoadAssetAtPath<AnimatorController>(ctrlPath);
             bool rebuild = existing == null || !File.Exists(sigPath) || File.ReadAllText(sigPath) != signature;
@@ -269,22 +269,26 @@ namespace CatIsland.EditorTools
         {
             AnimationClip Clip(string n) => allClips.FirstOrDefault(c => c.name == n);
             ctrl.AddParameter("Speed", AnimatorControllerParameterType.Float);
+            ctrl.AddParameter("MoveRate", AnimatorControllerParameterType.Float);
             var sm = ctrl.layers[0].stateMachine;
 
-            var loco = new BlendTree { name = "Locomotion", blendParameter = "Speed", blendType = BlendTreeType.Simple1D, useAutomaticThresholds = false, hideFlags = HideFlags.HideInHierarchy };
-            AssetDatabase.AddObjectToAsset(loco, ctrl);
-            loco.AddChild(Clip("Idle"), 0f);
-            loco.AddChild(Clip("Walk"), 0.4f);
-            loco.AddChild(Clip("Trot"), 1.06f);
-            if (Clip("Gallop") && !skipped.Contains("Gallop")) loco.AddChild(Clip("Gallop"), 2.27f);
-            var locoState = sm.AddState("Locomotion");
-            locoState.motion = loco;
-            sm.defaultState = locoState;
+            // 이동 블렌드에는 길이가 비슷한 걸음 동작만 넣는다. 서 있기(Idle, 6초)를 섞으면
+            // Unity 가 재생 주기를 맞추느라 걸음이 느려졌다 빨라져 출발·정지 때 버벅인다.
+            var move = new BlendTree { name = "Move", blendParameter = "Speed", blendType = BlendTreeType.Simple1D, useAutomaticThresholds = false, hideFlags = HideFlags.HideInHierarchy };
+            AssetDatabase.AddObjectToAsset(move, ctrl);
+            move.AddChild(Clip("Walk"), 0.4f);
+            move.AddChild(Clip("Trot"), 1.06f);
+            if (Clip("Gallop") && !skipped.Contains("Gallop")) move.AddChild(Clip("Gallop"), 2.27f);
+            var moveState = sm.AddState("Move");
+            moveState.motion = move;
+            moveState.speedParameter = "MoveRate";   // 걷기보다 느릴 때 재생 속도를 줄여 발이 미끄러지지 않게
+            moveState.speedParameterActive = true;
             foreach (var c in allClips)
             {
                 if (skipped.Contains(c.name)) continue;
                 var st = sm.AddState(c.name);
                 st.motion = c;
+                if (c.name == "Idle") sm.defaultState = st;
             }
         }
 
