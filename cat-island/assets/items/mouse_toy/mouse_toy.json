@@ -9,13 +9,17 @@
    0
   ]
  },
- "rawTris": 23428,
- "rawCheck": {
-  "open": 0,
-  "nonManifold": 0,
-  "volume": 0.00033142257340949995,
-  "minY": 7.804937013133895e-06
+ "variants": [
+  "mouse_toy_color.jpg",
+  "mouse_toy_color_v1.jpg",
+  "mouse_toy_color_v2.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 11,
+  "detail": 14,
+  "proxy": 0
  },
- "game_tris": 1600,
+ "game_tris": 3000,
  "texture": 512
 }

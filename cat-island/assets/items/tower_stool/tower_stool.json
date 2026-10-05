@@ -1,0 +1,38 @@
+{
+ "id": "tower_stool",
+ "ko": "캣타워 1단 스툴형",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "step": 0.4,
+  "top": [
+   0,
+   0.41000000000000003,
+   0
+  ],
+  "decks": [
+   {
+    "y": 0.4,
+    "x": 0,
+    "z": 0,
+    "size": [
+     1,
+     1
+    ],
+    "round": true
+   }
+  ]
+ },
+ "variants": [
+  "tower_stool_color.jpg",
+  "tower_stool_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 9,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 9000,
+ "texture": 2048,
+ "gameUse": "not yet: needs the 0.4 m JumpUp and a jump down (step B)"
+}

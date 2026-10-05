@@ -234,9 +234,9 @@ function makeKit(v) {
   const K = kitM(v);
   const post = (g, x, z, y0, y1, r = .05, mat = K.sisal) => { cyl(g, mat, r, r, y1 - y0 - .04, x, (y0 + y1) / 2, z); cyl(g, K.woodA, r + .012, r + .012, .025, x, y0 + .0125, z); cyl(g, K.woodA, r + .012, r + .012, .025, x, y1 - .0125, z); };
   const deck = (g, x, y, z, w, l, carpetM = K.blue, bed = false, round = false) => {
-    if (round) { cyl(g, K.woodB, w / 2, w / 2, .04, x, y - .02, z, 48); cyl(g, carpetM, w / 2 - .03, w / 2 - .03, .008, x, y + .002, z, 48);
+    if (round) { cyl(g, K.woodB, w / 2, w / 2, .04, x, y - .026, z, 48); cyl(g, carpetM, w / 2 - .03, w / 2 - .03, .008, x, y - .004, z, 48);
       if (bed) { const t = torus(g, carpetM, w / 2 - .035, .035, 16, 64); t.rotation.x = Math.PI / 2; t.position.set(x, y + .03, z); } return; }
-    box(g, K.woodB, w, .04, l, x, y - .02, z); box(g, carpetM, w - .06, .008, l - .06, x, y + .002, z, .004);
+    box(g, K.woodB, w, .04, l, x, y - .026, z); box(g, carpetM, w - .06, .008, l - .06, x, y - .004, z, .004);   // (carpet top = the deck height y)
     if (bed) for (const [ww, ll, dx, dz] of [[w, .06, 0, -l / 2 + .03], [w, .06, 0, l / 2 - .03], [.06, l - .12, -w / 2 + .03, 0], [.06, l - .12, w / 2 - .03, 0]]) box(g, carpetM, ww, .06, ll, x + dx, y + .03, z + dz, .028);
   };
   const base = (g, w, l, x = 0, z = 0) => box(g, K.woodA, w, .03, l, x, .015, z);
@@ -257,7 +257,18 @@ function makeKit(v) {
   };
   const leafPad = (g, x, y, z, r, rot, mat) => {
     const lg = new THREE.Group(); lg.position.set(x, y, z); lg.rotation.y = rot; g.add(lg);
-    for (const [dx, dz, rr] of [[0, 0, r], [r * .55, -r * .2, r * .62], [-r * .55, -r * .2, r * .62], [0, r * .6, r * .55]]) cyl(lg, mat, rr, rr, .05, dx, -.025, dz, 40);
+    // the lobes as ONE solid (overlapping coplanar discs would z-fight and bake dark): a union of rounded discs
+    const lobes = [[0, 0, r], [r * .55, -r * .2, r * .62], [-r * .55, -r * .2, r * .62], [0, r * .6, r * .55]];
+    const f = (X, Y, Z) => { let d = 1e9; for (const [dx, dz, rr] of lobes) { const ex = Math.hypot(X - dx, Z - dz) - rr + .01, ey = Math.abs(Y + .025) - .025 + .01; d = Math.min(d, Math.min(Math.max(ex, ey), 0) + Math.hypot(Math.max(ex, 0), Math.max(ey, 0)) - .01); } return d; };
+    // outline of the union (star-shaped round its centre): the farthest inside point along each direction; extruded with a soft bevel
+    const sh = new THREE.Shape();
+    for (let k = 0; k < 120; k++) { const a = k / 120 * Math.PI * 2, cx = Math.cos(a), cz = Math.sin(a); let lo = 0, hi = 2 * r;
+      for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (f(cx * m, -.025, cz * m) < -.008) lo = m; else hi = m; }   // (inset by the bevel)
+      k ? sh.lineTo(cx * lo, -cz * lo) : sh.moveTo(cx * lo, -cz * lo); }
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: .034, bevelEnabled: true, bevelThickness: .008, bevelSize: .008, bevelSegments: 3, curveSegments: 1 });
+    geo.rotateX(-Math.PI / 2); geo.translate(0, -.042, 0);
+    { const uv = geo.attributes.uv, pp = geo.attributes.position; for (let i = 0; i < pp.count; i++) uv.setXY(i, pp.getX(i) * 2, pp.getZ(i) * 2 + pp.getY(i) * 2); }
+    part(lg, geo, mat, 'both', 'LeafPad', (X, Y, Z) => f(X, Y, Z));
     box(lg, K.leaf2, .02, .006, r * 1.6, 0, .002, r * .1, .003);
   };
   // a tunnel: a thick-walled tube lying along x (closed: a lathe of its wall section)
@@ -271,9 +282,12 @@ function makeKit(v) {
 function tower1(v) {
   const g = new THREE.Group(), DW = .72, DL = 1.0, DT = .04, Y = .2, K = kitM(v);
   box(g, K.woodA, DW + .08, .03, DL + .08, 0, .015, 0);
-  box(g, K.woodB, DW, DT, DL, 0, Y - DT / 2, 0);
-  box(g, K.blue, DW - .08, .008, DL - .08, 0, Y + .002, 0, .004);
-  for (const [w, l, x, z] of [[DW, .045, 0, -DL / 2 + .0225], [DW, .045, 0, DL / 2 - .0225], [.045, DL - .09, -DW / 2 + .0225, 0], [.045, DL - .09, DW / 2 - .0225, 0]]) box(g, K.butter, w, .032, l, x, Y + .016, z, .014);
+  // (the carpet's top is the deck a cat lands on: exactly DECK_STEP; the board sits under it)
+  box(g, K.woodB, DW, DT, DL, 0, Y - DT / 2 - .006, 0);
+  box(g, K.blue, DW - .08, .008, DL - .08, 0, Y - .004, 0, .004);
+  // the rim: set 6 mm in from the board's edge, 2.8 cm high, well rounded: a cat's hind paws pass over it jumping down (qa_items)
+  const ri = .006, rw = .045, rh = .028;
+  for (const [w, l, x, z] of [[DW - 2 * ri, rw, 0, -DL / 2 + ri + rw / 2], [DW - 2 * ri, rw, 0, DL / 2 - ri - rw / 2], [rw, DL - 2 * ri - 2 * rw, -DW / 2 + ri + rw / 2, 0], [rw, DL - 2 * ri - 2 * rw, DW / 2 - ri - rw / 2, 0]]) box(g, K.butter, w, rh, l, x, Y + rh / 2, z, .016);
   for (const [px, pz] of [[-DW / 2 + .05, -DL / 2 + .05], [DW / 2 - .05, -DL / 2 + .05], [-DW / 2 + .05, DL / 2 - .05], [DW / 2 - .05, DL / 2 - .05]]) {
     const h = Y - DT - .03;
     cyl(g, K.sisal, .042, .042, h - .03, px, .03 + h / 2, pz);

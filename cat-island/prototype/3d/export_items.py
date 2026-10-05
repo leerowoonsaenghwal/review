@@ -56,7 +56,7 @@ def finish(i):
     r = subprocess.run([sys.executable, os.path.join(HERE, 'blender_kit.py'), d, i] + [os.path.join(raw, f'{i}_v{v}.glb') for v in range(n)] +
                        ['--tris', str(tris), '--tex', str(tex), '--ext', str(ext)], capture_output=True, text=True)
     lines = [l for l in r.stdout.splitlines() if l.startswith(i + ' ') or l.startswith('done')]
-    if r.returncode: lines.append('ERROR ' + r.stderr[-800:])
+    if not any(l.startswith('done') for l in lines): lines.append('ERROR ' + r.stderr[-800:])   # (bpy can exit non-zero after a clean finish)
     info = infos[i]
     meta = {'id': i, 'ko': info['ko'], 'units': 'metres, Y up, +Z front', 'anchors': anchors.get(i) or info.get('anchors'),
             'variants': [f'{i}_color.jpg'] + [f'{i}_color_v{v}.jpg' for v in range(1, n)], 'gloss': info.get('gloss', 0),

@@ -6,13 +6,20 @@
   "top": 0.1344,
   "r": 0.38400000000000006
  },
- "rawTris": 168856,
- "rawCheck": {
-  "open": 0,
-  "nonManifold": 0,
-  "volume": 0.10600707233339793,
-  "minY": 2.399553522991482e-06
+ "variants": [
+  "cushion_color.jpg",
+  "cushion_color_v1.jpg",
+  "cushion_color_v2.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 9,
+  "detail": 66,
+  "proxy": 0
  },
- "game_tris": 3000,
- "texture": 1024
+ "game_tris": 12000,
+ "texture": 1024,
+ "blendShapes": {
+  "Press": "the dent of a loafing cat (itemkit.js CUSHION_PRESS), weight 0..100"
+ }
 }

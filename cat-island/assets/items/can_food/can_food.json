@@ -8,13 +8,16 @@
    "r": 0.0512
   }
  },
- "rawTris": 11936,
- "rawCheck": {
-  "open": 0,
-  "nonManifold": 0,
-  "volume": 0.000943921122333681,
-  "minY": 0
+ "variants": [
+  "can_food_color.jpg",
+  "can_food_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 6,
+  "detail": 0,
+  "proxy": 0
  },
- "game_tris": 1500,
+ "game_tris": 3000,
  "texture": 512
 }

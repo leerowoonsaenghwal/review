@@ -10,13 +10,25 @@
   ],
   "r": 0.05600000000000001
  },
- "rawTris": 15048,
- "rawCheck": {
-  "open": 0,
-  "nonManifold": 0,
-  "volume": 0.0007349441983761559,
-  "minY": 1.684314338490367e-05
+ "variants": [
+  "ball_color.jpg",
+  "ball_color_v1.jpg",
+  "ball_color_v2.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 8,
+  "detail": 0,
+  "proxy": 0
  },
- "game_tris": 1200,
- "texture": 512
+ "game_tris": 3000,
+ "texture": 512,
+ "roll": {
+  "pivot": [
+   0,
+   0.056,
+   0
+  ],
+  "r": 0.056
+ }
 }

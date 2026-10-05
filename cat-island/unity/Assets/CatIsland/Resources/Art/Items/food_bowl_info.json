@@ -10,13 +10,17 @@
   "rimTop": 0.038,
   "footprint": 0.16
  },
- "rawTris": 76496,
- "rawCheck": {
-  "open": 0,
-  "nonManifold": 0,
-  "volume": 0.0019870066355169845,
-  "minY": 0
+ "variants": [
+  "food_bowl_color.jpg",
+  "food_bowl_color_v1.jpg",
+  "food_bowl_color_v2.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 1,
+  "detail": 901,
+  "proxy": 1
  },
- "game_tris": 3000,
+ "game_tris": 6000,
  "texture": 1024
 }
