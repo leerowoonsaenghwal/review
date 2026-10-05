@@ -152,6 +152,12 @@ namespace CatIsland.EditorTools
 
         static void SetupScene()
         {
+            // 이미 있으면 그대로 둔다 (다시 만들면 파일 ID 가 바뀌어 git 변경이 생긴다)
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) != null)
+            {
+                EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
+                return;
+            }
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             var go = new GameObject("Bootstrap");
             go.AddComponent<GameBootstrap>();

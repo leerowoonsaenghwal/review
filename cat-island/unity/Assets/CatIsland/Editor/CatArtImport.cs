@@ -172,28 +172,16 @@ namespace CatIsland.EditorTools
             var allClips = AssetDatabase.LoadAllAssetsAtPath(fbx).OfType<AnimationClip>().Where(c => !c.name.StartsWith("__preview")).ToList();
             var skipped = new HashSet<string>((json.skippedClips ?? new SkipInfo[0]).Select(s => s.clip));
             string ctrlPath = $"{Art}/Animation/{id}.controller";
-            AssetDatabase.DeleteAsset(ctrlPath);
-            var ctrl = AnimatorController.CreateAnimatorControllerAtPath(ctrlPath);
-            ctrl.AddParameter("Speed", AnimatorControllerParameterType.Float);
-            var sm = ctrl.layers[0].stateMachine;
-            AnimationClip Clip(string n) => allClips.FirstOrDefault(c => c.name == n);
-
-            var loco = new BlendTree { name = "Locomotion", blendParameter = "Speed", blendType = BlendTreeType.Simple1D, useAutomaticThresholds = false, hideFlags = HideFlags.HideInHierarchy };
-            AssetDatabase.AddObjectToAsset(loco, ctrl);
-            loco.AddChild(Clip("Idle"), 0f);
-            loco.AddChild(Clip("Walk"), 0.4f);
-            loco.AddChild(Clip("Trot"), 1.06f);
-            if (Clip("Gallop") && !skipped.Contains("Gallop")) loco.AddChild(Clip("Gallop"), 2.27f);
-            var locoState = sm.AddState("Locomotion");
-            locoState.motion = loco;
-            sm.defaultState = locoState;
-            foreach (var c in allClips)
-            {
-                if (skipped.Contains(c.name)) continue;
-                var st = sm.AddState(c.name);
-                st.motion = c;
-            }
+            // 동작 구성이 같으면 Animator 를 다시 만들지 않는다 (git 에 의미 없는 변경이 쌓이지 않게)
+            string signature = string.Join(",", allClips.Where(c => !skipped.Contains(c.name)).Select(c => c.name).OrderBy(n => n)) + "|v1";
+            string sigPath = $"{Art}/Animation/{id}.controller.sig";
+            var existing = AssetDatabase.LoadAssetAtPath<AnimatorController>(ctrlPath);
+            bool rebuild = existing == null || !File.Exists(sigPath) || File.ReadAllText(sigPath) != signature;
+            if (rebuild) { AssetDatabase.DeleteAsset(ctrlPath); File.WriteAllText(sigPath, signature); }
+            var ctrl = rebuild ? AnimatorController.CreateAnimatorControllerAtPath(ctrlPath) : existing;
+            if (rebuild) BuildController(ctrl, allClips, skipped);
             EditorUtility.SetDirty(ctrl);
+            AnimationClip Clip(string n) => allClips.FirstOrDefault(c => c.name == n);
 
             // 5. 점프 이동 곡선 (게임 코드가 오르기·내리기에 같이 쓴다)
             var info = new CatArtInfo
@@ -275,6 +263,29 @@ namespace CatIsland.EditorTools
                 rc.up[i] = cz.Evaluate(t);
             }
             return rc;
+        }
+
+        static void BuildController(AnimatorController ctrl, List<AnimationClip> allClips, HashSet<string> skipped)
+        {
+            AnimationClip Clip(string n) => allClips.FirstOrDefault(c => c.name == n);
+            ctrl.AddParameter("Speed", AnimatorControllerParameterType.Float);
+            var sm = ctrl.layers[0].stateMachine;
+
+            var loco = new BlendTree { name = "Locomotion", blendParameter = "Speed", blendType = BlendTreeType.Simple1D, useAutomaticThresholds = false, hideFlags = HideFlags.HideInHierarchy };
+            AssetDatabase.AddObjectToAsset(loco, ctrl);
+            loco.AddChild(Clip("Idle"), 0f);
+            loco.AddChild(Clip("Walk"), 0.4f);
+            loco.AddChild(Clip("Trot"), 1.06f);
+            if (Clip("Gallop") && !skipped.Contains("Gallop")) loco.AddChild(Clip("Gallop"), 2.27f);
+            var locoState = sm.AddState("Locomotion");
+            locoState.motion = loco;
+            sm.defaultState = locoState;
+            foreach (var c in allClips)
+            {
+                if (skipped.Contains(c.name)) continue;
+                var st = sm.AddState(c.name);
+                st.motion = c;
+            }
         }
 
         static List<string> SourceMaterialNames(ModelImporter imp, string fbx)
