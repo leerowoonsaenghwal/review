@@ -1,0 +1,5 @@
+{
+  "_comment": "Unity로 가져올 고양이 품종과 용품. 원본: cat-island/assets/. 바꾸면 python3 tools/sync_art.py",
+  "cats": ["korean_shorthair"],
+  "items": ["food_bowl", "cushion", "cat_tower_1"]
+}

@@ -20,6 +20,7 @@
 | `docs/GAME_MODEL.md` | 고양이 모델·뼈대·동작 21종, Unity에서 쓰는 법 |
 | `docs/ITEMS.md` | 용품 13종, 고양이와 함께 놓는 법, 그림자 설정 |
 | `docs/ENGINE.md` | 엔진: Unity 6 + URP |
+| `docs/UNITY.md` | Unity 프로젝트(`unity/`): 고양이·용품 가져오기, 동작 연결, 점검·빌드 명령 |
 
 ## 핵심 원칙 (기획서 요약)
 - 동물의 숲 같은 그림체, 방치형. 벌주지 않는다 / 고양이가 주인공 / 매일 조금씩 다르다.
@@ -35,6 +36,7 @@
 - `prototype/3d/`: 제작 도구 (three.js). 고양이 모델(`catmodel.js`), 동작(`catmotion.js`), 접촉 계산(`catcontact.js`), 용품(`items.js`), 사진→고양이(`photo2cat.js`), 점검(`qa.mjs`, `qa_items.mjs`), 내보내기(`export_cats.py`, `blender_finish.py`, `export_items.py`)
 - `assets/cats/`: 품종별 게임 파일 (`.glb`, `.fbx`, `.clips.json`)
 - `assets/items/`: 용품 게임 파일
+- `unity/`: Unity 6.3 LTS 게임 프로젝트. `tools/sync_art.py`로 `assets/`를 가져오고, `tools/run_tests.sh`, `tools/build_ios.sh`로 점검·빌드
 - `docs/`: 기획·설명 문서
 
 ## 자주 쓰는 명령
