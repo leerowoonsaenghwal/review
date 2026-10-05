@@ -58,6 +58,21 @@
    "drink": null
   },
   {
+   "name": "JumpDown",
+   "dur": 1.933,
+   "loop": false,
+   "rootMotion": true,
+   "speed": null,
+   "stride": null,
+   "jump": {
+    "D": 0.611,
+    "H": -0.2,
+    "edge": 0.346,
+    "turnIn": 0.05
+   },
+   "drink": null
+  },
+  {
    "name": "SitDown",
    "dur": 0.9,
    "loop": false,
@@ -130,6 +145,16 @@
   {
    "name": "GroomFace",
    "dur": 6.6,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "ScratchEar",
+   "dur": 3,
    "loop": true,
    "rootMotion": false,
    "speed": null,
@@ -226,18 +251,19 @@
    "from": "Sit"
   },
   {
+   "clip": "ScratchEar",
+   "region": "neck behind the jaw (hind-foot scratch)",
+   "share": 0,
+   "from": "Sit"
+  },
+  {
    "clip": "NibbleClaws",
    "region": "front claws",
    "share": 0,
    "from": "Sit"
   }
  ],
- "skippedClips": [
-  {
-   "clip": "ScratchEar",
-   "reason": "contact out of reach for this body (7 mm short)"
-  }
- ],
+ "skippedClips": [],
  "itemSpots": {
   "mouse_toy": {
    "x": 0.066,

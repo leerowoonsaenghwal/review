@@ -61,7 +61,7 @@ if (clipName === 'Drink') {
 }
 const view = q.get('view') || 'side';
 const cam = new THREE.PerspectiveCamera(26, W / H, .01, 30);
-const camDir = new THREE.Vector3(...({ side: [1, .14, .06], '34': [.85, .32, .7], low: [.75, .12, .65], mouth: [.95, .02, .3], front: [.2, .2, 1], back: [-.5, .3, -1] }[view])).normalize();
+const camDir = new THREE.Vector3(...({ side: [1, .14, .06], '34': [.85, .32, .7], low: [.75, .12, .65], mouth: [.95, .02, .3], front: [.2, .2, 1], back: [-.5, .3, -1], left: [-1, .14, .06], '34l': [-.85, .32, .7] }[view])).normalize();
 const dist = +(q.get('dist') || 2.3);
 const smooth = new THREE.Vector3(); let first = true;
 // looping root-motion clips: carry the distance travelled into the next loop (what Unity's Apply Root Motion does)

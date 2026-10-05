@@ -62,6 +62,8 @@ namespace CatIsland
             public string id; public string[] clips; public string[] loops; public RootCurve jump; public float headRadius;
             public float bowlX, bowlZ = 0.54f, cushionZ, cushionLift = 0.134f;
             public Vector3 flopBelly = Vector3.down;
+            public float jumpD = 0.8f, jumpH = 0.2f, deckBack = 0.5f, turnIn;
+            public RootCurve jumpDown;
         }
 
         void Awake() { Build(); }
@@ -389,7 +391,7 @@ namespace CatIsland
             Vector3 r = transform.InverseTransformPoint(rootBone.position);
             r.x = rootBindLocal.x;
             r.z = rootBindLocal.z;
-            if (ActionClip == "JumpUp") r.y = rootBindLocal.y;
+            if (ActionClip == "JumpUp" || ActionClip == "JumpDown") r.y = rootBindLocal.y;
             rootBone.position = transform.TransformPoint(r);
         }
 
