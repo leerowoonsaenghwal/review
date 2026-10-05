@@ -14,7 +14,7 @@
 //   peel off last; in swing the front paw folds back at the wrist, then reaches forward before landing.
 import * as THREE from 'three';
 import { makeContact, LIMBS } from './catcontact.js';
-import { BOWL_SURF, TOY_TOP } from './items.js';
+import { BOWL_SURF, TOY_TOP, itemField } from './items.js';
 
 export const FPS = 30;
 const TAU = Math.PI * 2, G = 9.81;
@@ -599,10 +599,13 @@ export function makeClips(rig, opts = {}) {
   // last pass on every clip, at every frame: nothing below the floor. (The settle passes run at a dozen or so
   // points per clip; between them a rolling paw or a turning body can dip a few mm under.) A planted leg's paw
   // is raised; a body, head or leg posed by joint angles raises the hips. Worked out on first use.
-  const floorFix = (pose, dur, floorAt = () => 0) => {
+  const floorFix = (pose, dur, floorAt = () => 0, dense = false) => {
     let lift = null;
     const build = () => {
       const C = contactOf(S), n = Math.max(2, Math.ceil(dur * FPS)), raw = [];
+      // (dense: every vertex of the trunk and upper legs - landing crouched on a deck, an elbow is sharp enough to
+      //  slip between every-other ones)
+      const TR = dense ? (C.sets.trunkAll ||= C.points(p => p === 'torso' || p.endsWith('u'), 'body', 1)) : C.sets.trunk;
       for (let i = 0; i <= n; i++) {
         const P = pose(dur * i / n), e = {}, fl = floorAt(P);
         applyPose(S, P); C.update();
@@ -611,16 +614,17 @@ export function makeClips(rig, opts = {}) {
           // (a planted paw raised alone would fold its leg up into the body: the hips go up with it)
           if (low < -.0015) { const k = P[L + 'fk'] > .5 ? 'hipY' : L + 'y'; e[k] = Math.max(e[k] || 0, -.0005 - low); e.hipY = Math.max(e.hipY || 0, -.0005 - low); }
         }
-        const low = Math.min(C.lowest(C.sets.trunk), C.lowest(C.sets.head)) - fl;
+        const low = Math.min(C.lowest(TR), C.lowest(C.sets.head)) - fl;
         if (low < -.0015) e.hipY = Math.max(e.hipY || 0, -.0005 - low);
         // checked again with the lifts on: a leg already stretched to its full length cannot lift its paw by its
         // target alone (lying on the side), so whatever is still under the floor raises the whole body
-        if (Object.keys(e).length) {
+        // (dense: again until clear - a planted leg's elbow rises only part of the way with the hips)
+        for (let pass = 0; pass < (dense ? 6 : 1) && Object.keys(e).length; pass++) {
           const Q = { ...P }; for (const k in e) Q[k] += e[k];
           applyPose(S, Q); C.update();
-          let lo2 = Math.min(C.lowest(C.sets.trunk), C.lowest(C.sets.head));
+          let lo2 = Math.min(C.lowest(TR), C.lowest(C.sets.head));
           for (const L of LIMBS) lo2 = Math.min(lo2, C.lowest(C.sets[L]), C.lowest(C.sets[L + 'b']));
-          if (lo2 - fl < -.0015) e.hipY = (e.hipY || 0) + (-.0005 - (lo2 - fl));
+          if (lo2 - fl < -.0015) e.hipY = (e.hipY || 0) + (-.0005 - (lo2 - fl)) * (dense ? 1.6 : 1); else break;
         }
         raw.push(e);
       }
@@ -680,15 +684,36 @@ export function makeClips(rig, opts = {}) {
       return P;
     };
   };
+  // drinking, last of all, on the finished pose: the tongue is lengthened (or shortened) once for every lap so
+  // that at the bottom of a lap its lowest point is just under the surface (BOWL_SURF), whatever the settle and
+  // floor passes changed since the crouch and tongue were solved. Worked out on first use.
+  const drinkFix = (pose, dur, dk) => {
+    let k = null;
+    const build = () => {
+      const C = contactOf(S), T = C.sets.tongue ||= C.points(p => p === 'tongue', 'face', 2), want = BOWL_SURF - .0015;
+      const lowAt = kk => { let y = Infinity; for (let lap = 0; lap < 2; lap++) for (const u of [.3, .33, .36, .4, .44, .48]) { const P = pose((lap + u) / dk.rate); P.tongueStretch = (P.tongueStretch || 0) + kk * P.tongue; applyPose(S, P); C.update(); y = Math.min(y, C.lowest(T)); } return y; };
+      let lo = -.3, hi = 1.5;
+      if (lowAt(lo) <= want) hi = lo;
+      else for (let it = 0; it < 12; it++) { const m = (lo + hi) / 2; if (lowAt(m) > want) lo = m; else hi = m; }
+      k = hi; dk.tongue = +(dk.tongue + k).toFixed(3);
+    };
+    return t => {
+      if (k === null) build();
+      const P = pose(t);
+      if (t < dk.laps / dk.rate) P.tongueStretch = (P.tongueStretch || 0) + k * P.tongue;
+      return P;
+    };
+  };
   // looping clips are stretched to a whole number of frames so the last frame meets the first exactly
   let tAdd = performance.now();
   const add = (name, dur, loop, pose, extra = {}) => {
     if (globalThis.__timing) { const n = performance.now(); console.log('  ' + name, Math.round(n - tAdd) + 'ms'); tAdd = n; }
     const frames = Math.max(2, Math.round(dur * FPS)), d2 = frames / FPS, f = dur / d2;
     // (after a jump has carried the root onto the deck, the deck top is the floor)
-    let fn = floorFix(f === 1 ? pose : t => pose(t * f), d2, extra.jump ? P => (P.rootZ >= .8 * extra.jump.D ? extra.jump.H : 0) : undefined);
+    let fn = floorFix(f === 1 ? pose : t => pose(t * f), d2, extra.jump ? P => (P.rootZ >= .8 * extra.jump.D ? extra.jump.H : 0) : undefined, !!extra.jump);
     const tc = (extra.contacts || []).find(c => c.a === 'tongue');
     if (tc) fn = tongueFix(fn, d2, tc.b);
+    if (extra.drink) fn = drinkFix(fn, d2, extra.drink);
     const clip = { name, dur: d2, loop, pose: fn, ...extra };
     if (clip.speed) { clip.speed /= f; clip.cycle = clip.cycle / f; }
     clips.push(clip);
@@ -1094,7 +1119,7 @@ export function makeClips(rig, opts = {}) {
     add('FlopIdle', 4, true, t => over(FLOP, { breath: 1.2 * Math.sin(TAU * t / 2.4), tailTip: .3 * Math.sin(TAU * t / 2 - 1), tailWave: .1, tailWph: t / 2, blink: .55 + .45 * blinkAt(t, [2.6]) }));
   }
   // paw batting: lift, tap down, return (Turkish Van at the water bowl)
-  let tapLow = .5;
+  let tapLow = .5, tapFwd = 1, toyClear = null, chinLift = 0;
   // how far forward the front paw must go to come up in front of the head (not under the chin)
   const pawHeadClear = (() => { const C = contactOf(S); applyPose(S, P0); C.update({ face: false }); let z = -Infinity; const p = C.M.body.pos; for (const i of C.sets.head.ids) z = Math.max(z, p[3 * i + 2]); return z + rig.d.pawR - rig.restFoot.FL.z; })();
   const pawBat = t => {
@@ -1109,26 +1134,70 @@ export function makeClips(rig, opts = {}) {
     // (the paw first reaches forward low, out in front of the chin, and only then comes up: raised straight
     //  away, a short leg's paw would rise into the big head above it)
     const up = u < .35 ? mj(seg(u, .08, .35)) : u < .5 ? 1 - (1 - tapLow) * mj((u - .35) / .15) : tapLow * (1 - mj(seg(v, .5, 1))) + .32 * mj(seg(v, 0, .3)) * (1 - mj(seg(v, .55, 1)));
-    const fwd = u < .5 ? mj(Math.min(1, u / .25)) : 1 - mj(seg(v, .3, 1));
+    // (and comes back in a little on the way down if a short leg reaching that far out cannot get down to the toy)
+    const fwd = u < .35 ? mj(Math.min(1, u / .25)) : u < .5 ? 1 - (1 - tapFwd) * mj((u - .35) / .15) : tapFwd * (1 - mj(seg(v, .3, 1)));
     // the paw reaches far enough to clear a toy lying in front of it and to come up in front of the head
     const reach = Math.max(.36 * h, .11, pawHeadClear);
-    P.FLy += up * lift; P.FLz += fwd * reach; P.FLx *= .85; P.FLt = 1.0 * up;
+    P.FLy += up * lift + (toyClear ? toyClearAt(u) : 0); P.FLz += fwd * reach; P.FLx *= .85; P.FLt = 1.0 * up;
     // (the wrist curls the toes down for the tap only; drawn back over the toy the paw is held level, toes up)
     P.FLa = u < .5 ? lerp(.3, -1.5, up) : lerp(lerp(.3, -1.5, tapLow), .1, mj(seg(v, .2, .45))) * (1 - mj(seg(v, .7, 1))) + .3 * mj(seg(v, .7, 1));
     P.scapL = -.35 * Math.min(1, up); P.scapLy = .012 * Math.min(1, up) * h; P.hipZ = -.025 * h * up; P.hipPitch = .06 * up; P.hipRoll = -.05 * up;
     // (eyes on the toy, but the head is held up while the paw is up - bent down it would come onto the paw)
-    P.hdPitch = .25 * fwd - .2 * Math.min(1, up) - .25 * Math.sin(Math.PI * v); P.nkPitch = -.1 * Math.min(1, up); P.hdYaw = .1 * fwd;
+    // (and only bowed towards the toy once the paw is up and out in front: bowed while a short leg's paw is still
+    //  coming up past the chin, it would come down onto it)
+    // (on the way back the head comes up as the paw lifts off the toy, so the paw drawn back passes under the chin;
+    //  chinLift: on the way up the chin is lifted out of the way of the rising paw - used only for a body whose
+    //  PawBat fails its check without it, see below)
+    const look = u < .5 ? mj(seg(u, .3, .45)) : 1 - mj(seg(v, 0, .3));
+    P.hdPitch = .25 * look - .2 * Math.min(1, up) - .25 * Math.sin(Math.PI * v); P.nkPitch = -.1 * Math.min(1, up) - .12 * Math.sin(Math.PI * v) - chinLift * (u < .5 ? Math.sin(Math.PI * seg(u, .05, .45)) : 0); P.hdYaw = .1 * fwd;
     P.tailBase = -.2; P.tailWave = .2; P.tailWph = u * 2; P.earLp = P.earRp = .12;
     return P;
   };
   {
-    // the lowest point of the paw (curled toes, beans) at the bottom of the tap stops on the toy top
+    // the lowest point of the paw (curled toes, beans) at the bottom of the tap presses 2 mm into the (soft) toy's top
     const C = contactOf(S), at = k => { tapLow = k; let y = Infinity; for (let t = .56; t <= .705; t += .02) { applyPose(S, pawBat(t)); C.update(); y = Math.min(y, C.lowest(C.sets.FL), C.lowest(C.sets.FLb)); } return y; };   // (over the whole way down: the curled toes swing lowest just before the stop)
+    // (reaching right out, the leg may be at full stretch above the toy: then the paw comes in until it can reach)
+    if (at(.05) > TOY_TOP) {
+      let a = .2, b = 1;
+      for (let it = 0; it < 10; it++) { tapFwd = (a + b) / 2; if (at(.05) <= TOY_TOP - .002) a = tapFwd; else b = tapFwd; }
+      tapFwd = a;
+    }
     let lo = .05, hi = 1;
-    for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (at(m) < TOY_TOP + .001) lo = m; else hi = m; }
+    for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (at(m) < TOY_TOP - .002) lo = m; else hi = m; }
     tapLow = hi;
   }
-  add('PawBat', 1.4, true, withSettle(S, pawBat, 1.4, { fkAt: t => t / 1.4 > .4 && t / 1.4 < .56 ? ['FL'] : [] }, 14));   // (the paw is left where it was aimed for the tap - the toy is placed under it - and settled out of the head on the way up and back)
+  // the toy (the game puts it where clip.toy says): under the lowest point of the paw at the bottom of the tap,
+  // turned side-on with its nose out to the paw's side, so its tail lies across in front of the cat and not
+  // under its paws. On the way out and back the paw is carried over it: wherever the paw would pass into the
+  // toy (reaching out low, or set down while still over it), it is raised until it clears it by 4 mm
+  const TOY_YAW = Math.PI / 2, toyF = itemField('mouse_toy'), toy = { yaw: TOY_YAW };
+  {
+    const C = contactOf(S), FLf = C.sets.FLf ||= C.points(p => p === 'FL', 'face', 1), FLd = C.sets.FLd ||= C.points(p => p === 'FL', 'body', 1);
+    // (under the lowest point of the whole paw - fur of the curled toes or beans - over the way down, where the
+    //  tap was solved to stop on the toy's top)
+    { let y = Infinity; for (let t = .56; t <= .705; t += .01) { applyPose(S, pawBat(t)); C.update(); for (const set of [C.sets.FL, C.sets.FLb, FLd, FLf]) { const p = C.M[set.mesh].pos; for (const i of set.ids) if (p[3 * i + 1] < y) { y = p[3 * i + 1]; toy.x = p[3 * i]; toy.z = p[3 * i + 2]; } } } }
+    const cy = Math.cos(TOY_YAW), sy = Math.sin(TOY_YAW);
+    const toyD = (x, y, z) => { x -= toy.x; z -= toy.z; return toyF.d(cy * x - sy * z, y, sy * x + cy * z); };
+    const gap = () => { let d = Infinity; for (const set of [FLd, FLf]) { const p = C.M[set.mesh].pos; for (const i of set.ids) d = Math.min(d, toyD(p[3 * i], p[3 * i + 1], p[3 * i + 2])); } return d; };
+    const N = 56, raw = [];
+    for (let k = 0; k <= N; k++) {
+      const u = k / N;
+      // (the tap itself, from the paw coming down onto the toy to its lifting off again, touches it on purpose)
+      if (u > .4 && u < .62) { raw.push(0); continue; }
+      const P = pawBat(u * 1.4), at = dy => { applyPose(S, { ...P, FLy: P.FLy + dy }); C.update(); return gap(); };
+      if (at(0) >= .004) { raw.push(0); continue; }
+      let lo = 0, hi = .02; while (at(hi) < .004 && hi < .2) hi *= 2;
+      for (let it = 0; it < 10; it++) { const m = (lo + hi) / 2; if (at(m) < .004) lo = m; else hi = m; }
+      raw.push(hi);
+    }
+    // (held over the neighbouring samples and eased, so the paw rises before it reaches the toy, not on it)
+    const held = raw.map((_, k) => Math.max(...raw.slice(Math.max(0, k - 3), k + 4)));
+    // (never into the tap itself: there the paw comes down onto the toy as solved)
+    toyClear = held.map((_, k) => { const u = k / N; if (u > .4 && u < .62) return 0; let s = 0, w = 0; for (let j = -2; j <= 2; j++) { const q = held[k + j]; if (q === undefined) continue; const ww = 3 - Math.abs(j); s += ww * Math.max(q, held[k]); w += ww; } return s / w; });
+  }
+  function toyClearAt(u) { const f = clamp(u, 0, 1) * (toyClear.length - 1), i = Math.min(toyClear.length - 2, Math.floor(f)); return lerp(toyClear[i], toyClear[i + 1], f - i); }
+  const addPawBat = () => add('PawBat', 1.4, true, withSettle(S, pawBat, 1.4, { fkAt: t => t / 1.4 > .4 && t / 1.4 < .56 ? ['FL'] : [] }, 14), { toy: { id: 'mouse_toy', x: +toy.x.toFixed(4), z: +toy.z.toFixed(4), yaw: +TOY_YAW.toFixed(4) } });   // (the paw is left where it was aimed for the tap - the toy is placed under it - and settled out of the head on the way up and back)
+  addPawBat();
   clips.groomReport = report;
   // a grooming clip whose contact this breed's body cannot make (legs too short to reach, ...) is not shipped:
   // it is left out of the clip set and listed with the reason, so the game simply never plays it for that cat
@@ -1141,8 +1210,7 @@ export function makeClips(rig, opts = {}) {
   if (!opts.noVerify) {
     const C = contactOf(S), fur = rig.model.userData.shape?.fur, longFur = fur === 'long' || fur === 'curly';
     const T = C.sets.tongue ||= C.points(p => p === 'tongue', 'face', 2);
-    for (const c of clips) {
-      if (!(GROOM_ROUTINE.some(g => g.clip === c.name) || CHECKED_CLIPS[c.name]) || reachErr[c.name] > GROOM_REACH_LIMIT) continue;
+    const verify = c => {
       const n = Math.round(c.dur * FPS), runs = (c.contacts || []).map(() => []);
       let bad = null;
       for (let f = 0; f <= n && !bad; f++) {
@@ -1165,7 +1233,19 @@ export function makeClips(rig, opts = {}) {
         });
       }
       if (!bad) (c.contacts || []).forEach((k, i) => { for (const r of runs[i]) if (!bad && (r.best > .003 || r.deep < -.007)) bad = `${k.a} on ${k.b.join('/')} ${r.best > .003 ? `misses by ${(r.best * 1000).toFixed(0)} mm` : `presses in ${(-r.deep * 1000).toFixed(0)} mm`} at ${r.t.toFixed(2)} s`; });
+      return bad;
+    };
+    for (const c of clips) {
+      if (!(GROOM_ROUTINE.some(g => g.clip === c.name) || CHECKED_CLIPS[c.name]) || reachErr[c.name] > GROOM_REACH_LIMIT) continue;
+      const bad = verify(c);
       if (bad) failed[c.name] = bad;
+    }
+    // a PawBat that fails (a short leg's paw rising into a big low head) is tried once more with the chin lifted
+    // out of the way while the paw comes up
+    if (failed.PawBat) {
+      clips.splice(clips.findIndex(c => c.name === 'PawBat'), 1); chinLift = .18; addPawBat();
+      const bad = verify(clips[clips.length - 1]);
+      if (bad) failed.PawBat = bad; else delete failed.PawBat;
     }
   }
   const drop = c => reachErr[c.name] > GROOM_REACH_LIMIT || failed[c.name];

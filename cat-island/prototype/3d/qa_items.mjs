@@ -45,7 +45,7 @@ for (const id of breeds) {
         const d = F.d(x - at[0], y - at[1], z - at[2]);
         if (touchParts && touchParts.includes(part)) { gapT = Math.min(gapT, d); if (d < SOFT * 2) worst = d < worst.d ? { d, part, t } : worst; continue; }
         if (ignore.includes(part)) continue;
-        if (d < soft && d < worst.d) worst = { d, part, t };
+        if (d < soft && d < worst.d) worst = { d, part, t, p: [x - at[0], y - at[1], z - at[2]] };
       }
       if (when) {
         if (when(P, t)) { if (!open) runs.push(open = { best: Infinity, t }); open.best = Math.min(open.best, Math.max(0, gapT)); }
@@ -55,7 +55,7 @@ for (const id of breeds) {
     const misses = runs.filter(r => r.best > TOUCH);
     const bad = worst.d < soft || misses.length || (when && !runs.length);
     if (bad) failed++;
-    console.log(`  ${bad ? 'FAIL' : 'ok  '} ${name.padEnd(28)} ${worst.d < 0 ? `${worst.part} into ${itemId} ${(worst.d * 1000).toFixed(0)}mm at ${worst.t.toFixed(2)}s` : 'nothing inside'}${when ? ` · contact ${runs.length - misses.length}/${runs.length}${misses.length ? ` (misses up to ${(Math.max(...misses.map(r => r.best)) * 1000).toFixed(0)}mm)` : ''}` : ''}`);
+    console.log(`  ${bad ? 'FAIL' : 'ok  '} ${name.padEnd(28)} ${worst.d < 0 ? `${worst.part} into ${itemId} ${(worst.d * 1000).toFixed(0)}mm at ${worst.t.toFixed(2)}s${worst.p ? ` (item space ${worst.p.map(v => (v * 100).toFixed(1)).join(', ')} cm)` : ''}` : 'nothing inside'}${when ? ` · contact ${runs.length - misses.length}/${runs.length}${misses.length ? ` (misses up to ${(Math.max(...misses.map(r => r.best)) * 1000).toFixed(0)}mm)` : ''}` : ''}`);
   };
   // Drink: bowl where the clip says
   const dk = clip('Drink'), bw = dk.drink.bowl, lap = (P, t) => t < dk.drink.laps / dk.drink.rate && (t * dk.drink.rate % 1) > .3 && (t * dk.drink.rate % 1) < .55;   // (the tongue is down around .36-.46 of a lap: at 30 fps a lap has 1-2 frames near it)
@@ -73,10 +73,9 @@ for (const id of breeds) {
   // (the hideout goes where the body is inside and the head out of the door: the offset is searched and printed)
   scene('Loaf · hideout', 'hideout', 'Loaf', [mid.x, 0, mid.z - (ho.catAhead ?? 0)], { lift: ho.floor, soft: SOFT });
   // PawBat: the toy under the paw at the bottom of the tap
-  const pb = clip('PawBat'); solveAt(rig, pb, pb.dur * .5); C.update();
-  let px = 0, pz = 0, py = Infinity; { const M = C.M.face; for (let i = 0; i < M.n; i++) if (M.part[i] === 'FL' && M.pos[3 * i + 1] < py) { py = M.pos[3 * i + 1]; px = M.pos[3 * i]; pz = M.pos[3 * i + 2]; } }
-  // (turned side-on, nose out to the paw's side: its tail then lies across in front of the cat, not under its paws)
-  scene('PawBat · mouse_toy', 'mouse_toy', 'PawBat', [px, 0, pz], { touchParts: ['FL'], when: (P, t) => t > pb.dur * .42 && t < pb.dur * .58, soft: SOFT, yaw: Math.PI / 2 });
+  const pb = clip('PawBat'), toy = pb && pb.toy;   // (where the game puts the toy: worked out with the clip)
+  if (!pb) console.log('  (PawBat left out for this breed: no toy scene)');
+  else scene('PawBat · mouse_toy', 'mouse_toy', 'PawBat', [toy.x, 0, toy.z], { touchParts: ['FL'], when: (P, t) => t > pb.dur * .42 && t < pb.dur * .58, soft: SOFT, yaw: toy.yaw });
 }
 console.log(failed ? `\n${failed} FAIL` : '\nall ok');
 process.exit(failed ? 1 : 0);

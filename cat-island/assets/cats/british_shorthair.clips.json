@@ -154,7 +154,7 @@
      "z": 0.4972
     },
     "crouch": 1.23,
-    "tongue": 0.234
+    "tongue": 0.288
    }
   },
   {
@@ -206,7 +206,7 @@
   },
   {
    "clip": "ScratchEar",
-   "reason": "failed the contact check on this body (HL into torso 6 mm at 0.30 s)"
+   "reason": "failed the contact check on this body (HL into torso 5 mm at 0.30 s)"
   },
   {
    "clip": "NibbleClaws",
@@ -215,9 +215,9 @@
  ],
  "itemSpots": {
   "mouse_toy": {
-   "x": 0.072,
-   "z": 0.258,
-   "yaw": -1.571,
+   "x": 0.077,
+   "z": 0.309,
+   "yaw": 1.571,
    "clip": "PawBat"
   },
   "cushion": {

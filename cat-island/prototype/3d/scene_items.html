@@ -22,12 +22,13 @@ import { makeRig, makeClips, solveAt, applyPose, stand } from './catmotion.js';
 import { itemField } from './items.js';
 const q = new URLSearchParams(location.search);
 const b = BREEDS.find(x => x.id === (q.get('id') || 'korean_shorthair')), dir = q.get('items') || 'out/items';
-const shots = (q.get('shots') || 'drink,tower,cushion,hideout,toy').split(','), CW = +(q.get('cw') || 330), CH = +(q.get('ch') || 260);
+let shots = (q.get('shots') || 'drink,tower,cushion,hideout,toy').split(','), CW = +(q.get('cw') || 330), CH = +(q.get('ch') || 260);
 ttl.textContent = `${b.ko} · 용품과 함께`;
 g.style.gridTemplateColumns = `repeat(${Math.min(+(q.get('cols') || 3), shots.length)}, ${CW}px)`;
 const cat = buildCatModel(b.shape, b.coat, { res: +(q.get('res') || .02) });
 const rig = makeRig(cat), clips = makeClips(rig, { only: ['Drink', 'JumpUp', 'Loaf', 'Sleep', 'PawBat'], solveRig: makeRig(buildCatModel(b.shape, b.coat, { res: .03 })) });
 const clip = n => clips.find(c => c.name === n);
+if (!clip('PawBat')) shots = shots.filter(s => s !== 'toy');   // (PawBat left out for this breed)
 const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 r.setPixelRatio(2); r.setSize(CW, CH); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
 r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;
@@ -49,7 +50,7 @@ const SHOTS = {
   tower: async () => { const c = clip('JumpUp'), it = await load('cat_tower_1'); it.position.set(0, 0, c.jump.deckBack + itemField('cat_tower_1').anchors.decks[0].size[1] / 2); return { items: [it], c, t: c.dur * .62, label: '캣타워 오르기 · 캣타워 1단', view: [1, .45, .5], dist: 3.4 }; },
   cushion: async () => { const c = lifted(clip('Sleep'), itemField('cushion').anchors.top), it = await load('cushion'); it.position.set(mid.x, 0, mid.z); return { items: [it], c, t: 1, label: '잠자기 · 방석', view: [.8, .7, .9], dist: 2.8 }; },
   hideout: async () => { const ho = itemField('hideout').anchors, c = lifted(clip('Loaf'), ho.floor), it = await load('hideout'); it.position.set(mid.x, 0, mid.z - ho.catAhead); return { items: [it], c, t: 1, label: '식빵 자세 · 숨숨집', view: [.45, .4, 1], dist: 3.2 }; },
-  toy: async () => { const c = clip('PawBat'); solveAt(rig, c, c.dur * .5); cat.updateMatrixWorld(true); const p = rig.B.Hand_L ? rig.B.Hand_L.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(); const it = await load('mouse_toy'); it.position.set(p.x, 0, p.z); it.rotation.y = -Math.PI / 2; return { items: [it], c, t: c.dur * .5, label: '장난감 치기 · 쥐돌이', view: [1, .45, 1], dist: 2.4 }; },
+  toy: async () => { const c = clip('PawBat'), it = await load('mouse_toy'); it.position.set(c.toy.x, 0, c.toy.z); it.rotation.y = c.toy.yaw; return { items: [it], c, t: c.dur * .5, label: '장난감 치기 · 쥐돌이', view: [1, .45, 1], dist: 2.4 }; },
 };
 for (const s of shots) {
   const S = await SHOTS[s]();

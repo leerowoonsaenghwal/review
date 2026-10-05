@@ -26,11 +26,11 @@
    }
   ]
  },
- "rawTris": 424296,
+ "rawTris": 424376,
  "rawCheck": {
   "open": 0,
   "nonManifold": 0,
-  "volume": 0.06265530422089383,
+  "volume": 0.06112846349952416,
   "minY": 0
  },
  "game_tris": 6000,

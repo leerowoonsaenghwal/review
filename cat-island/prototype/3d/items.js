@@ -251,7 +251,9 @@ function tower(levels) {
   // the top deck gets a raised rim like a bed
   const t = decks[levels - 1];
   const rimOut = leaf((X, Y, Z) => sdRoundBox(X, Y - (t.y + .012), Z - t.z, DW / 2 - .005, .022, DL / 2 - .005, .02), [-DW / 2, t.y - .01, t.z - DL / 2, DW / 2, t.y + .034, t.z + DL / 2], hex('#f9cf7a'));
-  const rimIn = leaf((X, Y, Z) => sdRoundBox(X, Y - (t.y + .04), Z - t.z, DW / 2 - .05, .04, DL / 2 - .05, .02), [-DW / 2, t.y, t.z - DL / 2, DW / 2, t.y + .08, t.z + DL / 2], hex('#f9cf7a'));
+  // (the hollow reaches below the deck top: cut only down to it, the rounded cut would lift the whole floor
+  //  inside the rim a few mm above DECK_STEP, where the cat lands)
+  const rimIn = leaf((X, Y, Z) => sdRoundBox(X, Y - (t.y + .03), Z - t.z, DW / 2 - .05, .05, DL / 2 - .05, .02), [-DW / 2, t.y - .02, t.z - DL / 2, DW / 2, t.y + .08, t.z + DL / 2], hex('#f9cf7a'));
   parts.push(CUT(rimOut, rimIn, .012));
   // a dangling pompom toy from the edge of the top deck
   const pz = t.z + DL / 2 - .05, px = DW / 2 - .02;

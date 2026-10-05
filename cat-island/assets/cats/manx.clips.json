@@ -219,17 +219,17 @@
  "skippedClips": [
   {
    "clip": "ScratchEar",
-   "reason": "failed the contact check on this body (HL into torso 7 mm at 2.67 s)"
+   "reason": "failed the contact check on this body (HR into torso 6 mm at 0.17 s)"
   },
   {
    "clip": "NibbleClaws",
-   "reason": "failed the contact check on this body (FL into head 4 mm at 0.73 s)"
+   "reason": "failed the contact check on this body (FL into head 4 mm at 0.43 s)"
   }
  ],
  "itemSpots": {
   "mouse_toy": {
-   "x": 0.068,
-   "z": 0.258,
+   "x": 0.075,
+   "z": 0.318,
    "yaw": -1.571,
    "clip": "PawBat"
   },

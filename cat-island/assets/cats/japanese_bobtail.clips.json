@@ -1,0 +1,266 @@
+{
+ "id": "japanese_bobtail",
+ "ko": "재패니즈 밥테일",
+ "bones": 43,
+ "clips": [
+  {
+   "name": "Idle",
+   "dur": 6,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "Walk",
+   "dur": 1.667,
+   "loop": true,
+   "rootMotion": true,
+   "speed": 0.311,
+   "stride": 0.255,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "Trot",
+   "dur": 0.867,
+   "loop": true,
+   "rootMotion": true,
+   "speed": 0.824,
+   "stride": 0.357,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "JumpUp",
+   "dur": 2.4,
+   "loop": false,
+   "rootMotion": true,
+   "speed": null,
+   "stride": null,
+   "jump": {
+    "D": 0.797,
+    "H": 0.2,
+    "deckBack": 0.501
+   },
+   "drink": null
+  },
+  {
+   "name": "SitDown",
+   "dur": 0.9,
+   "loop": false,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "Sit",
+   "dur": 4,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "StandUp",
+   "dur": 0.7,
+   "loop": false,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "LieDown",
+   "dur": 1.1,
+   "loop": false,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "Loaf",
+   "dur": 5,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "Sleep",
+   "dur": 5,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "FallAsleep",
+   "dur": 2,
+   "loop": false,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "NibbleClaws",
+   "dur": 3.4,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "Stretch",
+   "dur": 4.2,
+   "loop": false,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "Drink",
+   "dur": 3.233,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": {
+    "laps": 8,
+    "rate": 3.5,
+    "surf": 0.03,
+    "bowl": {
+     "x": 0.0128,
+     "z": 0.5299
+    },
+    "crouch": 1.48,
+    "tongue": 0.14
+   }
+  },
+  {
+   "name": "LickLips",
+   "dur": 1.4,
+   "loop": false,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "Flop",
+   "dur": 1.6,
+   "loop": false,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "FlopIdle",
+   "dur": 4,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  },
+  {
+   "name": "PawBat",
+   "dur": 1.4,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null
+  }
+ ],
+ "groomRoutine": [
+  {
+   "clip": "NibbleClaws",
+   "region": "front claws",
+   "share": 0,
+   "from": "Sit"
+  }
+ ],
+ "skippedClips": [
+  {
+   "clip": "Gallop",
+   "playInstead": "Trot",
+   "reason": "failed the contact check on this body (FR into torso 5 mm at 0.00 s)"
+  },
+  {
+   "clip": "GroomFace",
+   "reason": "failed the contact check on this body (head into FL 15 mm at 0.37 s)"
+  },
+  {
+   "clip": "ScratchEar",
+   "reason": "failed the contact check on this body (HL into torso 4 mm at 0.67 s)"
+  }
+ ],
+ "itemSpots": {
+  "mouse_toy": {
+   "x": 0.062,
+   "z": 0.354,
+   "yaw": 1.571,
+   "clip": "PawBat"
+  },
+  "cushion": {
+   "x": 0,
+   "z": -0.022,
+   "catLift": 0.134,
+   "clips": [
+    "Loaf",
+    "Sleep"
+   ]
+  },
+  "hideout": {
+   "x": 0,
+   "z": -0.222,
+   "catLift": 0.08,
+   "clips": [
+    "Loaf"
+   ]
+  }
+ },
+ "sculpt_tris": 102216,
+ "game_tris": {
+  "Body": 14000,
+  "Face": "~10500 (eyes, nose, mouth, tongue, whiskers, toe beans)"
+ },
+ "units": "metres, +Z forward, Y up (glTF); clips sampled at 30 fps",
+ "blendshapes": [
+  "Blink",
+  "MouthOpen"
+ ],
+ "tongue_bones": [
+  "Tongue1",
+  "Tongue2",
+  "Tongue3",
+  "Tongue4",
+  "Tongue5"
+ ]
+}
