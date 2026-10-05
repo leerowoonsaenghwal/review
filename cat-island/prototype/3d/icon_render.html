@@ -5,7 +5,7 @@
 </head><body>
 <script type="module">
 // App icon / logo renders of a finished cat (the game's glb, the game's light):
-// ?glb=out/icon/korean_shorthair.glb&clip=Sit&t=2&shot=island|face|peek&yaw=.35&zoom=1.3&bg=c7e3f2|none&noisland=1&size=1024
+// ?glb=out/icon/korean_shorthair.glb&clip=Sit&t=2&shot=island|face|peek&yaw=.35&zoom=1.3&bg=c7e3f2|none&noisland=1&clean=1&size=1024
 // (python3 icon_shot.py copies the glb into out/icon/ and screenshots this page)
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -16,7 +16,7 @@ r.setPixelRatio(1); r.setSize(N, N); r.shadowMap.enabled = true; r.shadowMap.typ
 r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1;
 document.body.append(r.domElement);
 const sc = new THREE.Scene(); if (bg !== 'none') sc.background = new THREE.Color('#' + bg);
-sc.add(new THREE.HemisphereLight('#f4fbff', '#c9b892', 1.35));
+const hemi = new THREE.HemisphereLight('#f4fbff', '#c9b892', 1.35); sc.add(hemi);
 const sun = new THREE.DirectionalLight('#fff1d6', 2.4); sun.position.set(-1.2, 2.6, 2.2); sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -.0002; sun.shadow.normalBias = .01; sun.shadow.radius = 4;
 Object.assign(sun.shadow.camera, { left: -1.2, right: 1.2, top: 1.2, bottom: -1.2, near: .1, far: 8 }); sc.add(sun);
@@ -26,10 +26,18 @@ if (shot === 'island' && !q.get('noisland')) {
   const water = new THREE.Mesh(new THREE.CircleGeometry(6, 64), mat('#8fcbe0', .6)); water.rotation.x = -Math.PI / 2; water.position.y = -.06; water.receiveShadow = true; sc.add(water);
   const sand = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), mat('#f3dfae')); sand.scale.set(.82, .1, .82); sand.position.y = -.035; sand.receiveShadow = true; sc.add(sand);
   const grass = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), mat('#a9d77f')); grass.scale.set(.7, .07, .7); grass.position.y = 0; grass.receiveShadow = true; sc.add(grass);
-  // a small palm and a flower or two, toy-like
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.02, .03, .5, 12), mat('#c99a6b')); trunk.position.set(-.42, .27, -.28); trunk.rotation.z = .15; trunk.castShadow = true; sc.add(trunk);
-  for (let i = 0; i < 5; i++) { const l = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12), mat('#6fb04f')); l.scale.set(.2, .03, .07); const a = i / 5 * Math.PI * 2; l.position.set(-.46 + Math.cos(a) * .14, .53, -.28 + Math.sin(a) * .14); l.rotation.y = -a; l.rotation.z = -.25; l.castShadow = true; sc.add(l); }
-  for (const [x, z, c] of [[.42, .2, '#ff8fa8'], [.5, -.05, '#f9cf7a'], [-.2, .45, '#ffffff']]) { const f = new THREE.Mesh(new THREE.SphereGeometry(.035, 16, 12), mat(c)); f.position.set(x, .055, z); f.castShadow = true; sc.add(f); }
+  // clean=1 (the store icon): no flowers, the palm whole and behind the cat, the far sea fading into the sky
+  // (no horizon line), softer shadows
+  const clean = !!q.get('clean');
+  const palm = new THREE.Group(); sc.add(palm);
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.02, .03, .5, 12), mat('#c99a6b')); trunk.position.set(0, .25, 0); trunk.rotation.z = .15; trunk.castShadow = true; palm.add(trunk);
+  for (let i = 0; i < 5; i++) { const l = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12), mat('#6fb04f')); l.scale.set(.2, .03, .07); const a = i / 5 * Math.PI * 2; l.position.set(-.04 + Math.cos(a) * .14, .51, Math.sin(a) * .14); l.rotation.y = -a; l.rotation.z = -.25; l.castShadow = true; palm.add(l); }
+  if (clean) { palm.position.set(+(q.get('px') ?? .3), .02, +(q.get('pz') ?? -.52)); palm.scale.setScalar(+(q.get('ps') ?? .6)); palm.rotation.y = .6; }
+  else palm.position.set(-.42, .02, -.28);
+  if (!clean) for (const [x, z, c] of [[.42, .2, '#ff8fa8'], [.5, -.05, '#f9cf7a'], [-.2, .45, '#ffffff']]) { const f = new THREE.Mesh(new THREE.SphereGeometry(.035, 16, 12), mat(c)); f.position.set(x, .055, z); f.castShadow = true; sc.add(f); }
+  if (clean) water.receiveShadow = false;   // (the palm's shadow off the island read as a blot on the sea)
+  if (clean && bg !== 'none') sc.fog = new THREE.Fog('#' + bg, 2.6, 4.2);
+  if (clean) { hemi.intensity = 1.7; sun.intensity = 2.0; }
 }
 const gl = await new GLTFLoader().loadAsync(q.get('glb') || 'out/icon/korean_shorthair.glb');
 const cat = gl.scene; cat.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.frustumCulled = false; } });
