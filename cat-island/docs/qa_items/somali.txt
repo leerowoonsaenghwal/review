@@ -7,6 +7,6 @@
   ok   Loaf · cushion               nothing inside
   ok   Sleep · cushion              nothing inside
   ok   Loaf · hideout               nothing inside
-  (PawBat left out for this breed: no toy scene)
+  ok   PawBat · mouse_toy           nothing inside · contact 1/1
 
 all ok
