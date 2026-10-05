@@ -110,7 +110,7 @@ function place() {
   sun.position.set(rootW.x - 2.2, 4.2, rootW.z + 3); sun.target.position.copy(rootW);
 }
 function props(p, t) {
-  const react = scene === 'pet' && p.feel;
+  const react = scene === 'pet' && !!p.feel;   // (a boolean: three.js only hides on visible === false)
   B.Head.getWorldPosition(headW);
   // the finger's touch: a soft glow sliding over the head (both panels: the player strokes either way)
   glow.visible = scene === 'pet' && t > .3;
