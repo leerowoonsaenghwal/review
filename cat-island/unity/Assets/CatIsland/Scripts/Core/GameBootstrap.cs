@@ -94,7 +94,14 @@ namespace CatIsland
 
             // 게임 규칙 · 저장 · 화면
             var files = NewFiles?.Invoke() ?? new CatIsland.Game.DiskFiles(System.IO.Path.Combine(Application.persistentDataPath, "save"));
+#if UNITY_IOS && !UNITY_EDITOR
+            // 아이폰: 기기 서비스 (알림·iCloud·Game Center·결제). 광고 회사 모듈은 앱 ID 를 받은 뒤 (docs/RELEASE_TODO.md)
+            var ios = CatIsland.Game.IosServices.Create();
+            Logic = new CatIsland.Game.Game(new CatIsland.Game.RealClock(), files, ios, new CatIsland.Game.NoAds(), ios, ios, ios);
+            ios.OnUnsolicited = () => { Logic.RestorePending(); UI?.Refresh(); };
+#else
             Logic = new CatIsland.Game.Game(new CatIsland.Game.RealClock(), files, null, new CatIsland.Game.FakeAds(), new CatIsland.Game.FakeStore(), new CatIsland.Game.FakeGameCenter(), new CatIsland.Game.FakeNotifier());
+#endif
             Logic.LoadOrNew();
             WorldLink = new WorldSync(this);
             UI = CatIsland.UI.GameUI.Create(Logic, WorldLink);

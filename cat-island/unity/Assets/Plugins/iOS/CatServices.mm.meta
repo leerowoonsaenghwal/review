@@ -1,0 +1,28 @@
+fileFormatVersion: 2
+guid: 87bfe4d9980ce44f2b9d95487831c58b
+PluginImporter:
+  externalObjects: {}
+  serializedVersion: 3
+  iconMap: {}
+  executionOrder: {}
+  defineConstraints: []
+  isPreloaded: 0
+  isOverridable: 0
+  isExplicitlyReferenced: 0
+  validateReferences: 1
+  platformData:
+    Any:
+      enabled: 0
+      settings: {}
+    Editor:
+      enabled: 0
+      settings:
+        DefaultValueInitialized: true
+    iOS:
+      enabled: 1
+      settings:
+        AddToEmbeddedBinaries: false
+        FrameworkDependencies: UserNotifications;GameKit;StoreKit;
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
