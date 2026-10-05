@@ -1,22 +1,30 @@
 """Blender finishing pass: raw high-res cat (vertex colours) -> game asset.
 
-    python3 blender_finish.py RAW.glb OUT_DIR NAME [--tris 14000] [--tex 2048]
+    python3 blender_finish.py RAW.glb OUT_DIR NAME [--tris 14000] [--tex 2048] [--normal 0.4] [--vertex-coat] [--coat coat.json] [--style ac]
 
   1. Body: decimate to a mobile-friendly triangle count (skin weights are kept)
   2. UV unwrap (smart project)
-  3. bake the coat colours (high -> low, selected-to-active) and a tangent-space normal map that keeps the
-     sculpted detail (toe beans, muzzle edge, fur clumps) on the lighter mesh
+  3. coat colours: bake a map of the sculpted surface position behind each texel, then work out every texel's
+     colour with the generator's own coat function (coat_texels.mjs) - stripe edges as sharp as the texture.
+     (--vertex-coat: the earlier way, baking the sculpt's vertex colours.) A tangent-space normal map keeps the
+     sculpted detail (toe beans, muzzle edge); it is flattened to --normal (default 40 %) so the fur reads as
+     big clean shapes (docs/ART_DIRECTION.md 3장)
   4. Face: keeps the generator's colour atlas (hand-laid UVs; an automatic unwrap shreds the whiskers)
   5. export NAME.fbx (Unity: Forward -Z, Up Y, all actions as takes) and NAME.glb (glTFast)
 Runs headless with the `bpy` module (pip install bpy).
 """
-import math, os, sys
+import math, os, subprocess, sys, tempfile
+import numpy as np
 import bpy, bmesh
 
 args = sys.argv[1:]
 raw, out_dir, name = args[0], args[1], args[2]
 opt = lambda k, d: type(d)(args[args.index(k) + 1]) if k in args else d
 TRIS, TEX = opt('--tris', 14000), opt('--tex', 2048)
+NORMAL_K = opt('--normal', .4)
+TEXEL_COAT = '--vertex-coat' not in args
+COAT_JSON, STYLE = opt('--coat', ''), opt('--style', '')
+HERE = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(out_dir, exist_ok=True)
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -84,8 +92,42 @@ low.data.materials.clear(); low.data.materials.append(lowmat)
 only(body, low, active=low)
 image_target(lowmat, coat)
 bpy.ops.object.bake(type='EMIT', use_selected_to_active=True, cage_extrusion=.006, max_ray_distance=.02)
+if TEXEL_COAT:
+    # position of the sculpted surface behind every texel (object space of the sculpt), unset texels stay huge
+    pos = bpy.data.images.new(f'{name}_pos', TEX, TEX, float_buffer=True); pos.colorspace_settings.name = 'Non-Color'
+    pos.pixels.foreach_set(np.full(TEX * TEX * 4, 1e6, np.float32))
+    pm = bpy.data.materials.new('pos_src'); pm.use_nodes = True; pnt = pm.node_tree; pnt.nodes.clear()
+    tcn = pnt.nodes.new('ShaderNodeTexCoord'); pem = pnt.nodes.new('ShaderNodeEmission'); pout = pnt.nodes.new('ShaderNodeOutputMaterial')
+    pnt.links.new(tcn.outputs['Object'], pem.inputs['Color']); pnt.links.new(pem.outputs['Emission'], pout.inputs['Surface'])
+    body.data.materials.clear(); body.data.materials.append(pm)
+    scene.cycles.samples = 1; scene.render.bake.margin = 6
+    image_target(lowmat, pos)
+    bpy.ops.object.bake(type='EMIT', use_selected_to_active=True, cage_extrusion=.006, max_ray_distance=.02)
+    scene.cycles.samples = 4
+    P = np.empty(TEX * TEX * 4, np.float32); pos.pixels.foreach_get(P); P = P.reshape(-1, 4)[:, :3].copy()
+    P[P[:, 0] > 1e5] = np.nan
+    tmp = tempfile.mkdtemp()
+    P.astype(np.float32).tofile(os.path.join(tmp, 'pos.f32'))
+    cmd = ['node', os.path.join(HERE, 'coat_texels.mjs'), name, os.path.join(tmp, 'pos.f32'), str(TEX), os.path.join(tmp, 'rgb.f32')]
+    if COAT_JSON: cmd.append(COAT_JSON)
+    env = dict(os.environ, **({'COAT_STYLE': STYLE} if STYLE else {}))
+    r = subprocess.run(cmd, cwd=HERE, env=env, capture_output=True, text=True)
+    print(r.stdout.strip(), r.stderr.strip()[-400:])
+    if r.returncode != 0: raise SystemExit('coat_texels.mjs failed')
+    RGB = np.fromfile(os.path.join(tmp, 'rgb.f32'), np.float32).reshape(-1, 3)
+    C = np.empty(TEX * TEX * 4, np.float32); coat.pixels.foreach_get(C); C = C.reshape(-1, 4)
+    ok = np.isfinite(RGB[:, 0])
+    C[ok, :3] = RGB[ok]; C[ok, 3] = 1
+    coat.pixels.foreach_set(C.ravel())
+    print(f'coat: {ok.sum()} texels from the coat function ({ok.mean() * 100:.0f} % of the texture)')
+    bpy.data.images.remove(pos)
 image_target(lowmat, nrm)
 bpy.ops.object.bake(type='NORMAL', use_selected_to_active=True, cage_extrusion=.006, max_ray_distance=.02, normal_space='TANGENT')
+# softer fur relief: keep NORMAL_K of the baked tilt (docs/ART_DIRECTION.md 3장: normal map at half strength or less)
+Nm = np.empty((TEX // 2) * (TEX // 2) * 4, np.float32); nrm.pixels.foreach_get(Nm); Nm = Nm.reshape(-1, 4)
+v = Nm[:, :3] * 2 - 1; v = v * NORMAL_K + np.array([0, 0, 1], np.float32) * (1 - NORMAL_K)
+v /= np.linalg.norm(v, axis=1, keepdims=True) + 1e-9; Nm[:, :3] = v * .5 + .5
+nrm.pixels.foreach_set(Nm.ravel())
 # final coat material: colour + normal map
 nt = lowmat.node_tree
 for n in list(nt.nodes):
