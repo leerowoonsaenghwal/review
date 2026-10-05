@@ -11,7 +11,7 @@ namespace CatIsland.UI
     /// </summary>
     public static class StarLandUI
     {
-        public static void Open(GameUI ui) => ui.Open(b => Build(ui, b));
+        public static void Open(GameUI ui) { ui.Open(b => Build(ui, b)); ui.InStarLand = true; }
 
         static string Build(GameUI ui, RectTransform body)
         {

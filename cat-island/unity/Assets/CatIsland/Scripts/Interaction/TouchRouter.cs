@@ -17,6 +17,9 @@ namespace CatIsland
         public readonly List<CatBrain> cats = new List<CatBrain>();
         /// <summary>그릇을 눌렀을 때: 게임 규칙이 밥을 줄 수 있는지 (사료가 없으면 false: 그릇을 채우지 않는다).</summary>
         public System.Func<bool> BeforeBowlFill;
+        /// <summary>다른 것(손님 고양이 등)을 톡: 처리했으면 true.</summary>
+        public System.Func<Collider, bool> TapOther;
+        Collider downHit;
         public FoodBowl bowl;
         public Cushion cushion;
         public CatTower tower;
@@ -126,8 +129,10 @@ namespace CatIsland
 
             var ray = cam.ScreenPointToRay(p.position);
             mode = Mode.Background;
+            downHit = null;
             if (Physics.Raycast(ray, out var hit, 100f))
             {
+                downHit = hit.collider;
                 foreach (var c in cats) if (c && c.isActiveAndEnabled && c.Rig.IsCatCollider(hit.collider)) { cat = c; break; }
                 if (cat && cat.Rig.IsCatCollider(hit.collider)) mode = Mode.Pet;
                 else if (bowl && hit.collider.gameObject == bowl.gameObject) mode = Mode.Bowl;
@@ -167,6 +172,7 @@ namespace CatIsland
                     if (!movedFar) cat?.OnTowerTapped();
                     break;
                 case Mode.Background:
+                    if (tap && downHit && TapOther != null && TapOther(downHit)) break;
                     if (tap)
                     {
                         var ray = cam.ScreenPointToRay(lastPos);

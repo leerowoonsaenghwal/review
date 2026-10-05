@@ -678,7 +678,8 @@ namespace CatIsland.Tests
                 yield return null;
                 foreach (var k in cats)
                 {
-                    foreach (var o in game.Nav.obstacles.Where(o => o.owner == null))
+                    bool upOrJumping = k.OnTower || k.State.ToString().Contains("Jump") || k.State.ToString().Contains("Tower");   // (캣타워 위·점프 중에는 그 위에 있는 것이 맞다)
+                    foreach (var o in game.Nav.obstacles.Where(o => o.owner == null && !(upOrJumping && o.item == game.Tower.transform)))
                     {
                         float d = o.Distance(k.Rig.BodyZone.position) - k.Rig.BodyHalf.x * .8f;
                         if (d < worstItem) { worstItem = d; what = $"{k.name} in {o.name}"; }
@@ -736,5 +737,46 @@ namespace CatIsland.Tests
             Assert.IsTrue(game.Router.enabled, "touches go back to the island");
         }
         static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0, v.z);
+    }
+}
+
+namespace CatIsland.Tests
+{
+    using System.Collections;
+    using System.IO;
+    using System.Linq;
+    using NUnit.Framework;
+    using UnityEngine;
+    using UnityEngine.TestTools;
+
+    /// <summary>하루 시간대 4장(아침·낮·저녁·밤)과 손님 고양이를 찍는다 (unity/Shots/day). 손님 고양이를 누르면 손님 창이 열린다.</summary>
+    [Category("Shots")]
+    public class DayAndGuestShots : SceneFixture
+    {
+        [UnityTest]
+        public IEnumerator FourTimesOfDay_AndGuest()
+        {
+            var g = game.Logic; g.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Playful);
+            g.S.guestBreed = "persian"; g.S.guestTreated = false; g.S.guestGone = false;
+            game.SyncCats(); game.SyncGuest(); game.WorldLink.Refresh();
+            yield return new WaitForSeconds(.5f);
+            var guest = GameObject.Find("GuestCat");
+            if (g.GuestHere) Assert.NotNull(guest, "a guest cat sits on the island in the daytime");
+            var dir = Path.GetFullPath(Path.Combine(Application.dataPath, "../Shots/day")); Directory.CreateDirectory(dir);
+            game.IslandCam.zoomLevel = 0; game.IslandCam.SnapNow();
+            foreach (var (name, h) in new[] { ("morning", 7.5f), ("day", 13f), ("evening", 18.6f), ("night", 22f) })
+            {
+                game.Day.Apply(h); yield return null;
+                var cam = Cam; var rt = new RenderTexture(590, 1278, 24) { antiAliasing = 4 }; cam.targetTexture = rt; cam.Render(); cam.Render();
+                RenderTexture.active = rt; var tex = new Texture2D(590, 1278, TextureFormat.RGB24, false); tex.ReadPixels(new Rect(0, 0, 590, 1278), 0, 0); tex.Apply(); RenderTexture.active = null;
+                File.WriteAllBytes(Path.Combine(dir, name + ".png"), tex.EncodeToPNG()); cam.targetTexture = null; rt.Release();
+            }
+            if (guest)
+            {
+                var col = guest.GetComponentsInChildren<Collider>().First();
+                Assert.IsTrue(game.Router.TapOther(col)); yield return null;
+                Assert.IsTrue(game.UI.SheetOpen, "tapping the guest opens the guest sheet");
+            }
+        }
     }
 }

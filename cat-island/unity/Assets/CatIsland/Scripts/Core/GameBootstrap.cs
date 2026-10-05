@@ -27,6 +27,7 @@ namespace CatIsland
         public CatIsland.Game.Game Logic { get; private set; }
         public CatIsland.UI.GameUI UI { get; private set; }
         public WorldSync WorldLink { get; private set; }
+        public DayCycle Day { get; private set; }
         /// <summary>테스트: 저장소를 바꿔 끼운다 (기본은 기기 저장소). OpenCatMakerIfEmpty: 고양이가 없으면 만들기 창을 연다.</summary>
         public static Func<CatIsland.Game.IFileStore> NewFiles;
         public static bool OpenCatMakerIfEmpty = true;
@@ -78,6 +79,7 @@ namespace CatIsland
                     urp.msaaSampleCount = 1;
             }
             IslandCam = camGo.AddComponent<IslandCamera>();
+            Day = gameObject.AddComponent<DayCycle>(); Day.sun = RenderSettings.sun; Day.cam = cam; Day.Apply(DayCycle.HourOverride >= 0 ? DayCycle.HourOverride : (float)DateTime.Now.TimeOfDay.TotalHours);
 
             // 고양이 (저장에 고양이가 있으면 SyncCats 가 저장대로 다시 세운다)
             Cat = SpawnCat("korean_shorthair", new Vector3(0f, 0f, -0.6f), 180f, null, camGo.transform);
@@ -109,7 +111,7 @@ namespace CatIsland
             if (Logic.S.zonesUnlocked.Contains(1)) IslandBuilder.OpenYardGate(world.Find("Island"));
             CatIsland.UI.Press.OnPress = () => { if (Logic.S.hapticsOn) Haptics.Impact(ImpactStyle.Soft, .5f); };
             if (Logic.S.cats.Count == 0 && OpenCatMakerIfEmpty) CatIsland.UI.CatMaker.Open(UI);
-            SyncCats();
+            SyncCats(); SyncGuest();
             Router.BeforeBowlFill = () =>
             {
                 if (Logic.S.cats.Count == 0) return true;      // (첫 고양이를 만들기 전 미리보기)
@@ -162,12 +164,26 @@ namespace CatIsland
             var first = Logic.HomeCats.Select(c => catViews.TryGetValue(c.uid, out var v) ? v : null).FirstOrDefault(v => v);
             if (first) { Cat = first; Router.cat = first; IslandCam.follow = first.transform; if (Cat.Data != null) Audio = Cat.GetComponent<CatAudio>(); }
         }
+        CatRig guestView; string guestBreedShown;
+        /// <summary>손님 고양이: 낮에 섬 앞 오른쪽에 앉아 있다 (간식을 주기 전, 또는 같이 살 수 있을 때). 누르면 손님 창.</summary>
+        public void SyncGuest()
+        {
+            bool show = Logic != null && Logic.S.cats.Count > 0 && Logic.GuestHere && (!Logic.S.guestTreated || Logic.CanAdoptGuest) && HasArt(Logic.S.guestBreed);
+            if (!show || guestBreedShown != Logic.S.guestBreed) { if (guestView) Destroy(guestView.gameObject); guestView = null; guestBreedShown = null; }
+            if (!show || guestView) return;
+            var go = new GameObject("GuestCat"); go.SetActive(false);
+            var spot = Nav.NearestFree(new Vector3(2.9f, 0f, -2.1f)); go.transform.position = spot; go.transform.rotation = Quaternion.Euler(0, 200f, 0);
+            guestView = go.AddComponent<CatRig>(); guestView.breed = Logic.S.guestBreed; go.SetActive(true); guestView.Request(Posture.Sit);
+            guestBreedShown = Logic.S.guestBreed;
+            Router.TapOther = c => { if (guestView && guestView.IsCatCollider(c)) { UI.OpenGuest(); return true; } return false; };
+        }
+
         static bool HasArt(string breed) => Resources.Load<TextAsset>("Art/Cats/" + breed + "_info") != null;
 
         void Update()
         {
             if (Logic == null || Time.unscaledTime < logicTickAt) return;
-            logicTickAt = Time.unscaledTime + 5f; Logic.Tick();
+            logicTickAt = Time.unscaledTime + 5f; Logic.Tick(); SyncGuest();
         }
         void OnApplicationPause(bool paused) { if (Logic == null) return; if (paused) Logic.Pause(); else Logic.Resume(); }
         void OnApplicationQuit() => Logic?.Pause();

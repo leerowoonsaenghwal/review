@@ -137,7 +137,13 @@ namespace CatIsland.UI
             for (float t = 0; t < .22f; t += Time.unscaledDeltaTime) { float u = 1 - Mathf.Pow(1 - t / .22f, 3); rt.anchoredPosition = end + new Vector2(0, -h * (1 - u)); yield return null; }
             rt.anchoredPosition = end;
         }
-        public void CloseAll() { foreach (var s in openSheets) if (s) Destroy(s); openSheets.Clear(); World?.Refresh(); Refresh(); }
+        public bool InStarLand;
+        public void CloseAll()
+        {
+            bool had = openSheets.Count > 0; foreach (var s in openSheets) if (s) Destroy(s); openSheets.Clear(); World?.Refresh(); Refresh();
+            if (had && G != null) G.MaybeInterstitial(InStarLand);   // (전면 광고는 화면이 넘어갈 때만, 규칙은 Game.ShouldShowInterstitial)
+            InStarLand = false;
+        }
         public void Toast(string msg)
         {
             LastToast = msg;
@@ -377,6 +383,7 @@ namespace CatIsland.UI
             return Str.Walk;
         }
 
+        public void OpenGuest() => Open(BuildGuest);
         // ---------------------------------------------------------------- 손님 고양이
         string BuildGuest(RectTransform body)
         {
