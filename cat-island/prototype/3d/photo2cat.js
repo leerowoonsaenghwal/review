@@ -347,6 +347,19 @@ export function suggestBreeds(coat, toggles = {}) {
   if (P === 'mackerel') return pick(long ? ['norwegian_forest', 'siberian', 'maine_coon'] : ['korean_shorthair', 'american_shorthair', 'bengal'], '태비');
   return pick(long ? ['persian', 'siberian', 'maine_coon'] : ['korean_shorthair', 'american_shorthair', 'british_shorthair'], '기본');
 }
+// ------------------------------------------------------------------ face style (docs/ART_DIRECTION.md 3장)
+// Eyes and whiskers come in three kinds each; suggest the closest for this photo, the player can change them.
+// eyeStyle: 'iris' when the face is dark (a dark eye would vanish) or the eye colour is vivid against a mid-dark
+// coat, else 'dark'; 'rim' is offered as a choice. whiskerStyle: 'long' for long fur, 'dots' for spotted /
+// ticked coats, else 'short'. Writes them onto the coat spec, which buildCatModel reads.
+export function suggestFace(coat, toggles = {}, report = {}) {
+  const L = hexL(coat.base), faceL = report.faceL ?? L;
+  const eyeVivid = coat.eye ? chroma(lab(coat.eye)) > 28 : false;
+  const eyeStyle = (faceL < 30 || L < 30) ? 'iris' : (L < 45 && eyeVivid) ? 'iris' : 'dark';
+  const whiskerStyle = toggles.fur === 'long' ? 'long' : (coat.pattern === 'spotted' || coat.pattern === 'ticked') ? 'dots' : 'short';
+  return { eyeStyle, whiskerStyle, choices: { eyeStyle: ['dark', 'iris', 'rim'], whiskerStyle: ['short', 'long', 'dots'] } };
+}
+function lab(h) { const [r, g, b] = hexRgb(h).map(lin); return lin2lab(r, g, b); }
 function pick(ids, reason) { return ids.map((id, i) => ({ id, reason: i === 0 ? reason : '' })); }
 function hexRgb(h) { const v = parseInt(h.slice(1), 16); return [v >> 16 & 255, v >> 8 & 255, v & 255]; }
 function hexL(h) { const [r, g, b] = hexRgb(h).map(lin); return lin2lab(r, g, b)[0]; }
