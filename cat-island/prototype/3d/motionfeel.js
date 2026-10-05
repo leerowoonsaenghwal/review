@@ -10,6 +10,10 @@
 //   PetReaction      leaning into the hand: head tilts and pushes up, eyes close, ears ease back, tail lifts and
 //                    sways slowly, a purr shiver, hearts
 //
+//   HeadSteady       a walking cat keeps its head level and still while the body sways under it: the head's world
+//                    rotation is held on a slow average of where the body points
+//   lookUp           before a high jump the cat looks up at the target, longer the higher it is
+//
 // Everything is time-stepped: call update(dt) once per rendered frame, after the clip pose is applied.
 import * as THREE from 'three';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v)), ss = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -110,3 +114,18 @@ export function cartoonHand(color = '#f6d2bd') {
   g.traverse(o => { if (o.isMesh) o.castShadow = true; });
   return g;
 }
+
+export class HeadSteady {
+  constructor(head, { follow = .12, hold = .75 } = {}) { this.head = head; this.follow = follow; this.hold = hold; this.avg = null; }
+  reset() { this.avg = null; }
+  update() {
+    const h = this.head; h.updateWorldMatrix(true, false);
+    const qw = h.getWorldQuaternion(new THREE.Quaternion());
+    if (!this.avg) this.avg = qw.clone(); else this.avg.slerp(qw, this.follow);
+    const want = qw.clone().slerp(this.avg, this.hold);                     // mostly the steady average
+    h.parent.getWorldQuaternion(qa);
+    h.quaternion.copy(qa.invert().multiply(want)); h.updateWorldMatrix(false, true);
+  }
+}
+// jump height -> anticipation: how long the crouch is held (looking up at the target) before the take-off
+export function jumpAnticipation(height) { return { hold: clamp((height - .2) / .6, 0, 1) * .45, look: clamp(height / .8, 0, 1) * .5 }; }
