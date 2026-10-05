@@ -1,0 +1,21 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+</head><body>
+<script type="module">
+// One item (itemkit.js) as a raw glTF for blender_items.py --parts: every part a mesh with its painted texture
+// and role (extras), the cushion seat with its 'Press' morph. ?id=cushion&variant=0 -> window.__glb (base64)
+import * as THREE from 'three';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import { buildKitItem, KIT_ITEMS } from './itemkit.js';
+const q = new URLSearchParams(location.search), id = q.get('id'), variant = +(q.get('variant') || 0);
+const g = buildKitItem(id, { variant });
+const sc = new THREE.Scene(); sc.add(g); sc.updateMatrixWorld(true);
+const parts = { both: 0, detail: 0, proxy: 0 }; let tris = 0;
+g.traverse(o => { if (o.isMesh) { parts[o.userData.role]++; const i = o.geometry.index; tris += (i ? i.count : o.geometry.attributes.position.count) / 3; } });
+new GLTFExporter().parse(sc, buf => {
+  const b = new Uint8Array(buf); let s = ''; for (let i = 0; i < b.length; i += 32768) s += String.fromCharCode.apply(null, b.subarray(i, i + 32768));
+  window.__info = { id, ko: g.userData.ko, variants: g.userData.variants, gloss: g.userData.gloss, anchors: g.userData.anchors || null, parts, rawTris: tris };
+  window.__glb = btoa(s); window.__done = true;
+}, e => { window.__err = String(e); window.__done = true; }, { binary: true, maxTextureSize: 1024 });
+</script></body></html>

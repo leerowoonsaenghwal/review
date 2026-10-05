@@ -357,14 +357,18 @@ namespace CatIsland.EditorTools
             if (nt) { m.SetTexture("_BumpMap", nt); m.EnableKeyword("_NORMALMAP"); }
             m.SetColor("_BaseColor", Color.white);
             m.SetFloat("_GroundAO", 0.12f);
+            var meta = File.ReadAllText($"{dir}/{id}.json");
+            var gm = System.Text.RegularExpressions.Regex.Match(meta, "\"gloss\":\\s*([0-9.]+)");
+            m.SetFloat("_Gloss", gm.Success ? float.Parse(gm.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : 0f);   // (물·우유 그릇: 유약이 살짝 반짝)
             EditorUtility.SetDirty(m);
+            imp.importBlendShapes = true;   // (방석: 'Press' 눌림 모양, 움직임 연결은 C단계)
             foreach (var srcName in SourceMaterialNames(imp, fbx))
                 imp.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), srcName), m);
             imp.SaveAndReimport();
 
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(fbx);
             var inst = (GameObject)PrefabUtility.InstantiatePrefab(model);
-            foreach (var r in inst.GetComponentsInChildren<MeshRenderer>())
+            foreach (var r in inst.GetComponentsInChildren<Renderer>())
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
             PrefabUtility.SaveAsPrefabAsset(inst, $"{OutRes}/Items/{id}.prefab");
             UnityEngine.Object.DestroyImmediate(inst);

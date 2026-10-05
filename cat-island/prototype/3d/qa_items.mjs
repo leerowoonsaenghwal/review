@@ -12,7 +12,11 @@
 import { BREEDS } from './catgen.js';
 import { buildCatModel } from './catmodel.js';
 import { makeRig, makeClips, solveAt, applyPose, stand, contactOf } from './catmotion.js';
-import { itemField, BOWL_SURF } from './items.js';
+import { itemField as oldField, BOWL_SURF } from './items.js';
+import { kitField } from './itemkit.js';
+// the items as the game ships them (itemkit.js parts, docs/ART_DIRECTION.md 5장); --old: the earlier sculpted items.
+// Anchors (where the cat eats, lands, lies) are the same in both: items.js
+const itemField = (() => { const cache = {}; return id => cache[id] ||= process.argv.includes('--old') ? oldField(id) : { ...kitField(id), anchors: oldField(id).anchors }; })();
 
 const args = process.argv.slice(2), opt = (k, d) => args.includes(k) ? +args[args.indexOf(k) + 1] : d;
 const breeds = (args[0] && !args[0].startsWith('--') ? args[0] : 'korean_shorthair').split(',');

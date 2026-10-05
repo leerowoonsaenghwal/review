@@ -61,6 +61,8 @@ def main() -> int:
     for item in manifest["items"]:
         for name in (f"{item}.fbx", f"{item}_color.jpg", f"{item}_normal.png", f"{item}.json"):
             ok &= copy(ASSETS / "items" / item / name, ART / "Items" / item / name)
+        for var in sorted((ASSETS / "items" / item).glob(f"{item}_color_v*.jpg")):   # 색 바꾸기 (같은 메시, 색 텍스처만 다름)
+            ok &= copy(var, ART / "Items" / item / var.name)
     # 소리: assets/sounds/<묶음>/*.wav → Resources/Sounds/<묶음>/ (게임이 이름 앞부분으로 고른다: meow_, chirp_, nip_, purr_)
     snd_dst = UNITY / "Assets" / "CatIsland" / "Resources" / "Sounds"
     for wav in sorted((ASSETS / "sounds").glob("*/*.wav")):
