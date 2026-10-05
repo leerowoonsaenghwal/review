@@ -137,7 +137,12 @@ export function makeCoat(spec) {
       const d = info.dir;
       // forehead "M": three stripes centred on the face (cos -> one in the middle, one each side), the patch faded
       // out softly at its edges (a hard cut through a stripe left a broken, dotted sliver on the game mesh)
-      if (d.y > .26 && d.z > 0 && Math.abs(d.x) < .4) s = sstep(.25, .8, Math.cos(d.x * 24)) * sstep(.26, .38, d.y) * sstep(.4, .34, Math.abs(d.x)) * sstep(0, .12, d.z);
+      // Each stripe tapers towards the eyes (wide at the crown), the side ones a little shorter; the soft
+      // edge ramp keeps the edge smooth on the game mesh (a sharp edge came out jagged)
+      if (d.y > .26 && d.z > 0 && Math.abs(d.x) < .4) {
+        const ax = Math.abs(d.x), top = sstep(.3, .62, d.y), lo = .5 - .42 * top;
+        s = sstep(lo, lo + .55, Math.cos(d.x * 24)) * sstep(.27 + .07 * sstep(.14, .24, ax), .4 + .07 * sstep(.14, .24, ax), d.y) * sstep(.4, .34, ax) * sstep(0, .12, d.z);
+      }
       if (Math.abs(d.x) > .6 && Math.abs(d.x) < .88 && d.z > .38) s = Math.max(s, sstep(.06, .0, Math.abs(d.y + .1)) * sstep(.6, .7, Math.abs(d.x)) * sstep(.88, .78, Math.abs(d.x)) * .65);   // one soft cheek stripe, wide enough not to break into dashes on a game mesh  // whisker-cheek lines
       if (P === 'ticked' || P === 'spotted') s *= .8;
     } else if (part === 'tail') {

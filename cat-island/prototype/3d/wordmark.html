@@ -1,0 +1,147 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:transparent}canvas{display:block}
+@font-face{font-family:Jua;src:url(fonts/Jua.ttf)}</style>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+</head><body>
+<script type="module">
+// The game's title lettering as real 3D: puffy cream letters on a rounded wood rim, lit like the game.
+// Same idea as the cats: a shape -> distance to its edge -> a rounded surface (here a height field).
+// ?text=고양이 섬&w=2048&h=720&bg=none|fbf6e6&tilt=.42&leaf=1  (python3 wordmark_shot.py screenshots it)
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const q = new URLSearchParams(location.search);
+const W = +(q.get('w') || 2048), H = +(q.get('h') || 720), bg = q.get('bg') || 'none';
+const text = q.get('text') || '고양이 섬';
+await document.fonts.load('400px Jua');
+
+// ---- 1. letters on a 2D mask (each letter a little tilted and bobbed: hand-made, toy-like)
+const K = +(q.get('res') || 2), FS = 360 * K, PAD = 90 * K, RIM = (+(q.get('rim') || 30)) * K;   // K: mask detail (edge smoothness)
+const cv = document.createElement('canvas'), cx = cv.getContext('2d');
+cx.font = `${FS}px Jua`;
+const chars = [...text], tilt = [-.07, .05, -.04, 0, .06, -.05, .04], bob = [.02, -.03, .02, 0, -.02, .03, -.02];
+const adv = chars.map(c => c === ' ' ? FS * .28 : cx.measureText(c).width - FS * .02);
+const tw = adv.reduce((a, b) => a + b, 0);
+const MW = Math.ceil(tw + PAD * 2), MH = Math.ceil(FS * 1.25 + PAD * 2);
+cv.width = MW; cv.height = MH; cx.font = `${FS}px Jua`; cx.textBaseline = 'middle'; cx.textAlign = 'center'; cx.fillStyle = '#fff';
+let x = PAD;
+chars.forEach((c, i) => { if (c !== ' ') { cx.save(); cx.translate(x + adv[i] / 2, MH / 2 + FS * .06 + bob[i % 7] * FS); cx.rotate(tilt[i % 7]); cx.fillText(c, 0, 0); cx.restore(); } x += adv[i]; });
+const img = cx.getImageData(0, 0, MW, MH).data, inL = new Float32Array(MW * MH);
+for (let i = 0; i < MW * MH; i++) inL[i] = img[i * 4 + 3] / 255;
+
+// ---- 2. distance to the edge (exact Euclidean distance transform, Felzenszwalb & Huttenlocher)
+function edt1(f, n) {
+  const d = new Float32Array(n), v = new Int32Array(n), z = new Float32Array(n + 1); let k = 0; v[0] = 0; z[0] = -1e20; z[1] = 1e20;
+  for (let qq = 1; qq < n; qq++) {
+    let s; do { const p = v[k]; s = ((f[qq] + qq * qq) - (f[p] + p * p)) / (2 * qq - 2 * p); } while (s <= z[k] && --k >= 0);
+    k++; v[k] = qq; z[k] = s; z[k + 1] = 1e20;
+  }
+  k = 0; for (let qq = 0; qq < n; qq++) { while (z[k + 1] < qq) k++; const p = v[k]; d[qq] = (qq - p) * (qq - p) + f[p]; }
+  return d;
+}
+function edt(inside) {   // distance (px) from each inside pixel to the nearest outside pixel
+  const g = new Float32Array(MW * MH); for (let i = 0; i < g.length; i++) g[i] = inside[i] ? 1e20 : 0;
+  const col = new Float32Array(MH), row = new Float32Array(MW);
+  for (let xx = 0; xx < MW; xx++) { for (let y = 0; y < MH; y++) col[y] = g[y * MW + xx]; const d = edt1(col, MH); for (let y = 0; y < MH; y++) g[y * MW + xx] = d[y]; }
+  for (let y = 0; y < MH; y++) { for (let xx = 0; xx < MW; xx++) row[xx] = g[y * MW + xx]; const d = edt1(row, MW); for (let xx = 0; xx < MW; xx++) g[y * MW + xx] = Math.sqrt(d[xx]); }
+  return g;
+}
+const letter = new Uint8Array(MW * MH); for (let i = 0; i < letter.length; i++) letter[i] = inL[i] > .5;
+const dOut = edt(letter.map(v => 1 - v));          // distance outside the letters -> the rim (letters grown by RIM)
+// the rim: letters grown by RIM + CL, then shrunk by CL (a 'closing': fills small gaps and the holes inside
+// the letters, which otherwise left pits in the rim)
+const CL = (+(q.get('close') || 28)) * K, grown = new Uint8Array(MW * MH); for (let i = 0; i < grown.length; i++) grown[i] = dOut[i] < RIM + CL;
+const dG = edt(grown), rimM = new Uint8Array(MW * MH); for (let i = 0; i < rimM.length; i++) rimM[i] = dG[i] > CL;
+const dL = edt(letter), dR = edt(rimM);
+// sub-pixel edge from the anti-aliased mask: shift the letter distance by the coverage
+for (let i = 0; i < dL.length; i++) if (letter[i]) dL[i] += inL[i] - .5;
+
+// ---- 3. height fields -> meshes. pillow profile: a quarter circle of radius R at the edge, flat-ish top
+const S = 1 / FS;   // px -> scene units (one letter ~ 1 unit tall)
+const pillow = (d, R, Hh) => Hh * Math.sqrt(Math.max(0, 1 - Math.pow(1 - Math.min(d, R) / R, 2)));
+function blur(a, sig) {   // separable gaussian (keeps the pillow round where the distance field has creases)
+  const r = Math.ceil(sig * 3), w = []; for (let i = -r; i <= r; i++) w.push(Math.exp(-i * i / (2 * sig * sig)));
+  const ws = w.reduce((x, y) => x + y, 0), t = new Float32Array(a.length), o = new Float32Array(a.length);
+  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) { let v = 0; for (let i = -r; i <= r; i++) { const xx = Math.min(MW - 1, Math.max(0, x + i)); v += a[y * MW + xx] * w[i + r]; } t[y * MW + x] = v / ws; }
+  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) { let v = 0; for (let i = -r; i <= r; i++) { const yy = Math.min(MH - 1, Math.max(0, y + i)); v += t[yy * MW + x] * w[i + r]; } o[y * MW + x] = v / ws; }
+  return o;
+}
+function field(mask, dist, R, Hh, z0, color, colorTop, sig = 3) {
+  const hp = new Float32Array(MW * MH); for (let k = 0; k < hp.length; k++) hp[k] = mask[k] ? pillow(dist[k], R, Hh) : 0;
+  const hs = blur(hp, sig * K);
+  const st = 2, nx = Math.floor((MW - 1) / st) + 1, ny = Math.floor((MH - 1) / st) + 1;
+  const pos = new Float32Array(nx * ny * 3), col = new Float32Array(nx * ny * 3), idx = [];
+  const c0 = new THREE.Color(color), c1 = new THREE.Color(colorTop || color), c = new THREE.Color();
+  const hv = (i, j) => hs[(j * st) * MW + i * st];
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+    const px = i * st, py = j * st, n = j * nx + i, h = hv(i, j);
+    pos.set([(px - MW / 2) * S, -(py - MH / 2) * S, z0 + h * S], n * 3);
+    c.copy(c0).lerp(c1, Math.min(1, Math.max(0, 1 - py / MH * 1.25 + .1))); col.set([c.r, c.g, c.b], n * 3);
+  }
+  const at = (i, j) => hv(i, j) > .02 * K;
+  for (let j = 0; j < ny - 1; j++) for (let i = 0; i < nx - 1; i++) {
+    if (!(at(i, j) || at(i + 1, j) || at(i, j + 1) || at(i + 1, j + 1))) continue;   // (keeps a one-cell skirt down to z0)
+    const a = j * nx + i, b = a + 1, d = a + nx, e = d + 1; idx.push(a, d, b, b, d, e);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.setIndex(idx); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .62 })); m.castShadow = m.receiveShadow = true; return m;
+}
+const grp = new THREE.Group();
+const rimH = RIM * 1.15;
+grp.add(field(rimM, dR, RIM * .8, rimH, 0, q.get('rimc') || '#7a4a2a', q.get('rimc2') || '#a8703f'));
+grp.add(field(letter, dL, 26 * K, 40 * K, rimH * S * .55, q.get('fc') || '#ffecc4', q.get('fc2') || '#fffdf6'));
+
+// ---- 4. a leaf sprouting from the last letter (the island's palm, in miniature)
+if (q.get('leaf') !== '0') {
+  const lm = new THREE.MeshStandardMaterial({ color: '#7cc35a', roughness: .6 }), stem = new THREE.MeshStandardMaterial({ color: '#4f8a37', roughness: .7 });
+  let lx = 0, ly = 0;   // top right of the last letter
+  for (let yy = 0; yy < MH && !ly; yy += 2) for (let xx = MW - 1; xx > MW * .6; xx -= 2) if (letter[yy * MW + xx]) { lx = xx; ly = yy; break; }
+  const leafG = new THREE.Group(); leafG.position.set((lx - MW / 2) * S - .06, -(ly - MH / 2) * S + .02, .1);
+  for (const [a, s] of [[.55, 1], [1.35, .8]]) {
+    const l = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), lm); l.scale.set(.2 * s, .075 * s, .045); l.position.set(Math.cos(a) * .19 * s, Math.sin(a) * .19 * s, 0); l.rotation.z = a; l.castShadow = true; leafG.add(l);
+  }
+  const st = new THREE.Mesh(new THREE.CylinderGeometry(.018, .022, .12, 10), stem); st.position.set(0, -.02, 0); leafG.add(st);
+  grp.add(leafG);
+}
+
+// ---- 5. light like the game, a soft contact shadow behind, a slight look from above
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setPixelRatio(1); r.setSize(W, H); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05;
+document.body.append(r.domElement);
+const sc = new THREE.Scene(); if (bg !== 'none') sc.background = new THREE.Color('#' + bg);
+sc.add(new THREE.HemisphereLight('#f4fbff', '#c9b892', 1.5));
+const sun = new THREE.DirectionalLight('#fff1d6', 2.1); sun.position.set(-1.5, 2.6, 4); sun.castShadow = true;
+const ext = MW * S * (q.get('cat') ? .9 : .6); sun.shadow.mapSize.set(4096, 4096); sun.shadow.bias = -.0004; sun.shadow.normalBias = .02; sun.shadow.radius = 6;
+Object.assign(sun.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext, near: .1, far: 20 }); sc.add(sun);
+const fill = new THREE.DirectionalLight('#ffd9c2', .45); fill.position.set(2, -.5, 2); sc.add(fill);
+const parts = [...grp.children];   // (what the framing is fitted to)
+grp.rotation.x = -(+(q.get('tilt') ?? .42)); sc.add(grp); grp.updateMatrixWorld(true);
+const signBox = new THREE.Box3(); parts.forEach(o => signBox.expandByObject(o, true));   // (world space)
+let catcher, host = grp;
+if (q.get('cat')) {
+  // ?cat=out/icon/korean_shorthair.glb&catx=0&cats=3&catclip=Sit&catt=2&elev=.35: a game cat sitting behind the
+  // sign, its head over the letters. The cat and the floor are seen from above (elev); the sign leans back on it.
+  const gl = await new GLTFLoader().loadAsync(q.get('cat'));
+  const cat = gl.scene; cat.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.frustumCulled = false; } });
+  const clip = gl.animations.find(a => a.name === (q.get('catclip') || 'Sit')) || gl.animations[0];
+  const mixer = new THREE.AnimationMixer(cat); mixer.clipAction(clip).play(); mixer.setTime(+(q.get('catt') || 2));
+  cat.rotation.y = +(q.get('catyaw') || 0); cat.scale.setScalar(+(q.get('cats') || 3)); cat.updateMatrixWorld(true);
+  cat.traverse(o => { if (o.isSkinnedMesh) o.skeleton.update(); });   // (the posed bones, before measuring the skinned surface)
+  const cb = new THREE.Box3().setFromObject(cat, true);
+  const wld = new THREE.Group(); wld.rotation.x = +(q.get('elev') ?? .35); wld.position.set(0, signBox.min.y, signBox.min.z); sc.add(wld); host = wld;
+  cat.position.set(+(q.get('catx') || 0) - (cb.min.x + cb.max.x) / 2, -cb.min.y + +(q.get('caty') || 0), -cb.max.z - .05 + +(q.get('catz') || 0));
+  wld.add(cat); parts.push(cat);
+  catcher = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: +(q.get('floorshadow') || 0) }));   // (off by default: a shadow on an unseen floor floats over any backdrop) catcher.rotation.x = -Math.PI / 2;
+} else { catcher = new THREE.Mesh(new THREE.PlaneGeometry(MW * S * 2, MH * S * 3), new THREE.ShadowMaterial({ opacity: .18 })); catcher.position.z = -.01; }
+catcher.receiveShadow = true; host.add(catcher);
+sc.updateMatrixWorld(true);
+const box = new THREE.Box3(); parts.forEach(o => box.expandByObject(o, true));
+const ctr = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 50); cam.position.set(ctr.x, ctr.y, 10); cam.lookAt(ctr);
+const m = 1.08, aspect = W / H, half = Math.max(sz.x / 2 / aspect, sz.y / 2) * m;
+Object.assign(cam, { left: -half * aspect, right: half * aspect, top: half, bottom: -half }); cam.updateProjectionMatrix();
+r.render(sc, cam);
+window.__info = { mask: [MW, MH], box: [box.min.toArray(), box.max.toArray()] };
+window.__done = true;
+</script></body></html>

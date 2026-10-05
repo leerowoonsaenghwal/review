@@ -73,6 +73,7 @@
   # 얼굴: shot=face&ty=0.12&dist=1.5&up=0.08  /  배경 투명: bg=none  /  섬 없이: noisland=1
   ```
 - 등록용 규격과 완성 파일: `assets/app_icon/README.md` (1024 PNG 투명 없음, iOS 18 어두운·색조 변형, 구글 512).
+- **제목 글자(로고)**: `wordmark.html` + `wordmark_shot.py`. 글자를 그림으로 그린 뒤 가장자리까지의 거리(`edt`)로 둥글게 부풀린 높이 면을 만들고(테두리는 '닫기' 처리로 작은 틈을 메움, 높이는 부드럽게 흐림), 게임 고양이를 글자판 뒤에 앉혀 같은 빛·그림자로 찍는다. 두 배 크기로 찍고 줄여서 가장자리를 매끄럽게 한다. 결과와 명령: `assets/logo/README.md`.
 
 ## 8. 이어서 작업할 때의 규칙
 - 동작을 고치면 **반드시** `makeClips` 결과의 `skippedClips`와 `qa_items.mjs`로 확인한 뒤 커밋한다.
