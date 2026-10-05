@@ -38,7 +38,7 @@ namespace CatIsland.EditorTools
         static void SetupPlayer()
         {
             PlayerSettings.companyName = "rowoon";
-            PlayerSettings.productName = "고양이 섬";
+            PlayerSettings.productName = "놀고섬";   // 홈 화면 이름 (정식 이름은 스토어에: 놀러와요 고양이섬, docs/BRAND.md)
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, "com.rowoon.CatIsland");
             PlayerSettings.bundleVersion = "0.1.0";
             PlayerSettings.iOS.buildNumber = "1";

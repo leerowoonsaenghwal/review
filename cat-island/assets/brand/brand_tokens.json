@@ -1,0 +1,28 @@
+{
+  "name": { "ko": "놀러와요 고양이섬", "koShort": "놀고섬", "ja": "あそびにきてね ねこの島", "jaShort": "あそねこ", "en": "Come Play, Cat Isle", "enShort": "Cat Isle" },
+  "subtitle": { "ko": "고양이와 사는 작은 섬", "ja": "ねこと暮らす小さな島", "en": "A cozy island life with cats" },
+  "color": {
+    "grass": "#8FCA5E", "grassLight": "#B2DE7E", "forest": "#58A043", "forestText": "#3F7A2E",
+    "cream": "#FBF6E6", "milkTea": "#F6F1E3", "sand": "#F7E2AD",
+    "cocoa": "#6F5A40", "cocoaDeep": "#5A4632", "latte": "#A08A6A",
+    "strawberry": "#FF7F9F", "strawberryLight": "#FF9AB3", "strawberryText": "#B83D61",
+    "sea": "#86CFE6", "shallows": "#BDEAF0", "sky": "#BFE6F6",
+    "butter": "#F9CF7A", "peach": "#F2A7A0",
+    "starNight": "#2B3266", "starViolet": "#6B5B9A", "starCloud": "#D9D2F0"
+  },
+  "role": {
+    "background": "cream", "surface": "milkTea", "text": "cocoa", "textSecondary": "latte",
+    "buttonPrimaryBg": "strawberryLight", "buttonPrimaryText": "cocoaDeep",
+    "buttonSecondaryBg": "cream", "buttonSecondaryText": "cocoa", "buttonSecondaryBorder": "cocoa",
+    "success": "grass", "badge": "strawberry", "coin": "butter"
+  },
+  "font": {
+    "display": { "ko": "Jua", "ja": "M PLUS Rounded 1c Bold", "en": "Baloo 2 SemiBold" },
+    "body": { "ko": "Gowun Dodum", "ja": "M PLUS Rounded 1c", "en": "Nunito" },
+    "license": "SIL Open Font License 1.1"
+  },
+  "typeScalePt": { "largeTitle": [28, 34], "title": [22, 28], "body": [17, 24], "caption": [14, 20], "tiny": [12, 16] },
+  "radiusPt": { "card": 16, "button": "height/2", "tag": "height/4" },
+  "minTouchPt": 44,
+  "logo": { "clearSpace": "symbolHeight/4", "minPx": { "symbol3d": 48, "symbolMono": 16, "wordmark": 160, "wordmarkShort": 80 } }
+}

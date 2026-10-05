@@ -15,19 +15,51 @@ const W = +(q.get('w') || 2048), H = +(q.get('h') || 720), bg = q.get('bg') || '
 const text = q.get('text') || '고양이 섬';
 await document.fonts.load('400px Jua');
 
-// ---- 1. letters on a 2D mask (each letter a little tilted and bobbed: hand-made, toy-like)
+// ---- 1. letters on a 2D mask (each letter a little tilted and bobbed: hand-made, toy-like). Several lines:
+// text=놀러와요|고양이섬&sizes=.5,1&align=l,c  (one mask per line, so each line can have its own colour)
 const K = +(q.get('res') || 2), FS = 360 * K, PAD = 90 * K, RIM = (+(q.get('rim') || 30)) * K;   // K: mask detail (edge smoothness)
-const cv = document.createElement('canvas'), cx = cv.getContext('2d');
-cx.font = `${FS}px Jua`;
-const chars = [...text], tilt = [-.07, .05, -.04, 0, .06, -.05, .04], bob = [.02, -.03, .02, 0, -.02, .03, -.02];
-const adv = chars.map(c => c === ' ' ? FS * .28 : cx.measureText(c).width - FS * .02);
-const tw = adv.reduce((a, b) => a + b, 0);
-const MW = Math.ceil(tw + PAD * 2), MH = Math.ceil(FS * 1.25 + PAD * 2);
-cv.width = MW; cv.height = MH; cx.font = `${FS}px Jua`; cx.textBaseline = 'middle'; cx.textAlign = 'center'; cx.fillStyle = '#fff';
-let x = PAD;
-chars.forEach((c, i) => { if (c !== ' ') { cx.save(); cx.translate(x + adv[i] / 2, MH / 2 + FS * .06 + bob[i % 7] * FS); cx.rotate(tilt[i % 7]); cx.fillText(c, 0, 0); cx.restore(); } x += adv[i]; });
-const img = cx.getImageData(0, 0, MW, MH).data, inL = new Float32Array(MW * MH);
-for (let i = 0; i < MW * MH; i++) inL[i] = img[i * 4 + 3] / 255;
+const lines = text.split('|'), sizes = (q.get('sizes') || '').split(',').filter(Boolean).map(Number), aligns = (q.get('align') || '').split(',');
+const LGAP = +(q.get('lgap') ?? -.04) * FS, bolds = (q.get('bold') || '').split(',').map(Number);   // bold=.05,0: thicker strokes for a small line
+const tilt = [-.07, .05, -.04, 0, .06, -.05, .04], bob = [.02, -.03, .02, 0, -.02, .03, -.02];
+const mc = document.createElement('canvas').getContext('2d');
+const L = lines.map((t, li) => {
+  const fs = FS * (sizes[li] || 1); mc.font = `${fs}px Jua`;
+  const chars = [...t], adv = chars.map(c => c === ' ' ? fs * .28 : mc.measureText(c).width - fs * .02);
+  return { fs, chars, adv, w: adv.reduce((x, y) => x + y, 0), h: fs * 1.06 };
+});
+const MW = Math.ceil(Math.max(...L.map(l => l.w)) + PAD * 2), MH = Math.ceil(L.reduce((s, l) => s + l.h, 0) + LGAP * (L.length - 1) + PAD * 2);
+const boxes = [];   // where each letter is (for the ears and the leaf)
+let yTop = PAD;
+const lineMask = L.map((l, li) => {
+  const cv = document.createElement('canvas'); cv.width = MW; cv.height = MH; const cx = cv.getContext('2d');
+  cx.font = `${l.fs}px Jua`; cx.textBaseline = 'middle'; cx.textAlign = 'center'; cx.fillStyle = '#fff'; cx.strokeStyle = '#fff'; cx.lineJoin = 'round';
+  const al = aligns[li] || 'c', x0 = al === 'l' ? PAD : al === 'r' ? MW - PAD - l.w : (MW - l.w) / 2;
+  let x = x0; const cy = yTop + l.h / 2;
+  l.chars.forEach((c, i) => {
+    const k = (i + li * 3) % 7, bx = x + l.adv[i] / 2, by = cy + l.fs * .06 + bob[k] * l.fs;
+    if (c !== ' ') { cx.save(); cx.translate(bx, by); cx.rotate(tilt[k]); cx.fillText(c, 0, 0); if (bolds[li]) { cx.lineWidth = l.fs * bolds[li]; cx.strokeText(c, 0, 0); } cx.restore(); }
+    boxes.push({ li, i, c, x0: x, x1: x + l.adv[i], cy: by, fs: l.fs, rot: tilt[k] }); x += l.adv[i];
+  });
+  yTop += l.h + LGAP;
+  return { cv, cx };
+});
+// cat ears on a letter's round ㅇ (ears=<line>:<letter>, e.g. ears=1:1 -> the 양 of 고양이섬)
+const readA = (cx) => cx.getImageData(0, 0, MW, MH).data;
+for (const spec of (q.get('ears') || '').split(',').filter(Boolean)) {
+  const [li, ci] = spec.split(':').map(Number), bxx = boxes.find(b => b.li === li && b.i === ci); if (!bxx) continue;
+  const { cx } = lineMask[li], A = readA(cx), xa = Math.floor(bxx.x0), xb = Math.floor(bxx.x0 + (bxx.x1 - bxx.x0) * .62);
+  let top = -1; for (let y = 0; y < MH && top < 0; y++) for (let x = xa; x < xb; x++) if (A[(y * MW + x) * 4 + 3] > 128) { top = y; break; }
+  const row = top + Math.round(bxx.fs * .1); let xl = 1e9, xr = -1;
+  for (let x = xa; x < xb; x++) if (A[(row * MW + x) * 4 + 3] > 128) { xl = Math.min(xl, x); xr = Math.max(xr, x); }
+  const wd = xr - xl, eh = bxx.fs * .2, ew = wd * .34;
+  for (const s of [-1, 1]) {
+    const ex = s < 0 ? xl + wd * .2 : xr - wd * .2, ey = top + bxx.fs * .06;
+    cx.save(); cx.translate(ex, ey); cx.rotate(s * .32); cx.lineWidth = bxx.fs * .05;
+    cx.beginPath(); cx.moveTo(-ew / 2, 0); cx.lineTo(0, -eh); cx.lineTo(ew / 2, 0); cx.closePath(); cx.fill(); cx.stroke(); cx.restore();
+  }
+}
+const lineL = lineMask.map(({ cx }) => { const A = readA(cx), o = new Float32Array(MW * MH); for (let i = 0; i < o.length; i++) o[i] = A[i * 4 + 3] / 255; return o; });
+const inL = new Float32Array(MW * MH); for (const o of lineL) for (let i = 0; i < o.length; i++) inL[i] = Math.max(inL[i], o[i]);
 
 // ---- 2. distance to the edge (exact Euclidean distance transform, Felzenszwalb & Huttenlocher)
 function edt1(f, n) {
@@ -50,8 +82,13 @@ const letter = new Uint8Array(MW * MH); for (let i = 0; i < letter.length; i++) 
 const dOut = edt(letter.map(v => 1 - v));          // distance outside the letters -> the rim (letters grown by RIM)
 // the rim: letters grown by RIM + CL, then shrunk by CL (a 'closing': fills small gaps and the holes inside
 // the letters, which otherwise left pits in the rim)
-const CL = (+(q.get('close') || 28)) * K, grown = new Uint8Array(MW * MH); for (let i = 0; i < grown.length; i++) grown[i] = dOut[i] < RIM + CL;
-const dG = edt(grown), rimM = new Uint8Array(MW * MH); for (let i = 0; i < rimM.length; i++) rimM[i] = dG[i] > CL;
+const CL = (+(q.get('close') || 28)) * K;
+const rimOf = (lt) => {   // letters grown by RIM + CL, then shrunk by CL
+  const dO = edt(lt.map(v => 1 - v)), grown = new Uint8Array(MW * MH); for (let i = 0; i < grown.length; i++) grown[i] = dO[i] < RIM + CL;
+  const dG = edt(grown), m = new Uint8Array(MW * MH); for (let i = 0; i < m.length; i++) m[i] = dG[i] > CL; return m;
+};
+const rimM = rimOf(letter);
+const perLineRim = q.get('rims') === '1' ? lineL.map(o => rimOf(o.map(v => v > .5 ? 1 : 0))) : null;
 const dL = edt(letter), dR = edt(rimM);
 // sub-pixel edge from the anti-aliased mask: shift the letter distance by the coverage
 for (let i = 0; i < dL.length; i++) if (letter[i]) dL[i] += inL[i] - .5;
@@ -88,14 +125,23 @@ function field(mask, dist, R, Hh, z0, color, colorTop, sig = 3) {
 }
 const grp = new THREE.Group();
 const rimH = RIM * 1.15;
-grp.add(field(rimM, dR, RIM * .8, rimH, 0, q.get('rimc') || '#7a4a2a', q.get('rimc2') || '#a8703f'));
-grp.add(field(letter, dL, 26 * K, 40 * K, rimH * S * .55, q.get('fc') || '#ffecc4', q.get('fc2') || '#fffdf6'));
+const rimcs = (q.get('rimc') || '7a4a2a').split(','), rimc2s = (q.get('rimc2') || 'a8703f').split(',');
+if (perLineRim) perLineRim.forEach((m, li) => grp.add(field(m, edt(m), RIM * .8, rimH, (perLineRim.length - 1 - li) * rimH * S * .5, '#' + rimcs[li % rimcs.length], '#' + rimc2s[li % rimc2s.length])));
+else grp.add(field(rimM, dR, RIM * .8, rimH, 0, '#' + rimcs[0], '#' + rimc2s[0]));
+const fcs = (q.get('fc') || 'ffecc4').split(','), fc2s = (q.get('fc2') || 'fffdf6').split(',');
+lineL.forEach((o, li) => {
+  const m = new Uint8Array(MW * MH); for (let i = 0; i < m.length; i++) m[i] = o[i] > .5;
+  const d = edt(m); for (let i = 0; i < d.length; i++) if (m[i]) d[i] += o[i] - .5;
+  const sc = sizes[li] || 1;
+  grp.add(field(m, d, 26 * K * Math.sqrt(sc), 40 * K * Math.sqrt(sc), rimH * S * .55 + (perLineRim ? (perLineRim.length - 1 - li) * rimH * S * .5 : 0), '#' + (fcs[li] || fcs[0]).replace('#', ''), '#' + (fc2s[li] || fc2s[0]).replace('#', '')));
+});
 
 // ---- 4. a leaf sprouting from the last letter (the island's palm, in miniature)
 if (q.get('leaf') !== '0') {
   const lm = new THREE.MeshStandardMaterial({ color: '#7cc35a', roughness: .6 }), stem = new THREE.MeshStandardMaterial({ color: '#4f8a37', roughness: .7 });
   let lx = 0, ly = 0;   // top right of the last letter
-  for (let yy = 0; yy < MH && !ly; yy += 2) for (let xx = MW - 1; xx > MW * .6; xx -= 2) if (letter[yy * MW + xx]) { lx = xx; ly = yy; break; }
+  const lastL = lineL[lineL.length - 1], lb = boxes.filter(b => b.li === lineL.length - 1).pop();
+  for (let yy = 0; yy < MH && !ly; yy += 2) for (let xx = Math.floor(lb.x1); xx > lb.x0 + (lb.x1 - lb.x0) * .35; xx -= 2) if (lastL[yy * MW + xx] > .5) { lx = xx; ly = yy; break; }
   const leafG = new THREE.Group(); leafG.position.set((lx - MW / 2) * S - .06, -(ly - MH / 2) * S + .02, .1);
   for (const [a, s] of [[.55, 1], [1.35, .8]]) {
     const l = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), lm); l.scale.set(.2 * s, .075 * s, .045); l.position.set(Math.cos(a) * .19 * s, Math.sin(a) * .19 * s, 0); l.rotation.z = a; l.castShadow = true; leafG.add(l);

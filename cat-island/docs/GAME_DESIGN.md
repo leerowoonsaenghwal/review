@@ -1,4 +1,4 @@
-# 게임 기획서: 고양이 섬
+# 게임 기획서: 놀러와요 고양이섬
 
 > 이 문서는 "왜 매일 다시 들어오는가"를 중심으로 쓴 게임 기획이다. 수익 구조는 [BUSINESS_PLAN.md](BUSINESS_PLAN.md), 그림체는 [ART_STYLE.md](ART_STYLE.md), 엔진 선택은 [ENGINE.md](ENGINE.md)에 있다.
 
