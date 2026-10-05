@@ -102,12 +102,20 @@ namespace CatIsland.EditorTools
             imp.SaveAndReimport();
 
             // 2. 내장 텍스처 꺼내기
+            // FBX 가 바뀌면 텍스처도 다시 꺼낸다: 다시 만든 고양이는 UV 가 새로 펼쳐져 옛 텍스처가 맞지 않는다
             string texDir = $"{Art}/Cats/{id}_tex";
-            if (!Directory.Exists(texDir) || Directory.GetFiles(texDir, "*.jpg").Length + Directory.GetFiles(texDir, "*.png").Length == 0)
+            string stamp = $"{texDir}/source.sha";
+            string fbxHash = Hash128.Compute(File.ReadAllBytes(fbx)).ToString();
+            bool fresh = Directory.Exists(texDir) && File.Exists(stamp) && File.ReadAllText(stamp) == fbxHash
+                && Directory.GetFiles(texDir, "*.jpg").Length + Directory.GetFiles(texDir, "*.png").Length > 0;
+            if (!fresh)
             {
+                if (Directory.Exists(texDir)) AssetDatabase.DeleteAsset(texDir);
                 Directory.CreateDirectory(texDir);
                 imp.ExtractTextures(texDir);
+                File.WriteAllText(stamp, fbxHash);
                 AssetDatabase.Refresh();
+                Debug.Log($"[CatArtImport] {id}: textures extracted from the current FBX");
             }
             foreach (var p in Directory.GetFiles(texDir).Where(f => f.EndsWith(".png") || f.EndsWith(".jpg")))
             {
@@ -143,6 +151,8 @@ namespace CatIsland.EditorTools
                 {
                     m.SetTexture("_BaseMap", coat);
                     if (normalTex) { m.SetTexture("_BumpMap", normalTex); m.EnableKeyword("_NORMALMAP"); }
+                    // 노멀맵은 약하게: 구운 털 뭉침이 작은 화면에서 자글자글한 잡티로 보인다 (동물의 숲처럼 매끈하게)
+                    m.SetFloat("_BumpScale", 0.3f);
                     m.SetColor("_BaseColor", Color.white);
                     m.SetFloat("_Gloss", 0f);
                 }

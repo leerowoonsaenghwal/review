@@ -285,6 +285,90 @@ namespace CatIsland.Tests
         }
 
         [UnityTest]
+        public IEnumerator Footsteps_MatchTheGround()
+        {
+            Cat.Needs.SetForTest(1f, 1f);
+            Time.timeScale = 2f;
+            var seen = new System.Collections.Generic.HashSet<Surface>();
+            foreach (var (want, expect) in new[] { (new Vector3(0.8f, 0f, 1.8f), Surface.Wood), (new Vector3(4.2f, 0f, -1.2f), Surface.Grass), (IslandBuilder.SandCenter, Surface.Sand) })
+            {
+                var spot = game.Nav.NearestFree(want);   // (꽃·덤불 근처면 길찾기가 옮기는 자리)
+                Assert.AreEqual(expect, IslandBuilder.SurfaceAt(spot), "test spot surface");
+                Cat.OnTapGround(spot);
+                int before = game.Audio.StepCount;
+                yield return WaitUntil(() => Flat(Cat.transform.position, spot) < 0.3f && game.Audio.StepCount > before + 1, 20f);
+                Assert.Greater(game.Audio.StepCount, before, "footsteps while walking");
+                Assert.AreEqual(expect, game.Audio.LastStepSurface, "step sound for " + expect);
+                seen.Add(game.Audio.LastStepSurface);
+                yield return new WaitForSeconds(0.5f);
+            }
+            Assert.AreEqual(3, seen.Count);
+        }
+
+        [UnityTest]
+        public IEnumerator Taps_PlayRealMeows_NeverTheSameTwiceInARow()
+        {
+            Cat.Needs.SetForTest(1f, 1f);
+            Assert.IsTrue(game.Audio.UsingRecordings, "real cat recordings (assets/sounds/cat) are used");
+            Assert.GreaterOrEqual(game.Audio.MeowCount, 6);
+            string prev = null;
+            var heard = new System.Collections.Generic.HashSet<string>();
+            for (int i = 0; i < 12; i++)
+            {
+                yield return Tap(Screen(HeadPoint));
+                Assert.AreNotEqual(prev, game.Audio.LastMeow, "a different meow each tap");
+                prev = game.Audio.LastMeow;
+                heard.Add(prev);
+                yield return new WaitForSeconds(0.3f);
+            }
+            Assert.GreaterOrEqual(heard.Count, 5, "many different meows over a dozen taps");
+        }
+
+        [UnityTest]
+        public IEnumerator Roaming_NeverPassesThroughItemsOrPlants()
+        {
+            Cat.Needs.SetForTest(1f, 1f);
+            Time.timeScale = 3f;
+            var nav = game.Nav;
+            float worst = 0f; string worstWhat = "";
+            // 장애물을 가로지르게 되는 목적지들 (캣타워 건너편, 그릇 너머, 방석 너머, 나무 쪽, 모래밭, 덤불 쪽)
+            var targets = new[]
+            {
+                game.Tower.transform.position + new Vector3(-1.4f, 0f, 0.2f), game.Tower.transform.position + new Vector3(1.3f, 0f, -0.3f),
+                game.Bowl.transform.position + new Vector3(0.9f, 0f, 0.6f), new Vector3(-1.0f, 0f, -0.8f),
+                game.Cushion.transform.position + new Vector3(-0.2f, 0f, 1.2f), new Vector3(-3.2f, 0f, 3.0f), IslandBuilder.SandCenter,
+                new Vector3(3.6f, 0f, 2.2f), new Vector3(0.5f, 0f, -1.5f), game.Tower.transform.position + new Vector3(0f, 0f, 1.1f),
+            };
+            foreach (var target in targets)
+            {
+                Cat.OnTapGround(target);
+                float t = 0f;
+                while (t < 9f)
+                {
+                    yield return null;
+                    t += Time.deltaTime;
+                    var rig = Cat.Rig;
+                    var samples = new System.Collections.Generic.List<(Vector3 p, float r)>
+                    {
+                        (rig.HeadZone.position, rig.HeadRadius * 0.75f),
+                        (rig.BodyZone.position, rig.BodyHalf.x * 0.8f),
+                        (rig.BodyZone.position + Cat.transform.forward * rig.BodyHalf.z * 0.7f, rig.BodyHalf.x * 0.8f),
+                        (rig.BodyZone.position - Cat.transform.forward * rig.BodyHalf.z * 0.7f, rig.BodyHalf.x * 0.8f),
+                    };
+                    foreach (var o in nav.obstacles)
+                        foreach (var (p, r) in samples)
+                        {
+                            float d = o.Distance(p) - r;
+                            if (d < worst) { worst = d; worstWhat = $"{o.name} at {Cat.transform.position} state {Cat.State}"; }
+                        }
+                    if (Cat.State == CatState.Idle && t > 1f) break;
+                }
+            }
+            Debug.Log($"[NoPassThrough] worst overlap {worst * 1000f:F0} mm {worstWhat}");
+            Assert.Greater(worst, -0.03f, "the cat's body never sinks more than 3 cm into an item or plant: " + worstWhat);
+        }
+
+        [UnityTest]
         public IEnumerator Groom_PlaysGroomFaceWhileSitting()
         {
             Cat.Needs.SetForTest(1f, 1f);

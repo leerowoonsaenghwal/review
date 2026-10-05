@@ -15,6 +15,7 @@ namespace CatIsland
         public FoodBowl Bowl { get; private set; }
         public Cushion Cushion { get; private set; }
         public CatTower Tower { get; private set; }
+        public NavGrid Nav { get; private set; }
         public IslandCamera IslandCam { get; private set; }
         public TouchRouter Router { get; private set; }
         public CatAudio Audio { get; private set; }
@@ -37,6 +38,13 @@ namespace CatIsland
             Bowl = FoodBowl.Create(world, new Vector3(1.9f, 0.004f, 0.6f));
             Cushion = Cushion.Create(world, new Vector3(-1.9f, 0.004f, 1.3f));
             Tower = CatTower.Create(world, new Vector3(1.0f, 0.004f, 2.7f), -90f);
+
+            // 길찾기: 고양이가 물건을 뚫고 지나가지 않게 장애물을 등록한다
+            Nav = new NavGrid(GameConfig.IslandWalkRadius);
+            Nav.Add(new Obstacle { name = "Bowl", item = Bowl.transform, center = Bowl.transform.position, radius = 0.17f });
+            Nav.Add(new Obstacle { name = "Cushion", item = Cushion.transform, center = Cushion.transform.position, radius = 0.54f });
+            Nav.Add(new Obstacle { name = "Tower", item = Tower.transform, center = Tower.transform.position, half = new Vector2(Tower.DeckSize.x * 0.5f + 0.04f, Tower.DeckSize.y * 0.5f + 0.04f), yaw = Tower.transform.eulerAngles.y });
+            foreach (var (name, pos, r) in IslandBuilder.Solids) Nav.Add(new Obstacle { name = name, center = pos, radius = r });
 
             var fx = new GameObject("Fx").AddComponent<FxPool>();
             fx.transform.SetParent(world, false);
@@ -68,6 +76,7 @@ namespace CatIsland
             Cat.bowl = Bowl;
             Cat.cushion = Cushion;
             Cat.tower = Tower;
+            Cat.nav = Nav;
             Cat.audioOut = Audio;
             Cat.cam = camGo.transform;
             IslandCam.follow = catGo.transform;

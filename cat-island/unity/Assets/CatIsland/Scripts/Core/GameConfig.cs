@@ -45,7 +45,7 @@ namespace CatIsland
         public const float RunSpeed = 2.27f;
         public const float TurnSpeedDeg = 160f;
         public const float IslandWalkRadius = 5.0f;
-        public const float WanderRadius = 3.0f;
+        public const float WanderRadius = 4.2f;   // (가끔 풀밭과 모래밭까지)
 
         // ---- 입력 ----
         public const float TapMaxDuration = 0.28f;

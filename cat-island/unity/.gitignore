@@ -22,6 +22,7 @@
 /Assets/CatIsland/Art/**/*.png
 /Assets/CatIsland/Art/**/*.json
 !/Assets/CatIsland/Art/**/*.meta
+/Assets/CatIsland/Resources/Sounds/**/*.wav
 
 # 테스트 실행기가 잠깐 만드는 파일
 /Assets/Resources/PerformanceTestRun*.json*
