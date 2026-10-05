@@ -1,0 +1,55 @@
+{
+ "id": "tower_house",
+ "ko": "캣타워 3단 하우스형",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "step": 0.4,
+  "top": [
+   0.02,
+   1.2000000000000002,
+   0
+  ],
+  "decks": [
+   {
+    "y": 0.4,
+    "x": -0.32,
+    "z": 0,
+    "size": [
+     0.66,
+     0.8
+    ]
+   },
+   {
+    "y": 0.8,
+    "x": 0.38,
+    "z": 0,
+    "size": [
+     0.64,
+     0.9
+    ]
+   },
+   {
+    "y": 1.2000000000000002,
+    "x": 0.02,
+    "z": 0,
+    "size": [
+     1.3,
+     0.95
+    ]
+   }
+  ]
+ },
+ "variants": [
+  "tower_house_color.jpg",
+  "tower_house_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 39,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 18000,
+ "texture": 2048,
+ "gameUse": "not yet: needs the 0.4 m JumpUp and a jump down (step B)"
+}

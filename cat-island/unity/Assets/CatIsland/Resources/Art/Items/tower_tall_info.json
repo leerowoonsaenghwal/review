@@ -1,0 +1,73 @@
+{
+ "id": "tower_tall",
+ "ko": "캣타워 5단 높은 타워",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "step": 0.4,
+  "top": [
+   0,
+   2,
+   0
+  ],
+  "decks": [
+   {
+    "y": 0.4,
+    "x": -0.42,
+    "z": 0,
+    "size": [
+     0.7,
+     0.8
+    ]
+   },
+   {
+    "y": 0.8,
+    "x": 0.42,
+    "z": 0,
+    "size": [
+     0.7,
+     0.8
+    ]
+   },
+   {
+    "y": 1.2000000000000002,
+    "x": -0.42,
+    "z": 0,
+    "size": [
+     0.7,
+     0.8
+    ]
+   },
+   {
+    "y": 1.6,
+    "x": 0.42,
+    "z": 0,
+    "size": [
+     0.7,
+     0.8
+    ]
+   },
+   {
+    "y": 2,
+    "x": 0,
+    "z": 0,
+    "size": [
+     1,
+     0.85
+    ]
+   }
+  ]
+ },
+ "variants": [
+  "tower_tall_color.jpg",
+  "tower_tall_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 50,
+  "detail": 16,
+  "proxy": 0
+ },
+ "game_tris": 24000,
+ "texture": 2048,
+ "gameUse": "not yet: needs the 0.4 m JumpUp and a jump down (step B)"
+}

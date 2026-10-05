@@ -660,7 +660,7 @@ export function makeClips(rig, opts = {}) {
         const P = pose(dur * i / n), u = P.lickU;
         if (u === undefined || u < .04 || u > .82 || !(P.tongue > 0)) return 0;
         const gapAt = dt => { const Q = { ...P, tongue: Math.max(0, P.tongue + dt) }; groomTongue(Q); applyPose(S, Q); C.update(); return C.gap(T, onB, .12).d; };
-        const core = u >= LICK_CORE[0] && u <= LICK_CORE[1], want = core ? -.001 : .001;
+        const core = u >= LICK_CORE[0] - 1e-6 && u <= LICK_CORE[1] + 1e-6, want = core ? -.001 : .001;   // (u = .08 + .02 i: .44 came out a hair over)
         if (!core && gapAt(0) >= want) return 0;
         if (core && Math.abs(gapAt(0) - want) < .0015) return 0;
         // the gap is not monotonic in how far the tongue is out (far out, the tip curls up and away), so the range
@@ -749,10 +749,15 @@ export function makeClips(rig, opts = {}) {
     }, { rootMotion: true, speed: g.v, stride: g.S, cycle: g.T });
   }
   // JumpUp: crouch, bum wiggle, launch, ballistic flight, front paws land first, absorb, stand
-  {
+  // Made for three deck heights (docs/ART_DIRECTION.md 10-3): JumpUp / JumpDown 0.2 m (the low tower), JumpUp40 /
+  // JumpDown40 0.4 m (one tower level), JumpUp80 / JumpDown80 0.8 m. The game blends the two nearest to the real
+  // height and distance and holds the crouch longer for higher jumps (motionfeel.js jumpAnticipation).
+  for (const Hj of opts.jumpH ? [opts.jumpH] : [.2, .4, .8]) {
+    const sfx = opts.jumpH || Math.abs(Hj - .2) < 1e-6 ? '' : String(Math.round(Hj * 100));   // (opts.jumpH: one jump, named JumpUp - the motion test page)
+    if (opts.only && !opts.only.some(n => n === 'JumpUp' + sfx || n === 'JumpDown' + sfx)) continue;
     // the jump carries the cat its own length forward: at take-off the head must be clear of the deck the hind
     // paws then land on (a long cat cannot stand right in front of a deck it can reach in one hop)
-    const d0 = rig.d, Hup = opts.jumpH || .2, tLift = 1.0, tPush = 1.1;   // (opts.jumpH: deck height; .4 for the new towers, step B)
+    const d0 = rig.d, Hup = Hj, tLift = 1.0, tPush = 1.1;   // (opts.jumpH: deck height; .4 for the new towers, step B)
     const headFront = (() => { const C = contactOf(S); applyPose(S, P0); C.update({ face: false }); let z = -Infinity; const p = C.M.body.pos; for (const i of C.sets.head.ids) z = Math.max(z, p[3 * i + 2]); return z; })();
     const D = Math.max(.78, headFront + .12 - rig.restFoot.HL.z), deckBack = D + rig.restFoot.HL.z - .15;   // (room for the raised heel behind the toes)
     const apex = Hup + .1, vy = Math.sqrt(2 * G * apex), Tf = vy / G + Math.sqrt(2 * (apex - Hup) / G);
@@ -760,7 +765,7 @@ export function makeClips(rig, opts = {}) {
     // short forelegs under a big head (Munchkin, Persian) leave no room to drop the chest and nod on landing:
     // the landing crouch and nod shrink with leg length and the head is carried up instead
     const legK = clamp(((d0.joints.UpperArm_L.y - rig.ballH) / d0.HS - .3) / .6, 0, 1);
-    add('JumpUp', dur, false, withSettle(S, t => {
+    add('JumpUp' + sfx, dur, false, withSettle(S, t => {
       const P = { ...P0 };
       const crouchA = ss(seg(t, 0, .35)) * (1 - ss(seg(t, .95, tPush)));            // before take-off
       const crouchB = (.35 + .4 * legK) * ss(seg(t, tLand - .02, tLand + .14)) * (1 - ss(seg(t, tLand + .3, tLand + .75)));
@@ -817,7 +822,7 @@ export function makeClips(rig, opts = {}) {
     const turnIn = .05, edge = D - deckBack + turnIn, Dd = Math.max(.55, edge - rig.restFoot.HL.z + .12);
     const tPushD = .75, apexD = .09, vyD = Math.sqrt(2 * G * apexD), TfD = vyD / G + Math.sqrt(2 * (apexD + Hup) / G);
     const tLandD = tPushD + TfD, durD = tLandD + .8;
-    add('JumpDown', durD, false, withSettle(S, t => {
+    add('JumpDown' + sfx, durD, false, withSettle(S, t => {
       const P = { ...P0 };
       const peek = ss(seg(t, 0, .35)) * (1 - ss(seg(t, .6, tPushD)));            // looking down at the landing
       const crouchA = ss(seg(t, .3, .6)) * (1 - ss(seg(t, .68, tPushD)));
@@ -922,15 +927,17 @@ export function makeClips(rig, opts = {}) {
     const offs = LICK_U.map(u => {
       const c0 = lickCycle(u), k0 = c0.hdPitch / .1; delete c0.hdPitch;
       const gapAt = dt => { const Q = addTongue({ ...base }, c0); Q.tongue += dt; groomTongue(Q); stroke(Q, k0); applyPose(S, Q); C.update(); return C.gap(T, onB, .12).d; };
-      const core = u >= LICK_CORE[0] && u <= LICK_CORE[1], want = core ? -.001 : .001;
+      const core = u >= LICK_CORE[0] - 1e-6 && u <= LICK_CORE[1] + 1e-6, want = core ? -.001 : .001;   // (u = .08 + .02 i: .44 came out a hair over)
       if (!core && gapAt(0) >= want) return 0;                                 // already clear
-      let lo = -.8, hi = core ? .12 : 0;                                       // gap falls as the tongue comes further out
+      let lo = -.8, hi = core ? .6 : 0;                                        // gap falls as the tongue comes further out (a big head strokes away late in the lick: it may reach a little further then)
       if (gapAt(hi) > want) return hi;                                         // cannot reach: as far as it goes
       for (let it = 0; it < 14; it++) { const m = (lo + hi) / 2; if (gapAt(m) > want) lo = m; else hi = m; }
       return (lo + hi) / 2;
     });
     // smoothed (a tongue does not jerk in and out), never letting the smoothing push it back into the fur
-    const sm = offs.map((o, i) => Math.min(o, (offs[Math.max(0, i - 1)] + 2 * o + offs[Math.min(offs.length - 1, i + 1)]) / 4));
+    // (inside the contact window the tongue keeps its full reach: smoothed toward the retracting neighbours, the
+    //  end of the window lost the paw by 2 cm on a big head)
+    const sm = offs.map((o, i) => LICK_U[i] >= LICK_CORE[0] - 1e-6 && LICK_U[i] <= LICK_CORE[1] + 1e-6 ? o : Math.min(o, (offs[Math.max(0, i - 1)] + 2 * o + offs[Math.min(offs.length - 1, i + 1)]) / 4));
     offs.splice(0, offs.length, ...sm);
     return (P, u) => {
       const w = ss(seg(u, LICK_ON[0], LICK_U[0])) * (1 - ss(seg(u, LICK_U[LICK_U.length - 1], LICK_ON[1])));
@@ -990,14 +997,14 @@ export function makeClips(rig, opts = {}) {
   lickBase = over(SITG, UPP, { FLx: .05 * sx, FLy: rig.ballH + .02, FLz: chestFront + .06, FLa: .2, FLt: 0, hdPitch: .8, nkPitch: SITG.nkPitch - .6, hdYaw: 0, hdRoll: 0 });
   touchBest(S, lickBase, { a: 'tongue', b: ['FL'], keys: [...PAWK, 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], bounds: HB, iters: 40, at: lickAt(faceStroke), guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD] },
     [{ hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLy: rig.ballH, FLz: chestFront + .09 }, { FLx: .1 * sx, hdYaw: .45 * sx, hdRoll: .2 * sx }, { FLx: .12 * sx, FLz: chestFront + .08, hdYaw: .6 * sx, nkYaw: .3 * sx, hdRoll: .25 * sx }, { FLx: .09 * sx, FLz: chestFront + .1, hdYaw: .3 * sx, hdPitch: 1 }, { FLx: .11 * sx, FLz: chestFront + .05, hdYaw: .5 * sx, hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLx: .07 * sx, FLz: chestFront + .12, hdPitch: 1.1, nkPitch: SITG.nkPitch - .7 }],
-    { FLx: [0, .04 * sx], FLz: [-.03, 0, .03, .06, .09, .12], hdPitch: [-.2, 0, .2, .4], nkPitch: [-.2, 0, .3], hdYaw: [0, .4 * sx] });
+    { FLx: [0, .04 * sx], FLz: [-.03, 0, .03, .06, .09, .12], hdPitch: [-.6, -.4, -.2, 0, .2, .4], nkPitch: [-.2, 0, .3], hdYaw: [0, .4 * sx] });   // (head raised too: a long muzzle licks the paw held out in front)
   // (a big head with a long muzzle and a plush paw: from the starts above the paw can end up held inside the
   //  muzzle with the tongue on it. Also start with the paw out in front of and just under the mouth, where it
   //  is on any build, and keep whichever solves best)
   if (touch.last - .001 > .0015) {
     const keep = { ...lickBase }, keepErr = touch.last, keepInfo = touch.info;
     const m = mouthAt(lickAt(faceStroke)({ ...lickBase }));
-    const fromMouth = [1.3, 1.8, 2.4].flatMap(f => [0, .03].map(dy => ({ FLx: .03 * sx, FLz: m.z + f * d.pawR, FLy: Math.max(rig.ballH, m.y - d.pawR - dy) })));
+    const fromMouth = [1.3, 1.8, 2.4].flatMap(f => [0, .03].flatMap(dy => [0, -.4].map(hp => ({ FLx: .03 * sx, FLz: m.z + f * d.pawR, FLy: Math.max(rig.ballH, m.y - d.pawR - dy), hdPitch: lickBase.hdPitch + hp }))));
     touchBest(S, lickBase, { a: 'tongue', b: ['FL'], keys: [...PAWK, 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], bounds: HB, iters: 40, at: lickAt(faceStroke), guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD] }, fromMouth);
     if (touch.last >= keepErr) { Object.assign(lickBase, keep); touch.last = keepErr; touch.info = keepInfo; }
   }
@@ -1014,8 +1021,8 @@ export function makeClips(rig, opts = {}) {
   report.wash = Math.max(...washPoses.map(w => w.err)); report.washEach = washPoses.map(w => [+(w.err * 1000).toFixed(1), w.info]);
   add('GroomFace', 6.6, true, withSettle(S, t => {
     const P = { ...SITG };
-    P.breath = Math.sin(TAU * t / 2.2);
     const up = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 6.1, 6.6)));
+    P.breath = Math.sin(TAU * t / 2.2) * (1 - up);   // (held while the paw is up: the lick contact is solved on a still chest)
     // the paw comes up first and the head bends down to it after (and the head lifts before the paw goes
     // down): moved together, the paw would rise into the chin coming down
     const upP = mj(seg(t, 0, .3)) * (1 - mj(seg(t, 6.3, 6.6))), upH = mj(seg(t, .12, .45)) * (1 - mj(seg(t, 6.1, 6.42)));

@@ -1,0 +1,58 @@
+{
+ "id": "tower_tree",
+ "ko": "캣타워 3단 나무형",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "step": 0.4,
+  "top": [
+   0.02,
+   1.2200000000000002,
+   -0.05
+  ],
+  "decks": [
+   {
+    "y": 0.4,
+    "x": 0.38,
+    "z": 0.1,
+    "size": [
+     0.76,
+     0.76
+    ],
+    "leaf": true
+   },
+   {
+    "y": 0.8,
+    "x": -0.36,
+    "z": -0.05,
+    "size": [
+     0.76,
+     0.76
+    ],
+    "leaf": true
+   },
+   {
+    "y": 1.2200000000000002,
+    "x": 0.02,
+    "z": -0.05,
+    "size": [
+     0.88,
+     0.88
+    ],
+    "leaf": true
+   }
+  ]
+ },
+ "variants": [
+  "tower_tree_color.jpg",
+  "tower_tree_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 19,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 14000,
+ "texture": 2048,
+ "gameUse": "not yet: needs the 0.4 m JumpUp and a jump down (step B)"
+}

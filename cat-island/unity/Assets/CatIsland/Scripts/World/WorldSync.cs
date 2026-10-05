@@ -50,6 +50,7 @@ namespace CatIsland
                 var d = Catalog.Item(p.item); var pos = PlacementCenter(p); float yaw = 180f - p.rot * 90f;
                 var go = ItemLoader.Spawn(d.model, root, pos + new Vector3(0, .004f, 0), yaw) ?? Placeholder(d, pos, yaw);
                 spawned[p] = go;
+                if (d.category == ItemCategory.Tower && ItemLoader.InfoText(d.model) != null) CatTower.Attach(go, d.model);   // (고양이가 오르는 캣타워)
                 int w = d.w, h = d.h; if (p.rot % 2 == 1) (w, h) = (h, w);
                 var ob = boot.Nav.Add(new Obstacle { name = d.id, item = go.transform, center = pos, half = new Vector2(w * Cell * .45f, h * Cell * .45f), yaw = 0 });
                 obstacles[p] = ob;

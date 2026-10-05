@@ -22,7 +22,7 @@ namespace CatIsland.EditorTools
 
         [Serializable] class XZ { public float x; public float z; }
         [Serializable] class DrinkInfo { public XZ bowl; }
-        [Serializable] class JumpInfo { public float D; public float H; public float deckBack; public float turnIn; }
+        [Serializable] class JumpInfo { public float D; public float H; public float deckBack; public float turnIn; public float edge; }
         [Serializable] class ClipInfo { public string name; public float dur; public bool loop; public bool rootMotion; public DrinkInfo drink; public JumpInfo jump; }
         [Serializable] class CushionSpot { public float x; public float z; public float catLift; }
         [Serializable] class ItemSpots { public CushionSpot cushion; }
@@ -41,7 +41,9 @@ namespace CatIsland.EditorTools
             public float bowlX, bowlZ, cushionZ, cushionLift;
             public Vector3 flopBelly;   // 발라당(FlopIdle) 자세에서 배가 향하는 방향 (고양이 기준)
             public float jumpD, jumpH, deckBack, turnIn; // clips.json JumpUp.jump: 판 뒤쪽 끝이 출발점에서 deckBack 앞 (qa_items 와 같은 배치)
+            public JumpSet[] jumps;     // 높이별 점프 (CatRig.JumpSet 과 같은 모양)
         }
+        [Serializable] public class JumpSet { public string clip; public bool up; public float H, D, deckBack, turnIn, edge; public RootCurve curve; }
 
         [MenuItem("CatIsland/Import Art")]
         public static void Run()
@@ -211,6 +213,10 @@ namespace CatIsland.EditorTools
             if (jj != null) { info.jumpD = jj.D; info.jumpH = jj.H; info.deckBack = jj.deckBack; }
             var jdn = json.clips.FirstOrDefault(c => c.name == "JumpDown")?.jump;
             if (jdn != null) info.turnIn = jdn.turnIn;
+            // 높이별 점프 (JumpUp, JumpUp40, JumpUp80, JumpDown, JumpDown40, JumpDown80): 곡선 + 높이·거리
+            info.jumps = json.clips.Where(c => c.jump != null && (c.name.StartsWith("JumpUp") || c.name.StartsWith("JumpDown")) && !skipped.Contains(c.name) && Clip(c.name))
+                .Select(c => new JumpSet { clip = c.name, up = c.name.StartsWith("JumpUp"), H = c.jump.H, D = c.jump.D, deckBack = c.jump.deckBack, turnIn = c.jump.turnIn, edge = c.jump.edge, curve = SampleRoot(Clip(c.name)) })
+                .Where(j => j.curve != null).ToArray();
             if (json.itemSpots?.cushion != null) { info.cushionZ = json.itemSpots.cushion.z; info.cushionLift = json.itemSpots.cushion.catLift; }
 
             // 6. 프리팹

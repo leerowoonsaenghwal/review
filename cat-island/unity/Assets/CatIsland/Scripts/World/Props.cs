@@ -129,30 +129,94 @@ namespace CatIsland
     }
 
     /// <summary>캣타워 1단. 고양이가 점프해 오르는 판 높이는 JSON decks[0].y.</summary>
+    /// <summary>
+    /// 고양이가 오르는 캣타워 (판 여러 개). 판의 자리·높이·크기는 용품 JSON 의 anchors.decks (x, z, y, size; 판 높이 0.4 m 단위).
+    /// cat_tower_1 은 0.2 m 판 하나. 고양이는 한 층씩 뛰어 오르내린다 (CatBrain).
+    /// </summary>
     public class CatTower : MonoBehaviour
     {
-        [Serializable] class Deck { public float y = 0.2f; public float z; public float[] size; }
+        [Serializable] class Deck { public float y = 0.2f; public float x, z; public float[] size; public bool round; }
         [Serializable] class Anchors { public Deck[] decks; }
         [Serializable] class Info { public Anchors anchors = new Anchors(); }
+        public struct DeckSpot { public Vector3 local; public Vector2 size; public bool round; }
 
-        public float DeckHeight { get; private set; } = 0.2f;
-        public Vector2 DeckSize { get; private set; } = new Vector2(0.72f, 1f);   // (가로, 앞뒤)
+        public static readonly List<CatTower> All = new List<CatTower>();
+        public string Id { get; private set; }
+        public readonly List<DeckSpot> Decks = new List<DeckSpot>();
+        public float DeckHeight => Decks.Count > 0 ? Decks[0].local.y : 0.2f;
+        public Vector2 DeckSize => Decks.Count > 0 ? Decks[0].size : new Vector2(0.72f, 1f);
+        public int TopDeck { get { int t = 0; for (int i = 1; i < Decks.Count; i++) if (Decks[i].local.y > Decks[t].local.y) t = i; return t; } }
+
+        void OnEnable() { if (!All.Contains(this)) All.Add(this); }
+        void OnDisable() => All.Remove(this);
 
         public static CatTower Create(Transform parent, Vector3 pos, float yaw)
         {
             var go = ItemLoader.Spawn("cat_tower_1", parent, pos, yaw);
-            var t = go.AddComponent<CatTower>();
-            var info = JsonUtility.FromJson<Info>(ItemLoader.InfoText("cat_tower_1") ?? "{}");
-            if (info.anchors.decks != null && info.anchors.decks.Length > 0)
-            {
-                t.DeckHeight = info.anchors.decks[0].y;
-                var sz = info.anchors.decks[0].size;
-                if (sz != null && sz.Length == 2) t.DeckSize = new Vector2(sz[0], sz[1]);
-            }
+            var t = Attach(go, "cat_tower_1");
             var col = go.AddComponent<BoxCollider>();
             col.center = new Vector3(0f, 0.11f, 0f);
             col.size = new Vector3(0.8f, 0.22f, 1.08f);
             return t;
+        }
+        /// <summary>섬에 놓인 캣타워 모델에 판 정보를 붙인다.</summary>
+        public static CatTower Attach(GameObject go, string id)
+        {
+            var t = go.GetComponent<CatTower>() ?? go.AddComponent<CatTower>(); t.Id = id; t.Decks.Clear();
+            var info = JsonUtility.FromJson<Info>(ItemLoader.InfoText(id) ?? "{}");
+            if (info.anchors.decks != null)
+                foreach (var d in info.anchors.decks)
+                    t.Decks.Add(new DeckSpot { local = new Vector3(d.x, d.y, d.z), size = d.size != null && d.size.Length == 2 ? new Vector2(d.size[0], d.size[1]) : new Vector2(.7f, .8f), round = d.round });
+            if (t.Decks.Count == 0) t.Decks.Add(new DeckSpot { local = new Vector3(0, .2f, 0), size = new Vector2(.72f, 1f) });
+            return t;
+        }
+
+        public float Height(int i) => i < 0 ? 0f : transform.position.y + Decks[i].local.y;
+        public Vector3 Center(int i) { var w = transform.TransformPoint(new Vector3(Decks[i].local.x, 0, Decks[i].local.z)); w.y = Height(i); return w; }
+        /// <summary>판 가장자리까지의 거리 (판 가운데에서 dir 방향으로).</summary>
+        public float Extent(int i, Vector3 dir)
+        {
+            var l = transform.InverseTransformDirection(dir); var h = Decks[i].size * .5f;
+            if (Decks[i].round) return h.x;
+            return Mathf.Abs(l.x) * h.x + Mathf.Abs(l.z) * h.y;
+        }
+        public bool Inside(int i, Vector3 world, float margin)
+        {
+            var l = transform.InverseTransformPoint(world) - new Vector3(Decks[i].local.x, 0, Decks[i].local.z); var h = Decks[i].size * .5f;
+            if (Decks[i].round) return new Vector2(l.x, l.z).magnitude <= h.x - margin;
+            return Mathf.Abs(l.x) <= h.x - margin && Mathf.Abs(l.z) <= h.y - margin;
+        }
+        public Vector3 ClampInto(int i, Vector3 world, float margin)
+        {
+            var c = new Vector3(Decks[i].local.x, 0, Decks[i].local.z); var l = transform.InverseTransformPoint(world) - c; var h = Decks[i].size * .5f;
+            if (Decks[i].round) { var v = new Vector2(l.x, l.z); if (v.magnitude > h.x - margin) v = v.normalized * (h.x - margin); l = new Vector3(v.x, 0, v.y); }
+            else l = new Vector3(Mathf.Clamp(l.x, -h.x + margin, h.x - margin), 0, Mathf.Clamp(l.z, -h.y + margin, h.y - margin));
+            var w = transform.TransformPoint(c + l); w.y = Height(i); return w;
+        }
+        /// <summary>지금 높이(level: -1 바닥)에서 한 번에 뛸 수 있는 다음 위 판 (0.85 m 이내에서 가장 낮은 것).</summary>
+        public int NextUp(int level, Vector3 from)
+        {
+            float h = Height(level); int best = -1; float bh = float.MaxValue, bd = float.MaxValue;
+            for (int i = 0; i < Decks.Count; i++)
+            {
+                float dh = Height(i) - h; if (dh <= .05f || dh > .85f) continue;
+                float d = (new Vector3(Center(i).x, 0, Center(i).z) - new Vector3(from.x, 0, from.z)).magnitude;
+                if (dh < bh - .01f || Mathf.Abs(dh - bh) < .01f && d < bd) { bh = dh; bd = d; best = i; }
+            }
+            return best;
+        }
+        /// <summary>내려갈 다음 판 (바로 아래 층, 없으면 -1 바닥).</summary>
+        public int NextDown(int level, Vector3 from)
+        {
+            float h = Height(level); int best = -1; float bh = -1, bd = float.MaxValue;
+            for (int i = 0; i < Decks.Count; i++)
+            {
+                float dh = h - Height(i); if (dh <= .05f || dh > .85f) continue;
+                float d = (new Vector3(Center(i).x, 0, Center(i).z) - new Vector3(from.x, 0, from.z)).magnitude;
+                if (Height(i) > bh + .01f || Mathf.Abs(Height(i) - bh) < .01f && d < bd) { bh = Height(i); bd = d; best = i; }
+            }
+            if (best < 0 && h > .85f) { for (int i = 0; i < Decks.Count; i++) if (Height(i) < h - .05f && (best < 0 || Height(i) > Height(best))) best = i; }   // (멀어도 가장 가까운 아래 층)
+            return best;
         }
     }
 

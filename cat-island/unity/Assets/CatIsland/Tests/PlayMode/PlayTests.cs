@@ -780,3 +780,39 @@ namespace CatIsland.Tests
         }
     }
 }
+
+namespace CatIsland.Tests
+{
+    using System.Collections;
+    using System.Linq;
+    using NUnit.Framework;
+    using UnityEngine;
+    using UnityEngine.TestTools;
+
+    /// <summary>높은 캣타워: 고양이가 한 층씩 꼭대기까지 오르고, 쉬다가 한 층씩 내려와 바닥에 선다. 물건에 박히지 않는다.</summary>
+    public class TowerClimbTests : SceneFixture
+    {
+        [UnityTest]
+        public IEnumerator ClimbsTallTowerAndComesDown()
+        {
+            var g = game.Logic; var c = g.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Aloof); g.AddCoins(5000);
+            Assert.IsTrue(g.Buy("tower_tall"));
+            Assert.IsTrue(g.Place("tower_tall", CatIsland.Game.Zone.Indoor, 3, 2, 2));
+            game.WorldLink.Refresh(); yield return null;
+            var tall = CatTower.All.FirstOrDefault(t => t.Id == "tower_tall"); Assert.NotNull(tall, "tall tower on the island with its decks");
+            Assert.AreEqual(5, tall.Decks.Count);
+            var cat = Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).First(b => b.Data == c);
+            if (game.Tower) game.Tower.gameObject.SetActive(false);   // (이 캣타워만)
+            cat.Needs.SetForTest(1f, 1f); c.hunger = 1f;
+            Time.timeScale = 4f;
+            cat.ClimbTo(tall, tall.TopDeck);
+            float top = 0f;
+            for (float t = 0; t < 60f && !(cat.OnTower && cat.transform.position.y > 1.9f); t += Time.deltaTime) { yield return null; top = Mathf.Max(top, cat.transform.position.y); }
+            Assert.Greater(top, 1.9f, "reached the top deck (2.0 m) one level at a time");
+            cat.OnTapGround(new Vector3(0, 0, -1.5f));   // (내려오라고 부름)
+            for (float t = 0; t < 60f && (cat.OnTower || cat.transform.position.y > .02f); t += Time.deltaTime) yield return null;
+            Time.timeScale = 1f;
+            Assert.IsFalse(cat.OnTower); Assert.Less(cat.transform.position.y, .05f, "back on the floor");
+        }
+    }
+}

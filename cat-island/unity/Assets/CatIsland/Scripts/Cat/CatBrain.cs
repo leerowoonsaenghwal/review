@@ -63,7 +63,7 @@ namespace CatIsland
             foreach (var k in new List<Transform>(claims.Keys)) if (claims[k] == this) claims.Remove(k);
             var t = s == CatState.GoToBowl || s == CatState.WaitAtBowl || s == CatState.Eat ? (bowl ? bowl.transform : null)
                   : s == CatState.GoToCushion || s == CatState.LieDown || s == CatState.Sleep ? (cushion ? cushion.transform : null)
-                  : s == CatState.GoToTower || s == CatState.OnTower ? (tower ? tower.transform : null) : null;
+                  : s == CatState.GoToTower || s == CatState.OnTower || s == CatState.JumpUp || s == CatState.JumpDown ? (curTower ? curTower.transform : tower ? tower.transform : null) : null;
             if (t) claims[t] = this;
         }
         void OnDestroy() { All.Remove(this); foreach (var k in new List<Transform>(claims.Keys)) if (claims[k] == this) claims.Remove(k); if (selfObstacle != null) nav?.obstacles.Remove(selfObstacle); }
@@ -170,7 +170,7 @@ namespace CatIsland
         public void OnTowerTapped()
         {
             NoteUserActivity();
-            if (tower && IsFree() && !OnTower) Enter(CatState.GoToTower);
+            if (IsFree() && !OnTower && PickTower()) { curTower = PickTower(); Enter(CatState.GoToTower); }
         }
 
         bool IsFree() =>
@@ -354,7 +354,7 @@ namespace CatIsland
                 return;
             }
             float r = UnityEngine.Random.value;
-            if (r < 0.12f && tower && Free(tower)) Enter(CatState.GoToTower);
+            if (r < 0.12f && PickTower()) { curTower = PickTower(); Enter(CatState.GoToTower); }
             else if (r < 0.2f && Needs.Energy > 0.6f) Enter(CatState.Zoomies);
             else if (r < 0.35f) Enter(CatState.Groom);
             else if (r < 0.5f) Enter(CatState.SitIdle);
@@ -365,7 +365,7 @@ namespace CatIsland
         Transform UsingItem() =>
             State == CatState.GoToBowl || State == CatState.WaitAtBowl || State == CatState.Eat ? (bowl ? bowl.transform : null)
             : State == CatState.GoToCushion || State == CatState.LieDown || State == CatState.Sleep ? (cushion ? cushion.transform : null)
-            : State == CatState.GoToTower ? (tower ? tower.transform : null) : null;
+            : State == CatState.GoToTower ? (curTower ? curTower.transform : null) : null;
 
         /// <summary>다음에 향할 곳: 길찾기 경로의 다음 지점 (장애물을 돌아간다).</summary>
         Vector3 Steer(Vector3 target, float dt)
@@ -616,69 +616,99 @@ namespace CatIsland
         /// 점프 출발점: 판의 뒤쪽 끝이 출발점에서 clips.json 의 deckBack 만큼 앞에 오게 (qa_items.mjs 가 검사한 배치와 같다).
         /// 착지하면 고양이는 판 가운데보다 조금 뒤에 선다.
         /// </summary>
-        Vector3 TowerStart()
+        // ---- 캣타워: 한 층씩 뛰어 오르고(높이별 점프 중 가장 가까운 것, 앞 거리는 실제 판 사이에 맞춤) 쉬다가 한 층씩 내려온다
+        CatTower curTower;           // 지금 쓰는 캣타워
+        int deck = -1, targetDeck, hopToDeck;
+        CatRig.JumpSet hopSet; float hopScale = 1f; bool hopWalking;
+        Vector3 hopTakeoff;
+
+        CatTower PickTower()
         {
-            float fromCentre = Rig.Info.deckBack + tower.DeckSize.y * 0.5f;
-            return tower.transform.position - tower.transform.forward * fromCentre;
+            CatTower best = null; float bd = float.MaxValue;
+            foreach (var t in CatTower.All) { if (!t || !Free(t)) continue; float d = Flat(t.transform.position - transform.position).magnitude; if (d < bd) { bd = d; best = t; } }
+            return best;
+        }
+        float Level => curTower ? curTower.Height(deck) : 0f;
+        int forcedTarget = -1;
+        /// <summary>이 캣타워의 이 층까지 올라가게 한다 (테스트·연출).</summary>
+        public void ClimbTo(CatTower t, int targetDeckIndex) { curTower = t; forcedTarget = targetDeckIndex; Enter(CatState.GoToTower); }
+
+        /// <summary>다음 한 번의 뛰기를 정한다: 출발 자리(지금 서 있는 면 위), 방향, 점프, 거리 맞춤.</summary>
+        bool PlanHop(int to)
+        {
+            var t = curTower; bool up = t.Height(to) > Level; float dh = t.Height(to) - Level;
+            hopSet = Rig.NearestJump(up, dh);
+            float D, back, edge;
+            var legacy = up || !HasJumpDownClip ? Rig.Info.jump : Rig.Info.jumpDown;   // (예전 에셋: JumpDown 곡선이 비어 있으면 JumpUp)
+            if (hopSet != null) { D = hopSet.D; back = hopSet.deckBack; edge = hopSet.edge; }
+            else { if (legacy?.forward == null || legacy.forward.Length == 0) return false; D = legacy.forward[legacy.forward.Length - 1]; back = Rig.Info.deckBack; edge = D - Rig.Info.deckBack + Rig.Info.turnIn; }
+            Vector3 from = deck >= 0 ? t.Center(deck) : transform.position;
+            Vector3 dir;
+            if (to >= 0) { dir = Flat(t.Center(to) - from); if (dir.magnitude < .25f) dir = t.transform.forward; }
+            else dir = Flat(transform.position - t.transform.position).sqrMagnitude > .01f ? Flat(transform.position - t.transform.position) : -t.transform.forward;
+            if (deck < 0 && to == 0 && t.Decks.Count == 1) dir = t.transform.forward;                       // (낮은 1단: qa_items 와 같은 방향)
+            if (deck == 0 && to < 0 && t.Decks.Count == 1) dir = -t.transform.forward;
+            dir = dir.normalized;
+            if (up)
+            {
+                // 판 앞 가장자리에서 deckBack 만큼 앞에서 출발하면 뒷발까지 판 위에 내린다
+                var nearEdge = t.Center(to) - dir * t.Extent(to, dir);
+                hopTakeoff = nearEdge - dir * back; hopTakeoff.y = Level;
+                if (deck >= 0 && !t.Inside(deck, hopTakeoff, .12f)) hopTakeoff = t.ClampInto(deck, hopTakeoff, .15f);
+                var land = t.Center(to) + dir * 0f;
+                float need = Flat(nearEdge + dir * Mathf.Min(.25f, t.Extent(to, dir)) - hopTakeoff).magnitude;   // (뒷발이 판 안쪽 25 cm 에 닿게)
+                hopScale = deck >= 0 ? Mathf.Clamp(need / Mathf.Max(.3f, D - back + .25f) , .55f, 1.4f) : 1f;
+            }
+            else
+            {
+                // 판 끝에서 edge 만큼 안쪽에서 출발 (뒷발이 판에 걸리지 않게), 아래 판이면 그 판 위에 내리도록 거리 맞춤
+                var farEdge = (deck >= 0 ? t.Center(deck) : from) + dir * (deck >= 0 ? t.Extent(deck, dir) : 0f);
+                hopTakeoff = farEdge - dir * edge; hopTakeoff.y = Level;
+                if (deck >= 0 && !t.Inside(deck, hopTakeoff, .1f)) hopTakeoff = t.ClampInto(deck, hopTakeoff, .12f);
+                hopScale = 1f;
+                if (to >= 0) { float need = Flat(t.Center(to) - hopTakeoff).magnitude; hopScale = Mathf.Clamp(need / Mathf.Max(.3f, D), .55f, 1.4f); }
+                // (바닥에 내릴 자리는 섬 안이면 된다: 캣타워 바로 옆이라 길찾기 여유 반경 안이다)
+            }
+            jumpDir = dir; hopToDeck = to; hopWalking = true;
+            return true;
         }
 
         void TickGoToTower(float dt)
         {
-            if (!tower || Rig.Info.jump == null) { Enter(CatState.Idle); return; }
-            Vector3 start = TowerStart();
-            if (MoveTowards(start, GameConfig.WalkSpeed, dt, 0.05f))
+            if (curTower == null) curTower = PickTower();
+            if (!curTower || (Rig.Info.jump == null && Rig.Info.jumps == null)) { Enter(CatState.Idle); return; }
+            if (StateTime < dt * 1.5f) { deck = -1; targetDeck = forcedTarget >= 0 ? forcedTarget : UnityEngine.Random.value < .5f ? curTower.TopDeck : UnityEngine.Random.Range(0, curTower.Decks.Count); forcedTarget = -1; int first = curTower.NextUp(-1, transform.position); if (first < 0 || !PlanHop(first)) { Enter(CatState.Idle); return; } }
+            if (MoveTowards(hopTakeoff, GameConfig.WalkSpeed, dt, 0.05f))
             {
-                faceDir = tower.transform.forward;
-                transform.position = Vector3.Lerp(transform.position, new Vector3(start.x, 0f, start.z), 1f - Mathf.Exp(-8f * dt));
-                if (FacingAngle(faceDir) < 3f)
-                {
-                    transform.rotation = Quaternion.LookRotation(tower.transform.forward);
-                    BeginJump(transform.position, tower.transform.forward, 0f, tower.DeckHeight, CatState.JumpUp);
-                }
+                faceDir = jumpDir;
+                transform.position = Vector3.Lerp(transform.position, new Vector3(hopTakeoff.x, 0f, hopTakeoff.z), 1f - Mathf.Exp(-8f * dt));
+                if (FacingAngle(faceDir) < 3f) { transform.rotation = Quaternion.LookRotation(jumpDir); StartHop(); }
             }
             else if (StateTime > 16f) Enter(CatState.Idle);
         }
 
         bool HasJumpDownClip => Rig.Info.jumpDown != null && Rig.Info.jumpDown.forward != null && Rig.Info.jumpDown.forward.Length > 1 && Rig.HasClip("JumpDown");
 
-        /// <summary>
-        /// 내려가기: 올라온 쪽(판 뒤쪽 끝)을 향해 돌아서며 판 안쪽으로 turnIn 만큼 들어온 뒤 JumpDown 을 재생한다.
-        /// qa_items.mjs 의 JumpDown 장면과 같은 자리·방향이다. (예전 에셋은 JumpUp 을 재사용)
-        /// </summary>
-        void BeginJumpDown(Vector3 toward)
+        void StartHop()
         {
-            if (!tower) return;
-            Vector3 dir;
-            if (HasJumpDownClip) dir = -tower.transform.forward;
-            else
-            {
-                dir = Flat(toward - transform.position);
-                if (dir.sqrMagnitude < 0.01f) dir = -tower.transform.forward;
-            }
-            dir.Normalize();
-            transform.rotation = Quaternion.LookRotation(dir);
-            BeginJump(transform.position, dir, tower.DeckHeight, 0f, CatState.JumpDown);
-        }
-
-        void BeginJump(Vector3 start, Vector3 dir, float fromY, float toY, CatState s)
-        {
+            bool up = curTower.Height(hopToDeck) > Level;
+            var s = up ? CatState.JumpUp : CatState.JumpDown;
             Rig.Request(Posture.Stand);
             Enter(s);
-            jumpStart = new Vector3(start.x, 0f, start.z);
-            jumpDir = dir;
-            jumpFrom = fromY;
-            jumpTo = toY;
-            Rig.PlayAction(s == CatState.JumpDown && HasJumpDownClip ? "JumpDown" : "JumpUp", false, 0.2f);
+            jumpStart = new Vector3(hopTakeoff.x, 0f, hopTakeoff.z);
+            jumpFrom = Level; jumpTo = curTower.Height(hopToDeck);
+            string clip = hopSet != null ? hopSet.clip : up ? "JumpUp" : HasJumpDownClip ? "JumpDown" : "JumpUp";
+            Rig.PlayAction(clip, false, 0.2f);
         }
 
         /// <summary>
-        /// 점프 이동: 클립의 루트 곡선(앞으로 간 거리, 높이)을 그대로 따른다.
-        /// 내려갈 때는 같은 곡선에서 "솟는 부분(포물선)"만 쓰고 기준 높이를 거꾸로 바꾼다.
+        /// 점프 이동: 클립의 루트 곡선(앞으로 간 거리, 높이)을 따른다. 앞 거리는 판 사이에 맞게 늘이거나 줄이고(hopScale),
+        /// 높이는 출발·도착 높이 사이를 잇고 그 위에 클립의 포물선만 얹는다.
         /// </summary>
         void TickJump(float dt)
         {
             Speed = 0f;
-            var c = State == CatState.JumpDown && HasJumpDownClip ? Rig.Info.jumpDown : Rig.Info.jump;
+            var c = hopSet != null ? hopSet.curve : State == CatState.JumpDown && HasJumpDownClip ? Rig.Info.jumpDown : Rig.Info.jump;
             float t = Rig.ActionTime;
             float fi = Mathf.Clamp(t * c.fps, 0f, c.forward.Length - 1);
             int i0 = Mathf.FloorToInt(fi), i1 = Mathf.Min(i0 + 1, c.forward.Length - 1);
@@ -690,49 +720,58 @@ namespace CatIsland
             float s = totalFwd > 0.001f ? Mathf.Clamp01(fwd / totalFwd) : 0f;
             float bump = up - clipRise * s;                 // 출발과 착지 높이를 뺀 포물선
             float y = Mathf.Lerp(jumpFrom, jumpTo, s) + bump;
-            transform.position = jumpStart + jumpDir * fwd + Vector3.up * y;
+            transform.position = jumpStart + jumpDir * fwd * hopScale + Vector3.up * y;
 
             if (Rig.ActionClip == null)
             {
-                transform.position = jumpStart + jumpDir * totalFwd + Vector3.up * jumpTo;
-                heightY = jumpTo;
-                bool up2 = State == CatState.JumpUp;
-                OnTower = up2;
-                audioOut?.Step(up2 ? Surface.Rug : IslandBuilder.SurfaceAt(transform.position), 0.9f);
-                Enter(up2 ? CatState.OnTower : CatState.Idle);
+                transform.position = jumpStart + jumpDir * totalFwd * hopScale + Vector3.up * jumpTo;
+                heightY = jumpTo; deck = hopToDeck; hopScale = 1f;
+                OnTower = deck >= 0;
+                audioOut?.Step(OnTower ? Surface.Rug : IslandBuilder.SurfaceAt(transform.position), 0.9f);
+                if (!OnTower) { curTower = null; Enter(CatState.Idle); return; }
+                hopWalking = false;
+                Enter(CatState.OnTower);
             }
         }
 
         void TickOnTower(float dt)
         {
             Speed = 0f;
-            if (StateTime < 0.1f) stateTimer = UnityEngine.Random.Range(8f, 14f);
-            if (!leaveTower && StateTime > 1.2f && Rig.Current == Posture.Stand && !Rig.Busy) Rig.Request(UnityEngine.Random.value < 0.5f ? Posture.Sit : Posture.Loaf);
-            if (!leaveTower && cam && Rig.Current != Posture.Loaf) faceDir = Flat(cam.position - transform.position);
+            if (!curTower) { curTower = tower; deck = 0; }
+            if (StateTime < 0.1f) stateTimer = deck == targetDeck || leaveTower ? UnityEngine.Random.Range(8f, 14f) : .5f;
+            bool goingUp = !leaveTower && deck != targetDeck && curTower.NextUp(deck, transform.position) >= 0 && curTower.Height(targetDeck) > curTower.Height(deck);
+            if (!goingUp && !leaveTower && StateTime > 1.2f && Rig.Current == Posture.Stand && !Rig.Busy) Rig.Request(UnityEngine.Random.value < 0.5f ? Posture.Sit : Posture.Loaf);
+            if (!goingUp && !leaveTower && cam && Rig.Current != Posture.Loaf) faceDir = Flat(cam.position - transform.position);
             stateTimer -= dt;
-            if (stateTimer <= 0f || Needs.IsHungry || Needs.IsSleepy) leaveTower = true;
-            if (!leaveTower) return;
+            if (!goingUp && (stateTimer <= 0f || Needs.IsHungry || Needs.IsSleepy)) leaveTower = true;
+            if (!goingUp && !leaveTower) return;
+            if (goingUp && stateTimer > 0f) return;
             if (Rig.Current != Posture.Stand) { Rig.Request(Posture.Stand); return; }
             if (Rig.Busy) return;
-            // 내려가기 전에: 올라온 쪽으로 천천히 돌아서며 판 안쪽으로 조금 들어온다 (JumpDown 의 출발 자리)
-            Vector3 dir = HasJumpDownClip ? -tower.transform.forward : Flat(leaveToward - transform.position);
-            if (dir.sqrMagnitude < 0.01f) dir = -tower.transform.forward;
+            // 다음 층 (오르기) 또는 한 층 아래 (내려가기) 자리로: 판 위에서 천천히 걸어가 돌아선다
+            if (!hopWalking)
+            {
+                int to = goingUp ? curTower.NextUp(deck, transform.position) : curTower.NextDown(deck, transform.position);
+                if (!PlanHop(to)) { if (!goingUp) { stateTimer = 1f; } return; }
+            }
+            var flat = Flat(hopTakeoff - transform.position);
+            if (flat.magnitude > .02f)
+            {
+                float step = Mathf.Min(flat.magnitude, .35f * dt);
+                transform.position += flat.normalized * step;
+                faceDir = flat.magnitude > .08f ? flat : (Vector3?)null;
+                Speed = .12f;
+                return;
+            }
             faceDir = null;
-            float angle = Vector3.SignedAngle(transform.forward, dir, Vector3.up);
+            float angle = Vector3.SignedAngle(transform.forward, jumpDir, Vector3.up);
             transform.Rotate(0f, Mathf.Clamp(angle, -150f * dt, 150f * dt), 0f);
             Speed = 0.12f;   // (발을 옮기며 도는 것처럼 걷기를 아주 느리게 재생)
-            if (HasJumpDownClip && turnedIn < Rig.Info.turnIn)
+            if (Mathf.Abs(angle) < 2f)
             {
-                float step = Mathf.Min(Rig.Info.turnIn - turnedIn, Rig.Info.turnIn * dt / 0.8f);
-                transform.position += tower.transform.forward * step;
-                turnedIn += step;
-            }
-            if (Mathf.Abs(angle) < 2f && (!HasJumpDownClip || turnedIn >= Rig.Info.turnIn - 1e-4f))
-            {
-                leaveTower = false;
-                Speed = 0f;
-                turnedIn = 0f;
-                BeginJumpDown(leaveToward);
+                Speed = 0f; hopWalking = false;
+                if (!goingUp && curTower.Height(hopToDeck) <= 0.01f) leaveTower = false;
+                StartHop();
             }
         }
 
@@ -874,7 +913,7 @@ namespace CatIsland
         void ApplyHeight(float dt)
         {
             float target = 0f;
-            if (OnTower && tower) target = tower.DeckHeight;
+            if (OnTower && curTower) target = curTower.Height(deck);
             else if (cushion)
             {
                 float d = Flat(transform.position - cushion.transform.position).magnitude;
@@ -926,6 +965,6 @@ namespace CatIsland
         // ---------------- 테스트와 스크린샷용
 
         public void ForceState(CatState s) => Enter(s);
-        public void ForceOnTower(bool on) { OnTower = on; heightY = on && tower ? tower.DeckHeight : 0f; }
+        public void ForceOnTower(bool on) { OnTower = on; curTower = on ? tower : null; deck = on ? 0 : -1; targetDeck = 0; heightY = on && tower ? tower.DeckHeight : 0f; }
     }
 }

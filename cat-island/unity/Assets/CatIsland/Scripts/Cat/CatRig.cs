@@ -57,6 +57,8 @@ namespace CatIsland
         Vector2 look;
 
         [Serializable] public class RootCurve { public string clip; public float fps; public float[] forward; public float[] up; }
+        /// <summary>높이별 점프 하나 (JumpUp / JumpUp40 / JumpUp80 / JumpDown …): 클립 이름, 오르기인지, 높이 H, 앞으로 D, 루트 곡선.</summary>
+        [Serializable] public class JumpSet { public string clip; public bool up; public float H, D, deckBack, turnIn, edge; public RootCurve curve; }
         [Serializable] public class CatArtInfo
         {
             public string id; public string[] clips; public string[] loops; public RootCurve jump; public float headRadius;
@@ -64,6 +66,14 @@ namespace CatIsland
             public Vector3 flopBelly = Vector3.down;
             public float jumpD = 0.8f, jumpH = 0.2f, deckBack = 0.5f, turnIn;
             public RootCurve jumpDown;
+            public JumpSet[] jumps;            // (높이별 점프: 새 에셋부터. 없으면 jump / jumpDown 하나)
+        }
+        /// <summary>높이 차이 dh(m, 오르기 +)에 가장 가까운 점프. 높이별 점프가 없는 에셋은 null.</summary>
+        public JumpSet NearestJump(bool up, float dh)
+        {
+            JumpSet best = null; float bd = float.MaxValue;
+            if (Info.jumps != null) foreach (var j in Info.jumps) { if (j.up != up || !HasClip(j.clip)) continue; float d = Mathf.Abs(Mathf.Abs(j.H) - Mathf.Abs(dh)); if (d < bd) { bd = d; best = j; } }
+            return best;
         }
 
         void Awake() { Build(); }

@@ -48,6 +48,11 @@
     "cushion",
     "hideout",
     "litter_box",
-    "cat_tower_1"
+    "cat_tower_1",
+    "tower_stool",
+    "tower_stairs",
+    "tower_house",
+    "tower_tree",
+    "tower_tall"
   ]
 }
