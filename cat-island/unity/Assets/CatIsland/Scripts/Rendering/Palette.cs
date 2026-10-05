@@ -57,6 +57,22 @@ namespace CatIsland
             return m;
         }
 
+        /// <summary>그린 무늬 텍스처를 쓰는 세상 재질 (땅·절벽·바다). worldUV 면 세상 좌표 xz 로 깐다 (tiling = 1 / 한 장의 크기 m).</summary>
+        public static Material Painted(string name, Texture2D tex, Vector2 tiling, bool worldUV, float gloss = 0f, Color? tint = null)
+        {
+            if (softBase == null) softBase = Resources.Load<Material>("CatSoftLit");
+            var m = new Material(softBase) { name = "Painted_" + name };
+            m.SetColor("_BaseColor", tint ?? Color.white);
+            m.SetTexture("_BaseMap", tex);
+            m.SetTextureScale("_BaseMap", tiling);
+            m.SetFloat("_GroundAO", 0f);        // (땅 자체는 어둡게 하지 않는다: 시안 색 그대로)
+            m.SetFloat("_RimStrength", 0f);
+            m.SetFloat("_Gloss", gloss);
+            m.SetFloat("_WorldUV", worldUV ? 1f : 0f);
+            if (worldUV) m.EnableKeyword("_WORLDUV"); else m.DisableKeyword("_WORLDUV");
+            return m;
+        }
+
         /// <summary>개별 인스턴스 (투명도 애니메이션 등).</summary>
         public static Material NewBillboard(Texture2D tex)
         {

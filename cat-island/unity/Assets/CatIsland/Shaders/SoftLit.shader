@@ -14,6 +14,7 @@ Shader "CatIsland/SoftLit"
         _GroundAO ("Ground AO", Range(0,1)) = 0.22
         _Gloss ("Gloss", Range(0,1)) = 0
         _Emission ("Self Light", Range(0,1)) = 0
+        [Toggle(_WORLDUV)] _WorldUV ("World UV (ground)", Float) = 0
     }
     SubShader
     {
@@ -32,6 +33,8 @@ Shader "CatIsland/SoftLit"
             half _Gloss;
             half _Emission;
         CBUFFER_END
+
+        #include "Curve.hlsl"
         ENDHLSL
 
         Pass
@@ -43,6 +46,7 @@ Shader "CatIsland/SoftLit"
             #pragma vertex vert
             #pragma fragment frag
             #pragma shader_feature_local _NORMALMAP
+            #pragma shader_feature_local _WORLDUV
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #pragma multi_compile_fog
@@ -78,11 +82,15 @@ Shader "CatIsland/SoftLit"
                 Varyings o = (Varyings)0;
                 UNITY_SETUP_INSTANCE_ID(v);
                 UNITY_TRANSFER_INSTANCE_ID(v, o);
-                o.positionWS = TransformObjectToWorld(v.positionOS.xyz);
+                o.positionWS = CurveWorld(TransformObjectToWorld(v.positionOS.xyz));
                 VertexNormalInputs n = GetVertexNormalInputs(v.normalOS, v.tangentOS);
                 o.normalWS = n.normalWS;
                 o.tangentWS = float4(n.tangentWS, v.tangentOS.w * GetOddNegativeScale());
+            #if _WORLDUV
+                o.uv = TransformObjectToWorld(v.positionOS.xyz).xz * _BaseMap_ST.xy + _BaseMap_ST.zw;   // (땅: 세상 좌표로 크게 깔아 반복이 안 보이게)
+            #else
                 o.uv = TRANSFORM_TEX(v.uv, _BaseMap);
+            #endif
                 o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.fogFactor = ComputeFogFactor(o.positionCS.z);
                 return o;
@@ -161,7 +169,7 @@ Shader "CatIsland/SoftLit"
             {
                 Varyings o;
                 UNITY_SETUP_INSTANCE_ID(v);
-                float3 positionWS = TransformObjectToWorld(v.positionOS.xyz);
+                float3 positionWS = CurveWorld(TransformObjectToWorld(v.positionOS.xyz));
                 float3 normalWS = TransformObjectToWorldNormal(v.normalOS);
             #if _CASTING_PUNCTUAL_LIGHT_SHADOW
                 float3 lightDir = normalize(_LightPosition - positionWS);
@@ -201,7 +209,7 @@ Shader "CatIsland/SoftLit"
             {
                 Varyings o;
                 UNITY_SETUP_INSTANCE_ID(v);
-                o.positionCS = TransformObjectToHClip(v.positionOS.xyz);
+                o.positionCS = TransformWorldToHClip(CurveWorld(TransformObjectToWorld(v.positionOS.xyz)));
                 return o;
             }
 

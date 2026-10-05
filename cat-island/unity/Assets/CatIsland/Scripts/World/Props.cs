@@ -157,8 +157,9 @@ namespace CatIsland
     }
 
     /// <summary>
-    /// 장난감 같은 작은 섬. 잔디 원판 + 흙 + 나무 마루, 덤불, 나무, 꽃.
-    /// 고양이(몸길이 약 1 m)와 용품 크기에 맞춘 비율.
+    /// 장난감 같은 작은 섬 (docs/ART_DIRECTION.md 4장): 그린 듯한 풀밭, 뒤쪽의 언덕 층(둥근 모서리 절벽), 뭉툭한 나무,
+    /// 튤립 무리, 모래 띠 → 얕은 물 띠 → 청록 바다. 가운데에 나무 마루와 러그 (집 안 자리).
+    /// 고양이(몸길이 약 1 m)와 용품 크기에 맞춘 비율. 시안(style_compare.html)의 크기는 고양이 비율로 2.56배 (모델 단위 / METERS).
     /// </summary>
     public static class IslandBuilder
     {
@@ -184,6 +185,11 @@ namespace CatIsland
             return Surface.Grass;
         }
 
+        // 언덕 층: 섬 뒤쪽 호 (각도는 +x 에서 반시계, +z 가 뒤)
+        public const float TierInner = 5.4f, TierOuter = 6.75f, TierHeight = 0.8f, TierEdge = 0.18f;
+        public const float TierFrom = 32f, TierTo = 148f;
+        const float MockScale = 2.56f;   // 시안 1 m = 게임 2.56 단위 (고양이 크기 비율)
+
         public static Transform Build(Transform parent)
         {
             Solids.Clear();
@@ -191,56 +197,142 @@ namespace CatIsland
             var sphere = MeshFactory.Sphere();
             float D = Radius * 2f;
 
-            Shapes.Make(root, "Grass", MeshFactory.IslandTop(), Palette.Grass, Vector3.zero, new Vector3(D, 1.4f, D));
-            Shapes.Make(root, "Soil", MeshFactory.IslandSoil(), Palette.Soil, new Vector3(0f, -0.07f, 0f), new Vector3(D - 0.1f, 2.6f, D - 0.1f), default, false);
+            var grass = Materials.Painted("Grass", PaintedTextures.Grass(), Vector2.one / 9.6f, true);
+            var sand = Materials.Painted("Sand", PaintedTextures.Sand(), Vector2.one / 2.5f, true);
 
-            // 마루 (집 안 자리)
-            Shapes.Make(root, "Deck", MeshFactory.RoundedCylinder(0.04f), Palette.Wood, DeckCenter + new Vector3(0f, -0.046f, 0f), new Vector3(DeckRadius * 2f, 0.05f, DeckRadius * 2f));
-            Shapes.Make(root, "Rug", MeshFactory.RoundedCylinder(0.06f), Palette.Mint, RugCenter + new Vector3(0f, -0.028f, 0f), new Vector3(RugRadius * 2f, 0.04f, RugRadius * 2f), default, false);
+            // 땅: 풀밭 원판, 그 아래 모래 띠가 물속으로 잠긴다
+            Shapes.Make(root, "Grass", MeshFactory.IslandTop(), grass, Vector3.zero, new Vector3(D, 1.4f, D), default, false);
+            Shapes.Make(root, "Soil", MeshFactory.IslandSoil(), Palette.Hex("e6cf93"), new Vector3(0f, -0.07f, 0f), new Vector3(D - 0.1f, 2.6f, D - 0.1f), default, false);
+            Shapes.Make(root, "Beach", MeshFactory.Lathe("beach", new List<Vector2> {
+                new Vector2(9.0f, -0.42f), new Vector2(8.2f, -0.26f), new Vector2(7.5f, -0.13f), new Vector2(7.0f, -0.06f), new Vector2(6.6f, -0.03f), new Vector2(6.2f, -0.02f) }, 96),
+                sand, Vector3.zero, Vector3.one, default, false);
+            // 물: 얕은 물 띠(밝은 청록) → 바다(청록). 반짝임은 약하게
+            var shallow = Materials.Painted("Shallow", Texture2D.whiteTexture, Vector2.one, false, 0.12f, Palette.Hex("8ee6e4"));
+            var sea = Materials.Painted("Sea", Texture2D.whiteTexture, Vector2.one, false, 0.12f, Palette.Hex("3fc4dc"));
+            Shapes.Make(root, "Shallow", MeshFactory.Lathe("shallow", new List<Vector2> { new Vector2(8.9f, -0.115f), new Vector2(6.9f, -0.115f) }, 96), shallow, Vector3.zero, Vector3.one, default, false);
+            Shapes.Make(root, "Sea", MeshFactory.Lathe("sea", new List<Vector2> { new Vector2(90f, -0.12f), new Vector2(40f, -0.12f), new Vector2(20f, -0.12f), new Vector2(12f, -0.12f), new Vector2(8.85f, -0.12f) }, 96), sea, Vector3.zero, Vector3.one, default, false);
+
+            // 마루 (집 안 자리): 나무 판자 / 러그: 짜임 무늬
+            Shapes.Make(root, "Deck", MeshFactory.RoundedCylinder(0.04f), Materials.Painted("Planks", PaintedTextures.Planks(), Vector2.one / 2f, true), DeckCenter + new Vector3(0f, -0.046f, 0f), new Vector3(DeckRadius * 2f, 0.05f, DeckRadius * 2f));
+            Shapes.Make(root, "Rug", MeshFactory.RoundedCylinder(0.06f), Materials.Painted("Weave", PaintedTextures.Weave(), Vector2.one, true), RugCenter + new Vector3(0f, -0.028f, 0f), new Vector3(RugRadius * 2f, 0.04f, RugRadius * 2f), default, false);
             // 모래밭: 섬 앞 왼쪽 가장자리. 조개 두 개와 조약돌
-            Shapes.Make(root, "Sand", MeshFactory.RoundedCylinder(0.08f), Palette.Hex("f1dfb2"), SandCenter + new Vector3(0f, -0.04f, 0f), new Vector3(SandRadius * 2f, 0.05f, SandRadius * 2f), default, false);
-            Shapes.Make(root, "Shell1", sphere, Palette.Peach, SandCenter + new Vector3(0.45f, 0.02f, -0.3f), new Vector3(0.14f, 0.06f, 0.12f), new Vector3(0f, 30f, 0f), false);
-            Shapes.Make(root, "Shell2", sphere, Palette.Cream, SandCenter + new Vector3(-0.35f, 0.02f, 0.4f), new Vector3(0.11f, 0.05f, 0.1f), new Vector3(0f, -20f, 0f), false);
-            Shapes.Make(root, "Pebble", sphere, Palette.Hex("d9d3c7"), SandCenter + new Vector3(0.1f, 0.02f, 0.55f), new Vector3(0.12f, 0.07f, 0.1f), default, false);
+            Shapes.Make(root, "Sand", MeshFactory.RoundedCylinder(0.08f), sand, SandCenter + new Vector3(0f, -0.04f, 0f), new Vector3(SandRadius * 2f, 0.05f, SandRadius * 2f), default, false);
+            Shapes.Make(root, "Shell1", sphere, Palette.Hex("ff9f8a"), SandCenter + new Vector3(0.45f, 0.02f, -0.3f), new Vector3(0.14f, 0.06f, 0.12f), new Vector3(0f, 30f, 0f), false);
+            Shapes.Make(root, "Shell2", sphere, Palette.Hex("fff4e0"), SandCenter + new Vector3(-0.35f, 0.02f, 0.4f), new Vector3(0.11f, 0.05f, 0.1f), new Vector3(0f, -20f, 0f), false);
+            Shapes.Make(root, "Pebble", sphere, Palette.Hex("c9c4ba"), SandCenter + new Vector3(0.1f, 0.02f, 0.55f), new Vector3(0.12f, 0.07f, 0.1f), default, false);
 
+            BuildTier(root, grass);
+
+            // 뭉툭한 나무: 언덕 위 셋, 땅 위 둘 (나무마다 크기·색을 조금씩 다르게)
             var rng = new System.Random(21);
-            for (int i = 0; i < 11; i++)
-            {
-                float a = Mathf.Lerp(15f, 165f, i / 10f) * Mathf.Deg2Rad;
-                float r = Radius - 0.9f + (float)rng.NextDouble() * 0.4f;
-                var pos = new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r);
-                float s = 0.9f + (float)rng.NextDouble() * 0.6f;
-                var bush = Shapes.Pivot(root, "Bush" + i, pos);
-                Solids.Add(("Bush" + i, pos, s * 0.62f));
-                Shapes.Make(bush, "A", sphere, Palette.GrassDark, new Vector3(0f, s * 0.35f, 0f), new Vector3(s, s * 0.8f, s));
-                Shapes.Make(bush, "B", sphere, Palette.GrassDark, new Vector3(s * 0.35f, s * 0.25f, -s * 0.1f), new Vector3(s * 0.7f, s * 0.6f, s * 0.7f));
-            }
+            Vector3 OnTier(float deg, float r) { float a = deg * Mathf.Deg2Rad; return new Vector3(Mathf.Cos(a) * r, TierHeight + 0.07f, Mathf.Sin(a) * r); }
+            Tree(root, "Tree0", OnTier(58f, 6.05f), 0.8f, Palette.Hex("3f9a3e"), rng);
+            Tree(root, "Tree1", OnTier(94f, 6.15f), 0.7f, Palette.Hex("4aa845"), rng);
+            Tree(root, "Tree2", OnTier(126f, 6.0f), 0.78f, Palette.Hex("3f9a3e"), rng);
+            Tree(root, "Tree3", new Vector3(-4.6f, 0f, -2.0f), 0.75f, Palette.Hex("3f9a3e"), rng, true);
+            Tree(root, "Tree4", new Vector3(4.6f, 0f, -2.2f), 0.7f, Palette.Hex("4aa845"), rng, true);
 
-            var tree = Shapes.Pivot(root, "Tree", new Vector3(-4.0f, 0f, 4.0f));
-            Solids.Add(("TreeTrunk", tree.localPosition, 0.24f));
-            Shapes.Make(tree, "Trunk", MeshFactory.Capsule(0.2f), Palette.Chestnut, new Vector3(0f, 0.9f, 0f), new Vector3(0.42f, 2.0f, 0.42f));
-            Shapes.Make(tree, "Leaf1", sphere, Palette.GrassDark, new Vector3(0f, 2.4f, 0f), new Vector3(2.3f, 1.9f, 2.3f));
-            Shapes.Make(tree, "Leaf2", sphere, Palette.Grass, new Vector3(0.6f, 2.9f, -0.35f), new Vector3(1.4f, 1.2f, 1.4f));
-
-            Color[] flowerColors = { Palette.StrawberryMilk, Palette.Butter, Palette.Lavender, Palette.Peach };
-            for (int i = 0; i < 22; i++)
+            // 튤립 무리 (빨강·노랑·하양, 3~4송이씩). 카메라 앞은 비워 둔다
+            Color red = Palette.Hex("ff5d6c"), yellow = Palette.Hex("ffd23f"), white = Palette.Hex("ffffff");
+            var clumps = new (Vector3 pos, Color c, int n)[]
             {
-                float a = (float)rng.NextDouble() * Mathf.PI * 2f;
-                float r = 4.3f + (float)rng.NextDouble() * 1.8f;
-                var pos = new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r);
-                if (pos.z < -2.5f && Mathf.Abs(pos.x) < 2.8f) continue; // 카메라 앞은 비워 둠
-                if (Flat(pos, SandCenter) < SandRadius + 0.2f) continue;
-                var f = Shapes.Pivot(root, "Flower" + i, pos);
-                Solids.Add(("Flower" + i, pos, 0.1f));
-                Shapes.Make(f, "Stem", MeshFactory.Capsule(0.3f), Palette.GrassDark, new Vector3(0f, 0.1f, 0f), new Vector3(0.04f, 0.22f, 0.04f), default, false);
-                Shapes.Make(f, "Petal", sphere, flowerColors[i % flowerColors.Length], new Vector3(0f, 0.24f, 0f), new Vector3(0.16f, 0.1f, 0.16f), default, false);
-                Shapes.Make(f, "Center", sphere, Palette.Cream, new Vector3(0f, 0.285f, 0f), new Vector3(0.06f, 0.04f, 0.06f), default, false);
+                (new Vector3(-4.6f, 0f, 1.4f), red, 4), (new Vector3(4.5f, 0f, 1.0f), yellow, 4), (new Vector3(-2.6f, 0f, 4.0f), white, 3),
+                (new Vector3(2.9f, 0f, 3.6f), red, 4), (new Vector3(3.6f, 0f, -2.6f), yellow, 3), (new Vector3(-4.3f, 0f, -0.5f), white, 4),
+                (OnTier(76f, 6.0f), yellow, 3), (OnTier(110f, 5.95f), red, 4), (OnTier(40f, 6.1f), white, 3),
+            };
+            for (int i = 0; i < clumps.Length; i++)
+            {
+                var (pos, c, n) = clumps[i];
+                var g = Shapes.Pivot(root, "Tulips" + i, pos, new Vector3(0f, (float)rng.NextDouble() * 360f, 0f));
+                if (pos.y < 0.1f) Solids.Add(("Tulips" + i, new Vector3(pos.x, 0f, pos.z), 0.3f));
+                for (int k = 0; k < n; k++)
+                {
+                    var off = new Vector3((k % 2) * 0.31f - 0.155f, 0f, (k / 2) * 0.31f - 0.155f) + new Vector3((float)rng.NextDouble() - 0.5f, 0f, (float)rng.NextDouble() - 0.5f) * 0.08f;
+                    Tulip(g, "T" + k, off, c, 0.9f + (float)rng.NextDouble() * 0.2f);
+                }
             }
 
             var ground = Shapes.Pivot(root, "GroundCollider", new Vector3(0f, -0.05f, 0f));
             var gc = ground.gameObject.AddComponent<BoxCollider>();
             gc.size = new Vector3(D, 0.1f, D);
             return root;
+        }
+
+        /// <summary>언덕 층: 둥근 모서리의 절벽(돌 무늬) + 살짝 넘치는 풀 뚜껑. 양 끝은 둥근 기둥으로 막는다.</summary>
+        static void BuildTier(Transform root, Material grass)
+        {
+            float H = TierHeight, e = TierEdge, mid = (TierInner + TierOuter) * 0.5f, hw = (TierOuter - TierInner) * 0.5f;
+            float arcLen = Mathf.Deg2Rad * (TierTo - TierFrom) * TierInner;
+            const float stoneTile = 1.75f;   // 시안: 돌 무늬 한 장이 가로 1.75 m, 세로 0.8 m (절벽 높이가 시안과 같아 크기도 그대로)
+
+            // 단면 (반지름, 높이): 바깥 아래 → 바깥 위(둥근 모서리) → 안쪽 위(둥근 모서리) → 안쪽 아래. 법선이 바깥을 향하는 순서
+            List<Vector2> CliffProfile(float rin, float rout, bool closedTop)
+            {
+                var p = new List<Vector2> { new Vector2(rout + 0.06f, -0.16f) };
+                MeshFactory.Arc(p, new Vector2(rout - e, H - e), e, 0f, 90f, 6);
+                if (closedTop) { p.Add(new Vector2(0f, H)); return p; }
+                MeshFactory.Arc(p, new Vector2(rin + e, H - e), e, 90f, 180f, 6);
+                p.Add(new Vector2(rin + 0.04f, -0.04f));
+                return p;
+            }
+            // 풀 뚜껑: 절벽 위를 덮고 둥근 입술로 조금 넘친다
+            List<Vector2> CapProfile(float rin, float rout, bool closed)
+            {
+                const float lip = 0.08f;
+                var p = new List<Vector2>();
+                MeshFactory.Arc(p, new Vector2(rout - lip * 0.6f, H + 0.0f), lip, -70f, 90f, 6);
+                if (closed) { p.Add(new Vector2(0f, H + lip)); return p; }
+                MeshFactory.Arc(p, new Vector2(rin + lip * 0.6f, H + 0.0f), lip, 90f, 250f, 6);
+                return p;
+            }
+
+            var cliff = Materials.Painted("Cliff", PaintedTextures.Cliff(), new Vector2(arcLen / stoneTile, 1f / 0.8f), false);
+            int seg = 72;
+            Shapes.Make(root, "TierCliff", MeshFactory.Lathe("tiercliff", CliffProfile(TierInner, TierOuter, false), seg, TierFrom, TierTo, true), cliff, Vector3.zero, Vector3.one);
+            Shapes.Make(root, "TierTop", MeshFactory.Lathe("tiertop", CapProfile(TierInner, TierOuter, false), seg, TierFrom, TierTo), grass, Vector3.zero, Vector3.one, default, false);
+
+            // 양 끝 둥근 기둥 (단면이 원이라 끝이 둥글다). 뚜껑은 겹침 깜빡임이 없게 2 mm 높게
+            var endCliff = Materials.Painted("CliffEnd", PaintedTextures.Cliff(), new Vector2(2f * Mathf.PI * hw / stoneTile, 1f / 0.8f), false);
+            foreach (float deg in new[] { TierFrom, TierTo })
+            {
+                float a = deg * Mathf.Deg2Rad;
+                var c = new Vector3(Mathf.Cos(a) * mid, 0f, Mathf.Sin(a) * mid);
+                Shapes.Make(root, "TierEnd" + deg, MeshFactory.Lathe("tierend", CliffProfile(0f, hw, true), 40, 0f, 360f, true), endCliff, c, Vector3.one);
+                Shapes.Make(root, "TierEndTop" + deg, MeshFactory.Lathe("tierendtop", CapProfile(0f, hw, true), 40), grass, c + new Vector3(0f, 0.002f, 0f), Vector3.one, default, false);
+            }
+
+            // 길찾기: 언덕을 원 여러 개로 막는다 (고양이는 아래 땅에서만 다닌다)
+            for (float deg = TierFrom; deg <= TierTo + 0.01f; deg += 8f)
+            {
+                float a = deg * Mathf.Deg2Rad;
+                Solids.Add(("Tier" + Mathf.RoundToInt(deg), new Vector3(Mathf.Cos(a) * mid, 0f, Mathf.Sin(a) * mid), hw));
+            }
+        }
+
+        /// <summary>뭉툭한 장난감 나무: 짧은 줄기 + 큰 동그란 잎 덩어리 넷 (시안 크기 × 2.56).</summary>
+        static void Tree(Transform root, string name, Vector3 pos, float size, Color leaf, System.Random rng, bool solid = false)
+        {
+            float s = size * MockScale;
+            var t = Shapes.Pivot(root, name, pos, new Vector3(0f, (float)rng.NextDouble() * 360f, 0f));
+            if (solid) Solids.Add((name, new Vector3(pos.x, 0f, pos.z), 0.16f * s + 0.05f));
+            var trunk = MeshFactory.Lathe("trunk", new List<Vector2> { new Vector2(0f, 0f), new Vector2(0.16f, 0f), new Vector2(0.16f, 0f), new Vector2(0.11f, 0.7f), new Vector2(0.11f, 0.7f), new Vector2(0f, 0.7f) }, 16);
+            Shapes.Make(t, "Trunk", trunk, Palette.Hex("8b5e3c"), Vector3.zero, Vector3.one * s);
+            // 잎색을 나무마다 조금씩 (밝기 ±4%)
+            float j = 1f + ((float)rng.NextDouble() - 0.5f) * 0.08f;
+            var c = new Color(leaf.r * j, leaf.g * j, leaf.b * j);
+            foreach (var (dx, dy, dz, rr) in new[] { (0f, 1.0f, 0f, 0.5f), (-0.3f, 0.82f, 0.1f, 0.36f), (0.3f, 0.84f, 0.05f, 0.38f), (0f, 1.35f, 0f, 0.34f) })
+                Shapes.Make(t, "Leaf", MeshFactory.Sphere(), c, new Vector3(dx, dy, dz) * s, new Vector3(rr * 2f, rr * 1.8f, rr * 2f) * s);
+        }
+
+        /// <summary>튤립 한 송이: 줄기 + 달걀꼴 꽃 + 잎 둘 (시안 크기 × 2.56).</summary>
+        static void Tulip(Transform parent, string name, Vector3 at, Color c, float size)
+        {
+            float s = MockScale * size;
+            var f = Shapes.Pivot(parent, name, at);
+            Shapes.Make(f, "Stem", MeshFactory.Capsule(0.3f), Palette.Hex("3e9a3a"), new Vector3(0f, 0.08f, 0f) * s, new Vector3(0.02f, 0.16f, 0.02f) * s, default, false);
+            Shapes.Make(f, "Bloom", MeshFactory.Sphere(), c, new Vector3(0f, 0.18f, 0f) * s, new Vector3(0.09f, 0.1125f, 0.09f) * s);
+            foreach (float side in new[] { -1f, 1f })
+                Shapes.Make(f, "Leaf", MeshFactory.Sphere(), Palette.Hex("4fae44"), new Vector3(side * 0.03f, 0.05f, 0f) * s, new Vector3(0.028f, 0.104f, 0.072f) * s, new Vector3(0f, 0f, side * -28.6f), false);
         }
     }
 }

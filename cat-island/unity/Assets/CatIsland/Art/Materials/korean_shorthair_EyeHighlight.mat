@@ -38,6 +38,7 @@ Material:
     - _Gloss: 0
     - _GroundAO: 0
     - _RimStrength: 0
+    - _WorldUV: 0
     - _Wrap: 0.45
     m_Colors:
     - _BaseColor: {r: 1, g: 0.98, b: 0.94, a: 1}

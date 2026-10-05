@@ -25,5 +25,13 @@ namespace CatIsland
             r.shadowCastingMode = castShadow ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
             return t;
         }
+
+        public static Transform Make(Transform parent, string name, Mesh mesh, Material mat,
+            Vector3 localPos, Vector3 localScale, Vector3 localEuler = default, bool castShadow = true)
+        {
+            var t = Make(parent, name, mesh, Color.white, localPos, localScale, localEuler, castShadow);
+            t.GetComponent<MeshRenderer>().sharedMaterial = mat;
+            return t;
+        }
     }
 }

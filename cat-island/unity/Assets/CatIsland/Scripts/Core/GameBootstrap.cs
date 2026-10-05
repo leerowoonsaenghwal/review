@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 namespace CatIsland
 {
@@ -53,7 +54,8 @@ namespace CatIsland
             var camGo = new GameObject("Main Camera") { tag = "MainCamera" };
             var cam = camGo.AddComponent<Camera>();
             cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = Palette.Sky;
+            cam.backgroundColor = WorldStyle.Sky;
+            cam.GetUniversalAdditionalCameraData().renderPostProcessing = true;   // (색 보정: Neutral)
             cam.nearClipPlane = 0.5f;
             cam.farClipPlane = 80f;
             camGo.AddComponent<AudioListener>();
@@ -113,27 +115,41 @@ namespace CatIsland
 #endif
         }
 
+        /// <summary>빛 (docs/ART_DIRECTION.md 2-1): 맑고 따뜻한 해 + 푸른 하늘빛·풀빛 주변광, Neutral 색 보정, 하늘색 안개.</summary>
         static void SetupLighting()
         {
             var sunGo = new GameObject("Sun");
             var sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = Palette.SunDay;
-            sun.intensity = 0.95f;
+            sun.color = Palette.Hex("fff0d0");
+            sun.intensity = 1.47f;        // 시안 three.js 3.1 (이전 2.0 → 0.95 와 같은 비율)
             sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = 0.6f;
+            sun.shadowStrength = 0.6f;    // 그늘은 검지 않게 (SoftLit 이 푸르스름하게 칠한다)
             sun.shadowBias = 0.3f;        // docs/ITEMS.md 그림자 설정 (깊이 0.3 / 법선 0.4)
             sun.shadowNormalBias = 0.4f;
-            sunGo.transform.rotation = Quaternion.Euler(52f, -32f, 0f);
+            sunGo.transform.rotation = Quaternion.Euler(50f, 36f, 0f);   // 높이 약 50°, 왼쪽 앞에서
             RenderSettings.sun = sun;
 
-            // 하늘빛: 위는 푸르스름, 옆은 크림, 아래는 잔디 반사색 (기획서 3부 5장)
+            // 하늘빛: 위 #CDEEFF / 아래 #7FB85A (시안 반구광 1.15)
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = Palette.Hex("cfe6f4");
-            RenderSettings.ambientEquatorColor = Palette.Hex("f6ead2");
-            RenderSettings.ambientGroundColor = Palette.Hex("c4dfa0");
-            RenderSettings.ambientIntensity = 0.8f;
-            RenderSettings.fog = false;
+            RenderSettings.ambientSkyColor = Palette.Hex("cdeeff") * 0.62f;
+            RenderSettings.ambientEquatorColor = Color.Lerp(Palette.Hex("cdeeff"), Palette.Hex("7fb85a"), 0.5f) * 0.62f;
+            RenderSettings.ambientGroundColor = Palette.Hex("7fb85a") * 0.62f;
+            RenderSettings.ambientIntensity = 1f;
+
+            // 먼 곳: 하늘색 안개 (거리는 카메라에 맞춰 WorldStyle 이 정한다)
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.Linear;
+            RenderSettings.fogColor = WorldStyle.Sky;
+            WorldStyle.Apply(new Vector3(0f, 0f, 0.4f), Vector3.forward, 8.5f);
+
+            // 색 보정: Neutral, 노출 그대로
+            var volGo = new GameObject("Look");
+            var vol = volGo.AddComponent<Volume>();
+            vol.isGlobal = true;
+            var profile = ScriptableObject.CreateInstance<VolumeProfile>();
+            profile.Add<Tonemapping>(true).mode.Override(TonemappingMode.Neutral);
+            vol.sharedProfile = profile;
         }
     }
 
