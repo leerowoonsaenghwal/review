@@ -42,6 +42,7 @@ namespace CatIsland
         {
             var g = boot.Logic; if (g?.S == null) return;
             boot.SyncCats();
+            SceneItem(boot.Bowl, "food_bowl", g); SceneItem(boot.Cushion, "cushion", g); SceneItem(boot.Tower, "cat_tower_1", g);
             foreach (var p in spawned.Keys.ToList()) if (!g.S.placed.Contains(p)) { UnityEngine.Object.Destroy(spawned[p]); spawned.Remove(p); if (obstacles.TryGetValue(p, out var o)) { boot.Nav.obstacles.Remove(o); obstacles.Remove(p); } }
             foreach (var p in g.S.placed)
             {
@@ -54,6 +55,25 @@ namespace CatIsland
                 obstacles[p] = ob;
             }
         }
+        readonly Dictionary<Component, Obstacle> sceneObstacles = new Dictionary<Component, Obstacle>();
+        /// <summary>장면 용품(그릇·방석·캣타워)을 저장의 첫 자리로 옮긴다. 저장에 없으면(아직 안 샀으면) 숨기고 길찾기에서도 뺀다.</summary>
+        void SceneItem(Component c, string id, CatIsland.Game.Game g)
+        {
+            if (!c) return;
+            if (!sceneObstacles.ContainsKey(c)) sceneObstacles[c] = boot.Nav.obstacles.Find(o => o.item == c.transform);
+            var ob = sceneObstacles[c]; var p = FirstOf(g, id);
+            if (p == null)
+            {
+                if (g.S.cats.Count == 0) return;                       // (첫 고양이 전 미리보기·테스트 장면은 그대로)
+                c.gameObject.SetActive(false); if (ob != null) boot.Nav.obstacles.Remove(ob); return;
+            }
+            c.gameObject.SetActive(true);
+            var pos = PlacementCenter(p) + new Vector3(0, .004f, 0);
+            c.transform.position = new Vector3(pos.x, c.transform.position.y, pos.z);
+            if (id != "cat_tower_1") c.transform.rotation = Quaternion.Euler(0, 180f - p.rot * 90f, 0);   // (캣타워는 점프 방향이 정해져 있어 돌리지 않는다)
+            if (ob != null) { ob.center = new Vector3(pos.x, 0, pos.z); ob.yaw = c.transform.eulerAngles.y; if (!boot.Nav.obstacles.Contains(ob)) boot.Nav.obstacles.Add(ob); }
+        }
+
         static Placement FirstOf(CatIsland.Game.Game g, string item) => g.S.placed.FirstOrDefault(x => x.item == item);
 
         /// <summary>모델이 아직 없는 용품: 크기에 맞는 둥근 상자 (용품 60종 모델이 다 생기면 쓰이지 않는다).</summary>
@@ -65,15 +85,9 @@ namespace CatIsland
             return go;
         }
 
-        public void BeginPlace(string item, Action<bool> done)
-        {
-            // 첫 단계: 마루에서 고양이 자리를 피한 가장 가까운 빈 칸에 놓는다 (손가락으로 옮기는 꾸미기 모드는 Decorate 에서)
-            var g = boot.Logic; var d = Catalog.Item(item); var zone = d.zone;
-            var (w, h) = CatIsland.Game.Game.GridSize(zone);
-            var cells = from z in Enumerable.Range(0, h) from x in Enumerable.Range(0, w) orderby (x - w / 2f) * (x - w / 2f) + (z - h / 2f) * (z - h / 2f) descending select (x, z);
-            foreach (var (x, z) in cells) for (int r = 0; r < 4; r++) if (g.Place(item, zone, x, z, r)) { Refresh(); done(true); return; }
-            done(false);
-        }
+        /// <summary>꾸미기 모드로 자리를 고른다 (PlaceMode). moveIndex: 놓인 용품을 옮길 때.</summary>
+        public void BeginPlace(string item, Action<bool> done) => PlaceMode.Begin(boot, item, -1, done);
+        public void BeginMove(int index, Action<bool> done) => PlaceMode.Begin(boot, boot.Logic.S.placed[index].item, index, done);
 
         public void ShowZone(Zone z) { if (boot.IslandCam) boot.IslandCam.ShowZone(z); }
 

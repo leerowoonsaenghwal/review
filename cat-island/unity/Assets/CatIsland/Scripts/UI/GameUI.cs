@@ -244,6 +244,15 @@ namespace CatIsland.UI
                 var d = Catalog.Item(c.id); var r = Row(list, 64); Kit.Size(Kit.IconImage(r, IconOf(d), 42), 42, 42); RowText(r, $"{d.ko}  ×{c.n}");
                 var id = c.id; Kit.Size(Kit.Btn(r, Str.Place, () => { CloseAll(); PlaceFromBag(id); }), 90, 46);
             }
+            if (G.S.placed.Count > 0) Kit.Size(Kit.Label(list, "섬에 놓인 것", Theme.Caption, Theme.Latte, TextAnchor.MiddleLeft), -1, 24);
+            for (int i = 0; i < G.S.placed.Count; i++)
+            {
+                var p = G.S.placed[i]; var d = Catalog.Item(p.item); var r = Row(list, 60); int idx = i;
+                Kit.Size(Kit.IconImage(r, IconOf(d), 38), 38, 38); RowText(r, d.ko + (p.zone == Zone.Yard ? " · 마당" : ""));
+                if (World is WorldSync ws) Kit.Size(Kit.Btn(r, "옮기기", () => { CloseAll(); ws.BeginMove(idx, ok => Refresh()); }, Kit.Style.Secondary), 84, 46);
+                bool essential = (p.item == "food_bowl" || p.item == "water_bowl") && G.S.placed.Count(x => x.item == p.item) == 1;   // (하나뿐인 그릇·물그릇은 넣지 않는다)
+                if (!essential) Kit.Size(Kit.Btn(r, Str.PutAway, () => { G.PutAway(idx); G.Save(); World?.Refresh(); Open(BuildBag); }, Kit.Style.Secondary), 64, 46);
+            }
             var food = G.S.inventory.Where(c => Catalog.Item(c.id).consumable).ToList();
             if (food.Count > 0) { Kit.Size(Kit.Label(list, "먹을 것", Theme.Caption, Theme.Latte, TextAnchor.MiddleLeft), -1, 24); foreach (var c in food) { var r = Row(list, 52); RowText(r, $"{Catalog.Item(c.id).ko}  ×{c.n}"); } }
             if (!G.S.zonesUnlocked.Contains(1))

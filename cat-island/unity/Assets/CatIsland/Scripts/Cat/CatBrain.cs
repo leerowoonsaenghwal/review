@@ -57,7 +57,7 @@ namespace CatIsland
             foreach (var o in All) if (o && o != this && o.isActiveAndEnabled && Flat(o.transform.position - p).magnitude < r) return true;
             return false;
         }
-        bool Free(Component item) => item && (!claims.TryGetValue(item.transform, out var o) || !o || o == this);
+        bool Free(Component item) => item && item.gameObject.activeInHierarchy && (!claims.TryGetValue(item.transform, out var o) || !o || o == this);
         void ClaimFor(CatState s)
         {
             foreach (var k in new List<Transform>(claims.Keys)) if (claims[k] == this) claims.Remove(k);

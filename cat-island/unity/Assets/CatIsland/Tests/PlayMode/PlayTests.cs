@@ -696,3 +696,45 @@ namespace CatIsland.Tests
         }
     }
 }
+
+namespace CatIsland.Tests
+{
+    using System.Collections;
+    using System.Linq;
+    using NUnit.Framework;
+    using UnityEngine;
+    using UnityEngine.TestTools;
+
+    /// <summary>꾸미기: 산 용품을 손가락으로 옮겨 놓는다. 안 되는 자리(겹침·고양이 자리·마루 밖)는 놓이지 않고, 놓인 자리대로 섬에 선다.</summary>
+    public class DecorateTests : SceneFixture
+    {
+        [UnityTest]
+        public IEnumerator BuyMoveAndPlaceCushion()
+        {
+            var g = game.Logic; g.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Easygoing); g.AddCoins(1000);
+            game.WorldLink.Refresh(); yield return null;
+            Assert.IsFalse(game.Cushion.gameObject.activeSelf, "not bought yet: no cushion on the island");
+            Assert.IsTrue(g.Buy("cushion"));
+            bool? result = null;
+            game.WorldLink.BeginPlace("cushion", ok => result = ok);
+            var mode = PlaceMode.Active; Assert.NotNull(mode);
+            // onto the food bowl: not allowed
+            var bowlP = g.S.placed.First(p => p.item == "food_bowl");
+            mode.MoveToWorld(WorldSync.PlacementCenter(bowlP)); yield return null;
+            Assert.IsFalse(mode.Valid, "cannot sit on the bowl");
+            mode.Confirm(); yield return null;
+            Assert.IsNull(result, "an invalid spot keeps the mode open");
+            // a free spot on the deck, left of centre
+            mode.MoveToWorld(IslandBuilder.DeckCenter + new Vector3(-1.8f, 0, .6f)); yield return null;
+            Assert.IsTrue(mode.Valid);
+            mode.Confirm(); yield return null;
+            Assert.AreEqual(true, result);
+            var cp = g.S.placed.First(p => p.item == "cushion");
+            Assert.IsTrue(game.Cushion.gameObject.activeSelf);
+            Assert.Less(Vector3.Distance(Flat(game.Cushion.transform.position), Flat(WorldSync.PlacementCenter(cp))), .01f, "the island cushion stands where it was placed");
+            Assert.IsTrue(game.Nav.obstacles.Any(o => o.item == game.Cushion.transform && Vector3.Distance(o.center, Flat(game.Cushion.transform.position)) < .01f), "path obstacle moved too");
+            Assert.IsTrue(game.Router.enabled, "touches go back to the island");
+        }
+        static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0, v.z);
+    }
+}
