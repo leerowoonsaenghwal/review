@@ -91,13 +91,13 @@ namespace CatIsland.EditorTools
             }
 
             var so = new SerializedObject(urp);
-            SetInt(so, "m_MainLightShadowmapResolution", 2048);
+            SetInt(so, "m_MainLightShadowmapResolution", 4096);   // docs/ART_DIRECTION.md 2-1
             SetBool(so, "m_MainLightShadowsSupported", true);
             SetBool(so, "m_SoftShadowsSupported", true);
             SetFloat(so, "m_ShadowDistance", 24f); // 카메라가 11~19 m 떨어져 있어 섬 전체가 들어가게
             SetInt(so, "m_ShadowCascadeCount", 1);
             SetInt(so, "m_MSAA", 4);
-            SetBool(so, "m_SupportsHDR", false);
+            SetBool(so, "m_SupportsHDR", true);    // (Neutral 색 보정이 밝은 곳을 부드럽게 접도록)
             SetFloat(so, "m_RenderScale", 1f);
             SetInt(so, "m_AdditionalLightsRenderingMode", 0);
             so.ApplyModifiedPropertiesWithoutUndo();

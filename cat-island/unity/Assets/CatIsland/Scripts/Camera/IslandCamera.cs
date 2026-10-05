@@ -73,6 +73,7 @@ namespace CatIsland
             Quaternion rot = Quaternion.Euler(pitch, yaw, 0f);
             transform.rotation = rot;
             transform.position = focus - rot * Vector3.forward * dist;
+            WorldStyle.Apply(focus, rot * Vector3.forward, dist);   // 둥근 세상 휨과 안개를 이 시점에 맞춘다
         }
     }
 }

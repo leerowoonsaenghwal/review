@@ -11,7 +11,7 @@ namespace CatIsland
     {
         static readonly Dictionary<string, Mesh> cache = new Dictionary<string, Mesh>();
 
-        public static Mesh Lathe(string key, IList<Vector2> profile, int segments = 32)
+        public static Mesh Lathe(string key, IList<Vector2> profile, int segments = 32, float fromDeg = 0f, float toDeg = 360f, bool lengthV = false)
         {
             if (cache.TryGetValue(key, out var cached) && cached != null) return cached;
 
@@ -35,16 +35,19 @@ namespace CatIsland
                 n2[i] = acc.sqrMagnitude > 1e-12f ? acc.normalized : Vector2.up;
             }
 
+            // v: 단면 순번(0~1) 또는 단면을 따라 잰 길이(m, 무늬 텍스처가 고르게 깔리게)
+            var vAt = new float[rings];
+            for (int i = 1; i < rings; i++) vAt[i] = vAt[i - 1] + (lengthV ? Vector2.Distance(profile[i], profile[i - 1]) : 1f / (rings - 1));
             for (int i = 0; i < rings; i++)
             {
                 for (int j = 0; j <= segments; j++)
                 {
-                    float a = (j / (float)segments) * Mathf.PI * 2f;
+                    float a = Mathf.Lerp(fromDeg, toDeg, j / (float)segments) * Mathf.Deg2Rad;
                     float c = Mathf.Cos(a), s = Mathf.Sin(a);
                     int idx = i * (segments + 1) + j;
                     verts[idx] = new Vector3(profile[i].x * c, profile[i].y, profile[i].x * s);
                     norms[idx] = new Vector3(n2[i].x * c, n2[i].y, n2[i].x * s).normalized;
-                    uvs[idx] = new Vector2(j / (float)segments, i / (float)(rings - 1));
+                    uvs[idx] = new Vector2(j / (float)segments, vAt[i]);
                 }
             }
 
@@ -78,7 +81,7 @@ namespace CatIsland
             return new Vector2(d.y, -d.x).normalized;
         }
 
-        static void Arc(List<Vector2> p, Vector2 center, float radius, float fromDeg, float toDeg, int steps)
+        public static void Arc(List<Vector2> p, Vector2 center, float radius, float fromDeg, float toDeg, int steps)
         {
             for (int i = 0; i <= steps; i++)
             {
