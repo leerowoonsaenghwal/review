@@ -506,7 +506,9 @@ export function withSettle(rig, pose, dur, opts = {}, n = 12) {
       keys.sort((a, b) => a.t - b.t);
     }
   };
-  return t => { if (!keys) build(); return at(t); };
+  const f = t => { if (!keys) build(); return at(t); };
+  f.raw = pose; f.corrections = () => { if (!keys) build(); return keys; };   // (for checks: the pose before settling, and what settling changed)
+  return f;
 }
 export function sitPose(rig, S = rig) {
   const P = stand(rig);
@@ -988,7 +990,17 @@ export function makeClips(rig, opts = {}) {
   lickBase = over(SITG, UPP, { FLx: .05 * sx, FLy: rig.ballH + .02, FLz: chestFront + .06, FLa: .2, FLt: 0, hdPitch: .8, nkPitch: SITG.nkPitch - .6, hdYaw: 0, hdRoll: 0 });
   touchBest(S, lickBase, { a: 'tongue', b: ['FL'], keys: [...PAWK, 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], bounds: HB, iters: 40, at: lickAt(faceStroke), guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD] },
     [{ hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLy: rig.ballH, FLz: chestFront + .09 }, { FLx: .1 * sx, hdYaw: .45 * sx, hdRoll: .2 * sx }, { FLx: .12 * sx, FLz: chestFront + .08, hdYaw: .6 * sx, nkYaw: .3 * sx, hdRoll: .25 * sx }, { FLx: .09 * sx, FLz: chestFront + .1, hdYaw: .3 * sx, hdPitch: 1 }, { FLx: .11 * sx, FLz: chestFront + .05, hdYaw: .5 * sx, hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLx: .07 * sx, FLz: chestFront + .12, hdPitch: 1.1, nkPitch: SITG.nkPitch - .7 }],
-    { FLx: [0, .04 * sx], FLz: [-.03, 0, .03, .06], hdPitch: [-.2, 0, .2, .4], nkPitch: [-.2, 0, .3], hdYaw: [0, .4 * sx] });
+    { FLx: [0, .04 * sx], FLz: [-.03, 0, .03, .06, .09, .12], hdPitch: [-.2, 0, .2, .4], nkPitch: [-.2, 0, .3], hdYaw: [0, .4 * sx] });
+  // (a big head with a long muzzle and a plush paw: from the starts above the paw can end up held inside the
+  //  muzzle with the tongue on it. Also start with the paw out in front of and just under the mouth, where it
+  //  is on any build, and keep whichever solves best)
+  if (touch.last - .001 > .0015) {
+    const keep = { ...lickBase }, keepErr = touch.last, keepInfo = touch.info;
+    const m = mouthAt(lickAt(faceStroke)({ ...lickBase }));
+    const fromMouth = [1.3, 1.8, 2.4].flatMap(f => [0, .03].map(dy => ({ FLx: .03 * sx, FLz: m.z + f * d.pawR, FLy: Math.max(rig.ballH, m.y - d.pawR - dy) })));
+    touchBest(S, lickBase, { a: 'tongue', b: ['FL'], keys: [...PAWK, 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], bounds: HB, iters: 40, at: lickAt(faceStroke), guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD] }, fromMouth);
+    if (touch.last >= keepErr) { Object.assign(lickBase, keep); touch.last = keepErr; touch.info = keepInfo; }
+  }
   report.pawLick = Math.abs(touch.last - .001); report.pawLickInfo = touch.info;
   const faceTrack = lickTrack(lickBase, faceStroke, { b: ['FL'], guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD] });
   const WASH = [[.4, -.35, .8], [.32, -.45, .8], [.22, -.52, .75]].map(([x, y, z]) => V(x * sx, y, z).multiplyScalar(HS));
@@ -1112,7 +1124,7 @@ export function makeClips(rig, opts = {}) {
     touchBest(S, base, { a: 'FL', b: ['head'], zone: { bone: 'Head', off: headSurf(V(.3 * sx, -.5, .75).multiplyScalar(HS)), r: .035 }, keys: [...PAWK, ...HEADK], bounds: HB, gap: -.003, iters: 45,
       guard: GUARD }, [{ hdRoll: .7 * sx, hdYaw: .3 * sx }, { hdPitch: 1, hdRoll: .55 * sx }, { FLz: lickBase.FLz + .02, hdRoll: .5 * sx, hdYaw: .2 * sx }],
       { FLz: [-.02, 0, .03], FLy: [0, .02], hdPitch: [-.2, 0, .2], hdRoll: [-.2, 0, .2], hdYaw: [-.2, .2] });
-    report.nibble = Math.abs(touch.last + .003);
+    report.nibble = Math.abs(touch.last + .003); report.nibbleInfo = touch.info;
     add('NibbleClaws', 3.4, true, withSettle(S, t => {
       const P = { ...SITG }, up = mj(seg(t, 0, .45)) * (1 - mj(seg(t, 2.9, 3.4)));
       const upP = mj(seg(t, 0, .3)) * (1 - mj(seg(t, 3.1, 3.4))), upH = mj(seg(t, .12, .45)) * (1 - mj(seg(t, 2.9, 3.22)));   // (paw first, head after: see GroomFace)
