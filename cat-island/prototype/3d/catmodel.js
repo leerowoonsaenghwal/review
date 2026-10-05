@@ -297,20 +297,32 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
     if (meta.part === 'tail') return colorAt('tail', p, { t: meta.a ? meta.t0 + (meta.t1 - meta.t0) * segT(p, meta.a, meta.b) : meta.t0 });
     return colorAt('body', p, { nx: 0, ny: 0, nz: 0 });
   };
+  // the coat colour at any point of the sculpted surface (bind pose, model units): the parts near the point are
+  // painted and blended, then a little fur variation. Used for the vertex colours here and, per texel of the game
+  // texture, by blender_finish.py (coat_texels.mjs) - so stripe edges are as sharp as the texture, not the mesh
+  const coatAt = (q, out = new THREE.Color()) => {
+    const near = F.near(q.x, q.y, q.z, .1);
+    let dmin = 1e9; for (const [, d] of near) dmin = Math.min(dmin, d);
+    let cr = 0, cg = 0, cb = 0, cw = 0;
+    for (const [pr, d] of near) {
+      const wc = Math.exp(-(d - dmin) / .006);
+      if (wc > .02) { tmpC.copy(paint(pr.meta, q)); cr += tmpC.r * wc; cg += tmpC.g * wc; cb += tmpC.b * wc; cw += wc; }
+    }
+    const c = cw ? out.setRGB(cr / cw, cg / cw, cb / cw) : out.setRGB(.5, .5, .5);
+    // a little fur variation: soft streaks along the coat (long), fine mottling (short), waves (rex)
+    const fn = long ? .92 + .1 * vnoise(q.x * 9, q.y * 26, q.z * 9) : hairless ? 1 : .95 + .07 * vnoise(q.x * 40, q.y * 40, q.z * 40);
+    return c.multiplyScalar(s.fur === 'rex' ? fn * (.95 + .06 * Math.sin(q.z * 60 + q.y * 30 + 4 * vnoise(q.x * 6, q.y * 6, q.z * 6))) : fn);
+  };
+  const cOut = new THREE.Color();
   for (let i = 0; i < n; i++) {
     p.set(net.pos[i * 3], net.pos[i * 3 + 1], net.pos[i * 3 + 2]);
     const near = F.near(p.x, p.y, p.z, .1);
     let dmin = 1e9; for (const [, d] of near) dmin = Math.min(dmin, d);
-    let cr = 0, cg = 0, cb = 0, cw = 0;
     for (const [pr, d] of near) {
-      const wc = Math.exp(-(d - dmin) / .006), ws = Math.exp(-(d - dmin) / .03);
-      if (wc > .02) { tmpC.copy(paint(pr.meta, p)); cr += tmpC.r * wc; cg += tmpC.g * wc; cb += tmpC.b * wc; cw += wc; }
+      const ws = Math.exp(-(d - dmin) / .03);
       if (ws > .01) for (const [bn, bw] of pr.meta.bones(p)) if (bw > 0) W[i * NB + BI[bn]] += ws * bw;
     }
-    let c = tmpC.setRGB(cr / cw, cg / cw, cb / cw);
-    // a little fur variation: soft streaks along the coat (long), fine mottling (short), waves (rex)
-    const fn = long ? .92 + .1 * vnoise(p.x * 9, p.y * 26, p.z * 9) : hairless ? 1 : .95 + .07 * vnoise(p.x * 40, p.y * 40, p.z * 40);
-    c.multiplyScalar(s.fur === 'rex' ? fn * (.95 + .06 * Math.sin(p.z * 60 + p.y * 30 + 4 * vnoise(p.x * 6, p.y * 6, p.z * 6))) : fn);
+    const c = coatAt(p, cOut);
     col.set([c.r, c.g, c.b], i * 3);
     // breathing: the belly bone takes the underside of the trunk
     const ny = (p.y - bodyY) / (.34 * B), nz = p.z / (.9 * BL);
@@ -675,6 +687,7 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
     len: { lH: lH * S, lR: lR * S, lMc: lMc * S, lF: lF * S, lT: lT * S, lMt: lMt * S },
     shoulderH: shoulderH * S, hipH: hipH * S, rumpR: .31 * B * fl * S, chestR: .33 * B * fl * S, BLm: BL * S, tongueLen: tongueLen * S, tongueIn: tongueIn * S, tongueU: TU, mouth: toM(Hc.clone().add(V(0, mY, mZ))), tail: s.tail, shape: s,
   };
-  group.userData = { shape: { fur: s.fur }, dims, bones, skeleton, meshes: { body, face: faceMesh }, tris: (bodyIdx.length + faceIdx.length) / 3 };
+  group.userData = { shape: { fur: s.fur }, dims, bones, skeleton, meshes: { body, face: faceMesh }, tris: (bodyIdx.length + faceIdx.length) / 3,
+    coatAt, field: F, modelScale: S };   // (coatAt / field take model units; the meshes are model units x modelScale: coat_texels.mjs)
   return group;
 }
