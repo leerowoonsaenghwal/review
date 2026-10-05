@@ -15,253 +15,13 @@ import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BREEDS } from './catgen.js';
 import { buildCatModel } from './catmodel.js';
 import { makeRig, applyPose, loafPose } from './catmotion.js';
+import { tex as kitTex, std, cushion, CUSHION_VARIANTS, buildKitItem, buildTower, TOWERS, STEP, KIT_IDS, KIT_ITEMS } from './itemkit.js';
+const foodBowl = () => buildKitItem('food_bowl'), tower = () => buildKitItem('cat_tower_1');
 const q = new URLSearchParams(location.search);
 const N = +(q.get('size') || 1024), shot = q.get('shot') || 'hero';
 const C = h => new THREE.Color(h), V = (x, y, z) => new THREE.Vector3(x, y, z);
 let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-
-// ---------------------------------------------------------------- painted textures (canvas)
-function tex(w, h, draw, rx = 1, ry = 1) {
-  const cv = document.createElement('canvas'); cv.width = w; cv.height = h; draw(cv.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); t.anisotropy = 8; return t;
-}
-const weave = (g, w, h, a = .07) => {   // fine fabric weave over whatever is painted
-  for (let y = 0; y < h; y += 4) { g.fillStyle = `rgba(255,255,255,${a})`; g.fillRect(0, y, w, 1); }
-  for (let x = 0; x < w; x += 4) { g.fillStyle = `rgba(0,0,0,${a * .7})`; g.fillRect(x, 0, 1, h); }
-};
-const gingham = (c1, c2, c3) => tex(512, 512, (g, w, h) => {
-  g.fillStyle = c1; g.fillRect(0, 0, w, h);
-  const s = 64; g.globalAlpha = .55; g.fillStyle = c2;
-  for (let i = 0; i < w; i += s * 2) { g.fillRect(i, 0, s, h); g.fillRect(0, i, w, s); }
-  g.globalAlpha = .45; g.fillStyle = c3; for (let i = 0; i < w; i += s * 2) for (let j = 0; j < h; j += s * 2) g.fillRect(i, j, s, s);
-  g.globalAlpha = 1; weave(g, w, h);
-}, 1.6, 1.6);
-const felt = (c, c2) => tex(256, 256, (g, w, h) => { g.fillStyle = c; g.fillRect(0, 0, w, h); for (let i = 0; i < 2500; i++) { g.fillStyle = rnd() < .5 ? c2 : 'rgba(255,255,255,.18)'; g.fillRect(rnd() * w, rnd() * h, 2, 1); } weave(g, w, h, .05); }, 4, 4);
-const woodTex = (base, dark, light, rx = 1, ry = 1) => tex(512, 512, (g, w, h) => {
-  g.fillStyle = base; g.fillRect(0, 0, w, h);
-  for (let i = 0; i < 60; i++) { const y = rnd() * h, amp = 4 + rnd() * 10, ph = rnd() * 6; g.strokeStyle = rnd() < .6 ? dark : light; g.lineWidth = 1 + rnd() * 2.5; g.globalAlpha = .35 + rnd() * .35;
-    g.beginPath(); for (let x = 0; x <= w; x += 8) g.lineTo(x, y + Math.sin(x / 70 + ph) * amp); g.stroke(); }
-  g.globalAlpha = .6; for (let k = 0; k < 3; k++) { const x = rnd() * w, y = rnd() * h; g.fillStyle = dark; g.beginPath(); g.ellipse(x, y, 10, 6, 0, 0, 7); g.fill(); g.strokeStyle = dark; for (let r = 14; r < 40; r += 7) { g.beginPath(); g.ellipse(x, y, r * 1.6, r * .7, 0, 0, 7); g.stroke(); } }
-  g.globalAlpha = 1;
-}, rx, ry);
-const sisalTex = tex(256, 256, (g, w, h) => {   // twisted rope wound round the post
-  g.fillStyle = '#d8b57d'; g.fillRect(0, 0, w, h);
-  for (let y = -w; y < h + w; y += 16) { g.strokeStyle = '#b8935b'; g.lineWidth = 5; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y + 22); g.stroke();
-    g.strokeStyle = '#ecd2a0'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, y + 6); g.lineTo(w, y + 28); g.stroke();
-    for (let x = 0; x < w; x += 12) { g.strokeStyle = 'rgba(120,90,50,.35)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y + x * 22 / w + 2); g.lineTo(x + 6, y + x * 22 / w + 12); g.stroke(); } }
-}, 3, 6);
-const std = (o) => new THREE.MeshStandardMaterial({ roughness: .85, ...o });
-
-// ---------------------------------------------------------------- the cushion (round, puffy, piped, buttoned)
-// game size: radius .544, the seat top (where a cat lies) at .134
-const CUSHION_VARIANTS = [
-  { name: '복숭아', check: ['#ffd9c9', '#ff9f8a', '#e9785f'], roll: '#ff9f8a', pipe: '#fff3e2', button: '#e9785f' },
-  { name: '민트', check: ['#e3f6ec', '#8fd6b1', '#5bb98c'], roll: '#8fd6b1', pipe: '#fffaf0', button: '#4aa47a' },
-  { name: '라일락', check: ['#efe6ff', '#bfa8f2', '#9a80e0'], roll: '#bfa8f2', pipe: '#fffaf0', button: '#8a6fd4' },
-];
-function cushion(v, press = null) {
-  const g = new THREE.Group(), R = .544, top = .134;
-  // seat: a lathe profile, domed and soft at the edge
-  const prof = []; const Rs = R - .07;
-  for (let i = 0; i <= 40; i++) { const t = i / 40, r = Rs * t, y = top - .006 * t * t - .05 * Math.pow(t, 5); prof.push(new THREE.Vector2(r + .0001, y)); }
-  prof.push(new THREE.Vector2(Rs + .02, .06), new THREE.Vector2(Rs, .0), new THREE.Vector2(0.0001, 0));
-  let seatG = new THREE.LatheGeometry(prof.slice().reverse(), 96);
-  seatG = mergeVertices(seatG);
-  // tufting: a soft dimple at the centre button; press: the dent a lying cat makes
-  const p = seatG.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), r = Math.hypot(x, z);
-    let dy = -.018 * Math.exp(-(r * r) / (2 * .035 * .035));
-    for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + Math.PI / 4, ex = x - Math.cos(a) * .2, ez = z - Math.sin(a) * .2; dy -= .014 * Math.exp(-(ex * ex + ez * ez) / (2 * .03 * .03)); }
-    if (press) { const dx = (x - press.x) / press.rx, dz = (z - press.z) / press.rz; dy -= press.d * Math.exp(-(dx * dx + dz * dz) * 1.4); }
-    if (y > .03) p.setY(i, y + dy * Math.min(1, (y - .03) / .08));
-  }
-  { const uv = seatG.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / (2 * R) + .5, p.getZ(i) / (2 * R) + .5); }   // (the check lies flat across the top)
-  seatG.computeVertexNormals();
-  const seat = new THREE.Mesh(seatG, std({ map: gingham(...v.check), roughness: .95 })); g.add(seat);
-  // the bolster roll round the edge, and white piping on its two seams
-  const roll = new THREE.Mesh(new THREE.TorusGeometry(R - .08, .08, 32, 128), std({ map: felt(v.roll, 'rgba(0,0,0,.06)'), roughness: .95 }));
-  roll.rotation.x = Math.PI / 2; roll.position.y = .08; roll.scale.z = 1.05; g.add(roll);
-  for (const [rr, yy] of [[R - .08, .162], [R, .08]]) {
-    const pipe = new THREE.Mesh(new THREE.TorusGeometry(rr, .009, 12, 160), std({ color: v.pipe, roughness: .8 })); pipe.rotation.x = Math.PI / 2; pipe.position.y = yy; g.add(pipe);
-  }
-  // stitches: a dashed ring on the seat just inside the roll
-  for (let k = 0; k < 64; k++) { const a = k / 64 * Math.PI * 2, s = new THREE.Mesh(new THREE.CapsuleGeometry(.0035, .016, 4, 8), std({ color: v.pipe }));
-    s.position.set(Math.cos(a) * (Rs - .03), top - .028, Math.sin(a) * (Rs - .03)); s.rotation.set(Math.PI / 2, 0, -a); g.add(s); }
-  // tufting: four more buttons in a ring, each in a soft dimple
-  for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + Math.PI / 4, bx = Math.cos(a) * .2, bz = Math.sin(a) * .2;
-    const b2 = new THREE.Mesh(new THREE.CylinderGeometry(.03, .033, .014, 24), std({ color: v.button, roughness: .45 })); b2.position.set(bx, top - .011, bz); g.add(b2); }
-  // centre button with two holes and a thread cross
-  const btn = new THREE.Mesh(new THREE.CylinderGeometry(.04, .043, .016, 32), std({ color: v.button, roughness: .45 })); btn.position.y = top - .014; g.add(btn);
-  for (const s of [-1, 1]) { const h = new THREE.Mesh(new THREE.CylinderGeometry(.007, .007, .017, 12), std({ color: '#5a4632' })); h.position.set(s * .013, top - .012, 0); g.add(h); }
-  g.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
-  return g;
-}
-
-// ---------------------------------------------------------------- the food bowl (glazed ceramic, painted fish)
-// game size: radius .16, food surface at BOWL_SURF .03
-function foodBowl() {
-  const g = new THREE.Group(), R = .16, H = .033;
-  const prof = [[0, .0], [R - .03, 0], [R - .028, .004], [R - .022, .004], [R - .012, .012], [R - .002, H - .006], [R + .002, H], [R - .004, H + .006], [R - .012, H + .003], [R - .02, H - .004], [R - .03, H - .01], [0.0001, H - .012]];
-  const lat = new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r + .0001, y)), 96);
-  // glaze: a deep band of colour with a white rim line and a fish painted round the outside
-  const glaze = tex(1024, 128, (gg, w, h) => {
-    gg.fillStyle = '#ff8d7a'; gg.fillRect(0, 0, w, h);
-    gg.fillStyle = '#fff6ea'; gg.fillRect(0, h * .62, w, h * .38);      // inside (cream)
-    gg.fillStyle = '#fff6ea'; gg.fillRect(0, h * .5, w, h * .06);        // rim line
-    gg.fillStyle = '#e8644f'; gg.fillRect(0, h * .08, w, h * .05);       // foot line
-    for (let k = 0; k < 4; k++) {   // little fish round the side
-      const x = (k + .5) * w / 4, y = h * .3; gg.fillStyle = '#fff6ea';
-      gg.beginPath(); gg.ellipse(x, y, 26, 10, 0, 0, 7); gg.fill();
-      gg.beginPath(); gg.moveTo(x + 22, y); gg.lineTo(x + 40, y - 11); gg.lineTo(x + 40, y + 11); gg.closePath(); gg.fill();
-      gg.fillStyle = '#5a4632'; gg.beginPath(); gg.arc(x - 14, y - 2, 2.4, 0, 7); gg.fill();
-    }
-  });
-  glaze.wrapS = THREE.RepeatWrapping; glaze.repeat.set(1, 1);
-  const body = new THREE.Mesh(lat, new THREE.MeshPhysicalMaterial({ map: glaze, roughness: .35, clearcoat: .6, clearcoatRoughness: .3 }));
-  g.add(body);
-  // kibble: a heap of little fish- and ring-shaped pieces, crowned at the food surface
-  const kc = ['#b06b35', '#8a4f26', '#c98447'];
-  const bed = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 16), std({ color: '#8a4f26', roughness: 1 })); bed.scale.set(.116, .01, .116); bed.position.y = .012; g.add(bed);
-  const kG = [new THREE.CylinderGeometry(.0068, .0068, .0045, 12), new THREE.SphereGeometry(.0062, 10, 8)];
-  for (let i = 0; i < 900; i++) {
-    const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * .112, crown = .03 - .004 - (r / .112) ** 2 * .006;
-    const m = new THREE.Mesh(kG[i % 2], std({ color: kc[i % 3], roughness: .9 })); m.position.set(Math.cos(a) * r, crown - rnd() * .003, Math.sin(a) * r); m.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3); g.add(m);
-  }
-  g.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
-  return g;
-}
-
-// ---------------------------------------------------------------- cat tower, 1 deck (wood, carpet, sisal)
-// game size: deck top at DECK_STEP .2, deck .72 x 1.0, base .80 x 1.08
-function tower() {
-  const g = new THREE.Group(), DW = .72, DL = 1.0, DT = .04, Y = .2;
-  const woodA = woodTex('#c98f58', '#a06a3a', '#e0b07a', 1, 1), woodB = woodTex('#d29a62', '#a8703f', '#e8bd87', 1, 1);
-  const base = new THREE.Mesh(new RoundedBoxGeometry(DW + .08, .03, DL + .08, 4, .012), std({ map: woodA, roughness: .7 })); base.position.y = .015; g.add(base);
-  const deck = new THREE.Mesh(new RoundedBoxGeometry(DW, DT, DL, 4, .012), std({ map: woodB, roughness: .7 })); deck.position.y = Y - DT / 2; g.add(deck);
-  // carpet top inside a painted rim
-  const carpetTex = tex(256, 256, (gg, w, h) => { gg.fillStyle = '#7fcbe8'; gg.fillRect(0, 0, w, h); for (let i = 0; i < 1800; i++) { gg.fillStyle = rnd() < .5 ? 'rgba(40,90,120,.16)' : 'rgba(255,255,255,.16)'; gg.fillRect(rnd() * w, rnd() * h, 2, 1); }
-    const paw = (x, y) => { gg.fillStyle = 'rgba(255,255,255,.55)'; gg.beginPath(); gg.ellipse(x, y, 13, 11, 0, 0, 7); gg.fill(); for (const [dx, dy] of [[-15, -14], [-5, -21], [6, -21], [16, -14]]) { gg.beginPath(); gg.ellipse(x + dx, y + dy, 5, 6, 0, 0, 7); gg.fill(); } };
-    paw(64, 80); paw(190, 200); }, 3, 4);
-  const carpet = new THREE.Mesh(new RoundedBoxGeometry(DW - .08, .008, DL - .08, 3, .004), std({ map: carpetTex, roughness: 1 })); carpet.position.y = Y + .002; g.add(carpet);
-  const rimM = std({ map: woodTex('#f6c768', '#e0a83f', '#ffe09a'), roughness: .6 });
-  for (const [w, l, x, z] of [[DW, .045, 0, -DL / 2 + .0225], [DW, .045, 0, DL / 2 - .0225], [.045, DL - .09, -DW / 2 + .0225, 0], [.045, DL - .09, DW / 2 - .0225, 0]]) {
-    const r = new THREE.Mesh(new RoundedBoxGeometry(w, .032, l, 4, .014), rimM); r.position.set(x, Y + .016, z); g.add(r);
-  }
-  // posts: sisal rope between wooden collars
-  for (const [px, pz] of [[-DW / 2 + .05, -DL / 2 + .05], [DW / 2 - .05, -DL / 2 + .05], [-DW / 2 + .05, DL / 2 - .05], [DW / 2 - .05, DL / 2 - .05]]) {
-    const h = Y - DT - .03;
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(.042, .042, h - .03, 32), std({ map: sisalTex, roughness: 1 })); post.position.set(px, .03 + h / 2, pz); g.add(post);
-    for (const yy of [.03 + .012, Y - DT - .012]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(.052, .052, .024, 32), std({ map: woodA, roughness: .7 })); c.position.set(px, yy, pz); g.add(c); }
-  }
-  // screw heads at the deck corners
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const s = new THREE.Mesh(new THREE.CylinderGeometry(.008, .008, .004, 16), std({ color: '#8a7a68', roughness: .5 })); s.position.set(sx * (DW / 2 - .022), Y + .033, sz * (DL / 2 - .022)); g.add(s); }
-  // a pompom on a string from the front corner
-  const px = DW / 2 - .02, pz = DL / 2 - .05;
-  const str = new THREE.Mesh(new THREE.CylinderGeometry(.002, .002, .12, 6), std({ color: '#fffaf0' })); str.position.set(px, Y - DT - .06, pz); g.add(str);
-  const pomG = new THREE.IcosahedronGeometry(.026, 4), pp = pomG.attributes.position;
-  for (let i = 0; i < pp.count; i++) { const v = V(pp.getX(i), pp.getY(i), pp.getZ(i)); v.multiplyScalar(1 + .12 * Math.sin(v.x * 400) * Math.sin(v.y * 380) * Math.sin(v.z * 420)); pp.setXYZ(i, v.x, v.y, v.z); }
-  pomG.computeVertexNormals();
-  const pom = new THREE.Mesh(pomG, std({ color: '#ff7f9f', roughness: 1 })); pom.position.set(px, Y - DT - .14, pz); g.add(pom);
-  g.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
-  return g;
-}
-
-
-// ---------------------------------------------------------------- cat towers: a kit of parts, five designs
-// Deck tops sit on a 0.4 m grid (STEP): one jump per level. The game's JumpUp clip climbs 0.2 m today, so the
-// taller towers need the new higher jump and a jump down (step B, docs/ART_DIRECTION.md). Every deck a cat
-// lands on is at least 0.6 x 0.7 m (a Maine Coon's four paws after the landing).
-const STEP = .4;
-const KIT = (() => {
-  const woodA = woodTex('#c98f58', '#a06a3a', '#e0b07a'), woodB = woodTex('#d29a62', '#a8703f', '#e8bd87'), woodW = woodTex('#f3e6cf', '#d9c3a0', '#fffaf0');
-  const bark = tex(256, 512, (g, w, h) => { g.fillStyle = '#9a6a40'; g.fillRect(0, 0, w, h); for (let i = 0; i < 40; i++) { const x = rnd() * w; g.strokeStyle = rnd() < .5 ? '#7d5330' : '#b5824f'; g.lineWidth = 3 + rnd() * 6; g.beginPath(); g.moveTo(x, 0); for (let y = 0; y <= h; y += 32) g.lineTo(x + Math.sin(y / 60 + i) * 6, y); g.stroke(); } }, 2, 1);
-  const carpet = (c, c2) => tex(256, 256, (gg, w, h) => { gg.fillStyle = c; gg.fillRect(0, 0, w, h); for (let i = 0; i < 1800; i++) { gg.fillStyle = rnd() < .5 ? c2 : 'rgba(255,255,255,.16)'; gg.fillRect(rnd() * w, rnd() * h, 2, 1); }
-    const paw = (x, y) => { gg.fillStyle = 'rgba(255,255,255,.5)'; gg.beginPath(); gg.ellipse(x, y, 13, 11, 0, 0, 7); gg.fill(); for (const [dx, dy] of [[-15, -14], [-5, -21], [6, -21], [16, -14]]) { gg.beginPath(); gg.ellipse(x + dx, y + dy, 5, 6, 0, 0, 7); gg.fill(); } };
-    paw(64, 80); paw(190, 200); }, 2, 2);
-  const M = { woodA: std({ map: woodA, roughness: .7 }), woodB: std({ map: woodB, roughness: .7 }), woodW: std({ map: woodW, roughness: .7 }), sisal: std({ map: sisalTex, roughness: 1 }), bark: std({ map: bark, roughness: .95 }),
-    blue: std({ map: carpet('#7fcbe8', 'rgba(40,90,120,.16)'), roughness: 1 }), pink: std({ map: carpet('#ffb3c4', 'rgba(150,60,80,.14)'), roughness: 1 }), cream: std({ map: carpet('#fff1d6', 'rgba(120,90,50,.12)'), roughness: 1 }),
-    mint: std({ map: carpet('#a6e3c4', 'rgba(40,110,80,.14)'), roughness: 1 }), leaf: std({ map: felt('#66b84a', 'rgba(30,80,20,.16)'), roughness: .95 }), leaf2: std({ map: felt('#4fa53b', 'rgba(20,60,15,.16)'), roughness: .95 }),
-    butter: std({ map: woodTex('#f6c768', '#e0a83f', '#ffe09a'), roughness: .6 }), dark: std({ color: '#3b2a22', roughness: 1 }) };
-  const add = (g, m) => { m.castShadow = m.receiveShadow = true; g.add(m); return m; };
-  const box = (g, mat, w, h, l, x, y, z, r = .012) => { const m = add(g, new THREE.Mesh(new RoundedBoxGeometry(w, h, l, 4, Math.min(r, h / 2 - .001, w / 2 - .001, l / 2 - .001)), mat)); m.position.set(x, y, z); return m; };
-  const cyl = (g, mat, r0, r1, h, x, y, z, seg = 32) => { const m = add(g, new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, seg), mat)); m.position.set(x, y, z); return m; };
-  // a sisal post between wooden collars, from y0 to y1
-  const post = (g, x, z, y0, y1, r = .05, mat = M.sisal) => { cyl(g, mat, r, r, y1 - y0 - .04, x, (y0 + y1) / 2, z); cyl(g, M.woodA, r + .012, r + .012, .025, x, y0 + .0125, z); cyl(g, M.woodA, r + .012, r + .012, .025, x, y1 - .0125, z); };
-  // a deck: wooden board, carpet top; bed = a padded rim round it
-  const deck = (g, x, y, z, w, l, carpetM = M.blue, bed = false, round = false) => {
-    if (round) { cyl(g, M.woodB, w / 2, w / 2, .04, x, y - .02, z, 48); const c = cyl(g, carpetM, w / 2 - .03, w / 2 - .03, .008, x, y + .002, z, 48);
-      if (bed) { const t = add(g, new THREE.Mesh(new THREE.TorusGeometry(w / 2 - .035, .035, 16, 64), carpetM)); t.rotation.x = Math.PI / 2; t.position.set(x, y + .03, z); } return; }
-    box(g, M.woodB, w, .04, l, x, y - .02, z); box(g, carpetM, w - .06, .008, l - .06, x, y + .002, z, .004);
-    if (bed) for (const [ww, ll, dx, dz] of [[w, .06, 0, -l / 2 + .03], [w, .06, 0, l / 2 - .03], [.06, l - .12, -w / 2 + .03, 0], [.06, l - .12, w / 2 - .03, 0]]) box(g, carpetM, ww, .06, ll, x + dx, y + .03, z + dz, .028);
-  };
-  const base = (g, w, l, x = 0, z = 0) => box(g, M.woodA, w, .03, l, x, .015, z);
-  const screws = (g, x, y, z, w, l) => { for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(g, std({ color: '#8a7a68', roughness: .5 }), .008, .008, .004, x + sx * (w / 2 - .022), y + .006, z + sz * (l / 2 - .022), 16); };
-  // a cube house with a round door (dark disc + padded ring), its roof a deck
-  const house = (g, x, z, w, h, l, wallM, roofM) => {
-    box(g, wallM, w, h, l, x, h / 2, z, .05);
-    const door = add(g, new THREE.Mesh(new THREE.CircleGeometry(.16, 40), M.dark)); door.position.set(x, .2, z + l / 2 + .002);
-    const ring = add(g, new THREE.Mesh(new THREE.TorusGeometry(.165, .022, 12, 48), roofM)); ring.position.set(x, .2, z + l / 2 + .004);
-    deck(g, x, h + .02, z, w, l, roofM);
-  };
-  // a hammock slung under a deck: a sagging cloth on four strings
-  const hammock = (g, x, y, z, w, l, mat) => {
-    const geo = new THREE.PlaneGeometry(w, l, 16, 16); geo.rotateX(-Math.PI / 2); const pp = geo.attributes.position;
-    for (let i = 0; i < pp.count; i++) { const u = pp.getX(i) / (w / 2), v = pp.getZ(i) / (l / 2); pp.setY(i, -.09 * (1 - u * u) * (1 - v * v)); }
-    geo.computeVertexNormals(); const m = add(g, new THREE.Mesh(geo, mat)); m.material = mat.clone(); m.material.side = THREE.DoubleSide; m.position.set(x, y, z);
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) cyl(g, std({ color: '#fffaf0' }), .004, .004, .16, x + sx * w / 2, y + .08, z + sz * l / 2, 6);
-  };
-  // a leaf-shaped pad (island theme): a few overlapping round felt lobes and a vein
-  const leafPad = (g, x, y, z, r, rot, mat) => {
-    const lg = new THREE.Group(); lg.position.set(x, y, z); lg.rotation.y = rot; g.add(lg);
-    for (const [dx, dz, rr] of [[0, 0, r], [r * .55, -r * .2, r * .62], [-r * .55, -r * .2, r * .62], [0, r * .6, r * .55]]) { const c = cyl(lg, mat, rr, rr, .05, dx, -.025, dz, 40); }
-    const vein = box(lg, M.leaf2, .02, .006, r * 1.6, 0, .002, r * .1, .003);
-  };
-  const pompom = (g, x, y, z, len = .14, col = '#ff7f9f') => {
-    cyl(g, std({ color: '#fffaf0' }), .002, .002, len, x, y - len / 2, z, 6);
-    const pg = new THREE.IcosahedronGeometry(.028, 4), pp = pg.attributes.position;
-    for (let i = 0; i < pp.count; i++) { const v = V(pp.getX(i), pp.getY(i), pp.getZ(i)); v.multiplyScalar(1 + .12 * Math.sin(v.x * 400) * Math.sin(v.y * 380) * Math.sin(v.z * 420)); pp.setXYZ(i, v.x, v.y, v.z); }
-    pg.computeVertexNormals(); const m = add(g, new THREE.Mesh(pg, std({ color: col, roughness: 1 }))); m.position.set(x, y - len - .02, z);
-  };
-  return { M, box, cyl, post, deck, base, screws, house, hammock, leafPad, pompom, add };
-})();
-const TOWERS = {
-  // 1. stool: one round bed on a fat sisal column
-  stool: { ko: '1단 스툴형', top: [0, STEP + .01, 0], build: g => { const K = KIT; K.cyl(g, K.M.woodA, .4, .42, .03, 0, .015, 0, 48); K.post(g, 0, 0, .03, STEP - .04, .1); K.deck(g, 0, STEP, 0, 1.0, 1.0, K.M.pink, true, true); K.pompom(g, .42, STEP - .04, .2); } },
-  // 2. stairs: two decks one step apart, offset like stairs
-  stairs: { ko: '2단 계단형', top: [.32, 2 * STEP, 0], build: g => { const K = KIT; K.base(g, 1.5, .95);
-    K.post(g, -.6, -.3, .03, STEP - .04); K.post(g, -.6, .3, .03, STEP - .04); K.post(g, -.05, -.3, .03, 2 * STEP - .04); K.post(g, -.05, .3, .03, 2 * STEP - .04); K.post(g, .6, 0, .03, 2 * STEP - .04);
-    K.deck(g, -.4, STEP, 0, .7, .85, K.M.blue); K.screws(g, -.4, STEP, 0, .7, .85); K.deck(g, .32, 2 * STEP, 0, .75, .85, K.M.cream, true); K.pompom(g, .66, 2 * STEP - .04, .38, .2); } },
-  // 3. house: a cube house below, a hammock, a deck, a bed on top
-  house: { ko: '3단 하우스형', top: [.02, 3 * STEP, 0], build: g => { const K = KIT; K.base(g, 1.35, 1.0);
-    K.house(g, -.32, 0, .66, STEP - .02, .8, K.M.woodW, K.M.mint);
-    K.post(g, .16, -.36, .03, 2 * STEP - .04); K.post(g, .16, .36, .03, 2 * STEP - .04); K.post(g, .6, -.36, .03, 3 * STEP - .04); K.post(g, .6, .36, .03, 3 * STEP - .04);
-    K.post(g, -.55, -.3, STEP + .02, 3 * STEP - .04); K.post(g, -.55, .3, STEP + .02, 3 * STEP - .04);
-    K.deck(g, .38, 2 * STEP, 0, .64, .9, K.M.mint); K.hammock(g, .38, STEP + .05, 0, .36, .6, K.M.cream);
-    K.deck(g, .02, 3 * STEP, 0, 1.3, .95, K.M.pink, true); K.pompom(g, .68, 2 * STEP - .04, .3); } },
-  // 4. tree: a bark trunk with leaf pads spiralling round it (the island theme)
-  tree: { ko: '3단 나무형', top: [.02, 3 * STEP + .02, -.05], build: g => { const K = KIT; K.cyl(g, K.M.woodA, .5, .52, .03, 0, .015, 0, 48);
-    K.cyl(g, K.M.bark, .12, .15, 3 * STEP - .08, 0, (3 * STEP - .08) / 2 + .03, 0, 32);   // (ends under the top pad, so a cat can lie on it)
-    K.leafPad(g, .38, STEP, .1, .38, .4, K.M.leaf); K.leafPad(g, -.36, 2 * STEP, -.05, .38, -2.6, K.M.leaf); K.leafPad(g, .02, 3 * STEP + .02, -.05, .44, 1.3, K.M.leaf);
-    for (const [x, y, z] of [[.38, STEP, .1], [-.36, 2 * STEP, -.05], [.05, 3 * STEP + .02, -.2]]) K.post(g, x * .55, z * .55, y - .14, y - .04, .035, K.M.bark);
-    K.pompom(g, .6, STEP - .04, .2, .16, '#ffd23f'); } },
-  // 5. tall: five levels, a tunnel on level two, toys
-  // two main sisal columns run the full height through the decks; left decks on levels 1 and 3, right decks on
-  // 2 and 4, each also held at its outer edge by a pair of short posts from the level below; a big bed on top
-  // rests on both columns; a tunnel lies on level 2
-  tall: { ko: '5단 높은 타워', top: [0, 5 * STEP, 0], build: g => { const K = KIT; K.base(g, 1.55, 1.0);
-    const H5 = 5 * STEP - .04;
-    K.post(g, -.35, 0, .03, H5, .06); K.post(g, .35, 0, .03, H5, .06);
-    const L = [[-.42, K.M.blue], [.42, K.M.cream], [-.42, K.M.pink], [.42, K.M.blue]];
-    L.forEach(([x, m], i) => {
-      const y = (i + 1) * STEP, side = Math.sign(x), y0 = i < 2 ? .03 : (i - 1) * STEP;   // outer posts stand on the base or on the same-side deck two levels down
-      K.deck(g, x, y, 0, .7, .8, m); K.screws(g, x, y, 0, .7, .8);
-      for (const z of [-.3, .3]) K.post(g, x + side * .27, z, y0, y - .04, .035);
-    });
-    K.deck(g, 0, 5 * STEP, 0, 1.0, .85, K.M.mint, true);
-    const tun = K.add(g, new THREE.Mesh(new THREE.CylinderGeometry(.17, .17, .5, 32, 1, true), K.M.cream)); tun.material = K.M.cream.clone(); tun.material.side = THREE.DoubleSide; tun.rotation.z = Math.PI / 2; tun.position.set(.47, 2 * STEP + .17, 0);
-    K.pompom(g, -.74, 3 * STEP - .04, .35, .2); K.pompom(g, .74, 2 * STEP - .04, -.35, .14, '#ffd23f'); } },
-};
+const tex = (w, h, draw, rx = 1, ry = 1) => kitTex('scene' + w + 'x' + h + rx, w, h, draw, rx, ry);
 
 // ---------------------------------------------------------------- scene: the AC-direction island patch
 const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -300,19 +60,29 @@ if (shot === 'hero') {
   const bw = foodBowl(); sc.add(bw); cam.position.set(0, .34, .5); cam.lookAt(0, .015, 0);
 } else if (shot === 'towers') {   // the five tower designs in a row, a cat for scale
   const ids = Object.keys(TOWERS);
-  ids.forEach((id, i) => { const g = new THREE.Group(); TOWERS[id].build(g); g.position.set((i - 2) * 1.75, 0, 0); g.rotation.y = -.25; sc.add(g); });
+  ids.forEach((id, i) => { const g = buildTower(id); g.position.set((i - 2) * 1.75, 0, 0); g.rotation.y = -.25; sc.add(g); });
   const b = BREEDS.find(x => x.id === 'korean_shorthair'); const cat = buildCatModel(b.shape, b.coat, { res: .02, style: 'ac' });
   const rig = makeRig(cat); applyPose(rig, loafPose(rig)); cat.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.frustumCulled = false; } });
   cat.position.set(-2 * 1.75, STEP + .03, 0); cat.rotation.y = .3; sc.add(cat);
   cam.position.set(0, 3.0, 8.6); cam.lookAt(0, .75, 0);
 } else if (TOWERS[shot]) {
-  const g = new THREE.Group(); TOWERS[shot].build(g); g.rotation.y = -.45; sc.add(g);
+  const g = buildTower(shot); g.rotation.y = -.45; sc.add(g);
   const h = { stool: .5, stairs: .9, house: 1.3, tree: 1.3, tall: 2.1 }[shot]; const hc = h + (q.get('cat') ? .75 : 0); cam.position.set(1.3, hc * .75 + 1.0, 3.0 + hc * 1.15); cam.lookAt(0, hc * .47, 0);
   if (q.get('cat')) {   // a cat loafing on the top deck, for scale
     const b = BREEDS.find(x => x.id === q.get('cat')); const cat = buildCatModel(b.shape, b.coat, { res: .02, style: 'ac' });
     const rig = makeRig(cat); applyPose(rig, loafPose(rig)); cat.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.frustumCulled = false; } });
     const t = new THREE.Vector3(...TOWERS[shot].top).applyAxisAngle(new THREE.Vector3(0, 1, 0), g.rotation.y); cat.position.set(t.x, t.y + .01, t.z); cat.rotation.y = .4; sc.add(cat);
   }
+} else if (shot === 'item') {   // one item close up (id=, variant=), framed by its bounds
+  const g = buildKitItem(q.get('id'), { variant: +(q.get('variant') || 0) }); g.rotation.y = +(q.get('yaw') ?? -.5); sc.add(g); sc.updateMatrixWorld(true);
+  const bb = new THREE.Box3().setFromObject(g), c = bb.getCenter(new THREE.Vector3()), r = bb.getSize(new THREE.Vector3()).length() / 2;
+  const d = r / Math.sin(14 * Math.PI / 180) * 1.05; cam.position.set(c.x, c.y + d * .55, c.z + d * .84); cam.near = d / 50; cam.updateProjectionMatrix(); cam.lookAt(c);
+  sun.shadow.camera.left = sun.shadow.camera.bottom = -Math.max(.5, r * 1.5); sun.shadow.camera.right = sun.shadow.camera.top = Math.max(.5, r * 1.5); sun.shadow.camera.updateProjectionMatrix();
+} else if (shot === 'kit') {   // every item (variant=k), on a grid, small things in front
+  const ids = KIT_IDS.filter(i => !KIT_ITEMS[i].tower), v = +(q.get('variant') || 0);
+  const pos = { hideout: [-1.9, -1.1], litter_box: [-.4, -1.1], cat_tower_1: [1.1, -1.1], cushion: [2.5, -1.1], scratcher: [-2.2, .45], food_bowl: [-1.4, .5], water_bowl: [-.9, .5], milk_bowl: [-.4, .5], can_food: [.1, .5], churu: [.5, .5], ball: [.9, .5], mouse_toy: [1.3, .5], wand_toy: [1.9, .3] };
+  for (const id of ids) { const g = buildKitItem(id, { variant: v }); g.position.set(pos[id][0], 0, pos[id][1]); g.rotation.y = id === 'wand_toy' || id === 'churu' ? .6 : 0; sc.add(g); }
+  cam.position.set(0, 3.4, 5.2); cam.lookAt(0, .1, -.2);
 } else if (shot === 'tower') {
   const tw = tower(); tw.rotation.y = -.5; sc.add(tw); cam.position.set(.4, 1.1, 2.0); cam.lookAt(0, .12, 0);
 }

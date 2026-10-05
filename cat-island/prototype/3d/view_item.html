@@ -1,0 +1,28 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:transparent}canvas{display:block}</style>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+</head><body>
+<script type="module">
+// An exported item (game file) under the game's light: ?glb=out/items/cushion/cushion.glb&tex=cushion_color_v1.jpg&press=1&yaw=-.5
+// Checks what blender_kit.py made: the baked colour atlas, the normal map, the shape keys, closed parts.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const q = new URLSearchParams(location.search), N = +(q.get('size') || 600);
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setSize(N, N); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.NeutralToneMapping; document.body.append(r.domElement);
+const sc = new THREE.Scene(); sc.background = new THREE.Color('#8fd6f2');
+sc.add(new THREE.HemisphereLight('#cdeeff', '#7fb85a', 1.15));
+const sun = new THREE.DirectionalLight('#fff0d0', 3.1); sun.position.set(-2.2, 4.2, 3); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.normalBias = .01; sc.add(sun);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshStandardMaterial({ color: '#74c254', roughness: .95 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; sc.add(ground);
+const g = (await new GLTFLoader().loadAsync(q.get('glb'))).scene; g.rotation.y = +(q.get('yaw') ?? -.5); sc.add(g);
+const texName = q.get('tex');
+if (texName) { const t = await new THREE.TextureLoader().loadAsync(q.get('glb').replace(/[^/]+$/, texName)); t.flipY = false; t.colorSpace = THREE.SRGBColorSpace; g.traverse(o => { if (o.isMesh) { o.material.map = t; o.material.needsUpdate = true; } }); }
+g.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; if (o.morphTargetInfluences && q.get('press')) o.morphTargetInfluences.fill(+q.get('press')); } });
+sc.updateMatrixWorld(true);
+const bb = new THREE.Box3().setFromObject(g), c = bb.getCenter(new THREE.Vector3()), rad = bb.getSize(new THREE.Vector3()).length() / 2;
+const cam = new THREE.PerspectiveCamera(28, 1, rad / 50, 80), d = rad / Math.sin(14 * Math.PI / 180) * .8;
+cam.position.set(c.x, c.y + d * .55, c.z + d * .84); cam.lookAt(c);
+Object.assign(sun.shadow.camera, { left: -rad * 1.5, right: rad * 1.5, top: rad * 1.5, bottom: -rad * 1.5 }); sun.shadow.camera.updateProjectionMatrix();
+r.render(sc, cam); window.__done = true;
+</script></body></html>
