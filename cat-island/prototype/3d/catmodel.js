@@ -69,9 +69,10 @@ export function frameShape(shapeIn = {}) {
   return s;
 }
 export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
-  // opts.style 'ac': the Animal Crossing direction under review (docs/ART_DIRECTION.md) - simple eyes, short
-  // painted-on whiskers, a smaller blush, plush legs, a slightly bigger head, bold clean coat shapes
-  const AC = opts.style === 'ac';
+  // opts.style: 'ac' (default) the confirmed Animal Crossing direction (docs/ART_DIRECTION.md) - simple eyes (one
+  // of three per cat), real tapered whiskers (one of three), a smaller blush, plush legs, a slightly bigger head,
+  // bold clean coat shapes. 'classic' is the earlier look (kept for comparison: style_compare.html side=now).
+  const AC = (opts.style || 'ac') !== 'classic';
   const s = frameShape(shapeIn);
   if (AC) s.headSize *= 1.08;
   const coatSpec = AC ? { ...coatSpecIn, bold: true } : coatSpecIn;
@@ -434,6 +435,9 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
       // chosen by opts.eyeStyle, else coat.eyeStyle (photo2cat suggestFace), else shape.eyeStyle, else by coat lightness
       const coatL = (() => { const b0 = C(coatSpecIn.base || '#999999'); return .2126 * b0.r + .7152 * b0.g + .0722 * b0.b; })();
       const eyeStyle = !AC ? 'classic' : opts.eyeStyle || opts.darkEye || coatSpecIn.eyeStyle || s.eyeStyle || (coatL < .12 ? 'iris' : 'dark');
+      // the outline of the eye actually drawn (the 'ac' eyes are smaller than the classic one): eyelids and liners
+      // are fitted to it - sized to the classic eye they stood off the new one like a pair of glasses
+      const [eR, eSX, eSY] = !AC ? [er, sx, sy] : eyeStyle === 'rim' ? [er * .97, sx * .92, sy * 1.1] : eyeStyle === 'iris' ? [er * .86, sx * .92, sy * 1.1] : [er * .82, sx * .92, sy * 1.12];
       if (eyeStyle === 'iris') {
         faceAdd(pinch(ell(er * .86, sx * .92, sy * 1.1, sz, 32)), colorAt(x > 0 ? 'eye2' : 'eye'), M, 0, { blink: v => shut(v) });
         const pg = ell(er * .56, sx * .86, sy * 1.0, sz, 24); pg.translate(0, -er * .02, er * .17);   // (just proud of the iris)
@@ -445,11 +449,11 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
       else faceAdd(pinch(ell(er, sx, sy, sz, 32)), C('#ffffff'), M, 0, { blink: v => shut(v) }, { color: colorAt(x > 0 ? 'eye2' : 'eye'), h: er * sy });
       const lidY = 1 - 2 * s.eyeLid;
       if (s.eyeLid > 0) {
-        const lg = new THREE.SphereGeometry(er * 1.06, 28, 10, 0, Math.PI * 2, 0, Math.acos(lidY)); lg.scale(sx, sy, sz * 1.3); pinch(lg); lg.rotateZ(-x * s.eyeTilt);   // lid line stays level on a slanted eye
+        const lg = new THREE.SphereGeometry(eR * 1.06, 28, 10, 0, Math.PI * 2, 0, Math.acos(lidY)); lg.scale(eSX, eSY, sz * 1.3); pinch(lg); lg.rotateZ(-x * s.eyeTilt);   // lid line stays level on a slanted eye
         const lidC = V(0, er * .9, 0).applyMatrix4(M);
         faceAdd(lg, colorAt('head', lidC, { dir: lidC.clone().sub(Hc).normalize() }), M, 2, { blink: v => shut(v, .03 * er) });
       }
-      if (s.eyeLiner) { const lr = new THREE.TorusGeometry(er, er * .085, 6, 40); lr.scale(sx * 1.03, sy * 1.03, .6); faceAdd(pinch(lr), C('#2b2220'), M, 0, { blink: v => shut(v) }); }
+      if (s.eyeLiner) { const lr = new THREE.TorusGeometry(eR, er * (AC ? .07 : .085), 6, 40); lr.scale(eSX * (AC ? 1 : 1.03), eSY * (AC ? 1 : 1.03), .6); faceAdd(pinch(lr), C('#2b2220'), M, 0, { blink: v => shut(v) }); }
       const cs = Math.cos(-x * s.eyeTilt), sn = Math.sin(-x * s.eyeTilt), hsz = Math.min(1, sy + .1);
       for (const [dx, dy, rr] of AC ? [[-.28, .38, .2]] : [[-.3, .34, .3], [.3, -.34, .12]]) {
         let hx = (dx * cs - dy * sn) * er * sx, hy = (dx * sn + dy * cs) * er * sy;

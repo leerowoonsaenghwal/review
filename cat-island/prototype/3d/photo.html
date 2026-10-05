@@ -22,6 +22,7 @@
   .chips span.on { background: #8fc96b; color: #fff; }
   .why { color: #a08a6a; font-size: 13px; }
   .cat3d { position: relative; }
+.face{margin-top:6px;font-size:13px;color:#6f5a40}.face button{margin:2px 3px;padding:3px 9px;border-radius:12px;border:1.5px solid #6f5a40;background:#fbf6e6;color:#6f5a40;font:inherit;cursor:pointer}.face button.on{background:#ff7f9f;border-color:#ff7f9f;color:#fff}
 </style>
 </head>
 <body>
@@ -32,8 +33,10 @@
 <script type="module">
 import * as THREE from 'three';
 import { FilesetResolver, ImageSegmenter } from './node_modules/@mediapipe/tasks-vision/vision_bundle.mjs';
-import { buildCat, setPose, BREEDS } from './catgen.js';
-import { analyzeCoat, suggestBreeds } from './photo2cat.js';
+import { BREEDS } from './catgen.js';
+import { buildCatModel } from './catmodel.js';
+import { makeRig, applyPose, sitPose } from './catmotion.js';
+import { analyzeCoat, suggestBreeds, suggestFace } from './photo2cat.js';
 
 // ?items=name:eyeX1,eyeY1,eyeX2,eyeY2:ear=fold,fur=long:breed ; ...   (eye coords 0..1, all parts optional)
 // Eye points stand in for iOS Vision's animal body pose landmarks.
@@ -111,38 +114,59 @@ for (const r of results) {
     ${r.out.uncertain ? '<span class="why" style="color:#d9822b">애매함 → "줄무늬가 있나요?" 확인 질문</span><br>' : ''}
     <span class="why">사용자 선택: ${tgl.length ? tgl.join(', ') : '없음'}</span>
     <div class="chips">${r.sugg.map(s => `<span class="${s.id === r.breedId ? 'on' : ''}">${BREEDS.find(b => b.id === s.id).ko}</span>`).join('')}</div>
+    <div class="face" data-row="${results.indexOf(r)}">
+      눈 ${['dark', 'iris', 'rim'].map(v => `<button data-k="eyeStyle" data-v="${v}">${{ dark: '진한 눈', iris: '색 눈', rim: '테두리 눈' }[v]}</button>`).join('')}<br>
+      수염 ${['short', 'long', 'dots'].map(v => `<button data-k="whiskerStyle" data-v="${v}">${{ short: '짧게', long: '길게', dots: '점과 함께' }[v]}</button>`).join('')}
+    </div>
   </div>`);
   const c3 = document.createElement('div'); c3.className = 'cat3d'; row.append(c3);
   rows.append(row);
 }
 
-// ---- 3D cats (one renderer, scissored into each row's last cell)
+// ---- 3D cats (one renderer, scissored into each row's last cell). The same generator as the game's cats
+// (buildCatModel, style 'ac', docs/ART_DIRECTION.md); eyes and whiskers start from the photo's suggestion
+// (suggestFace) and the buttons change them - the choices the cat-making screen offers.
 const W = document.body.clientWidth, H = rows.clientHeight;
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(2); renderer.setSize(W, H); renderer.domElement.id = 'gl';
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
-renderer.setScissorTest(true);
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1.0;
+renderer.setScissorTest(true); renderer.setScissor(0, 0, W, H); renderer.setClearColor(0x000000, 0);
 rows.prepend(renderer.domElement);
 const top0 = rows.getBoundingClientRect().top;
-[...document.querySelectorAll('.cat3d')].forEach((el, i) => {
-  const r = results[i], bd = BREEDS.find(b => b.id === r.breedId);
-  const coat = { ...r.out.coat, eye: r.out.coat?.eye || bd.coat.eye };
+const cells = [...document.querySelectorAll('.cat3d')];
+const draw = i => {
+  const r = results[i], el = cells[i], bd = BREEDS.find(b => b.id === r.breedId);
+  r.face ||= suggestFace({ ...bd.coat, ...(r.out.coat || {}) }, r.it.toggles, r.out.report || {});
+  const coat = { ...r.out.coat, eye: r.out.coat?.eye || bd.coat.eye, eyeStyle: r.face.eyeStyle, whiskerStyle: r.face.whiskerStyle };
   const scene = new THREE.Scene();
-  scene.add(new THREE.HemisphereLight('#f2fbff', '#c9b892', 1.35));
-  const sun = new THREE.DirectionalLight('#fff4dc', 2.0); sun.position.set(-3, 6, 5); sun.castShadow = true; sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
-  sun.shadow.mapSize.set(1024, 1024); sun.shadow.radius = 5; Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3 });
+  scene.add(new THREE.HemisphereLight('#cdeeff', '#7fb85a', 1.15));
+  const sun = new THREE.DirectionalLight('#fff0d0', 3.1); sun.position.set(-3, 6, 5); sun.castShadow = true; sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
+  sun.shadow.mapSize.set(1024, 1024); sun.shadow.radius = 3; Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3 });
   scene.add(sun);
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(1.7, 48), new THREE.MeshStandardMaterial({ color: '#a8db84', roughness: 1 }));
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(1.7, 48), new THREE.MeshStandardMaterial({ color: '#74c254', roughness: 1 }));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-  const cat = buildCat(bd.shape, coat); setPose(cat, 'walk', .12); cat.rotation.y = .55; scene.add(cat);
+  const cat = buildCatModel(bd.shape, coat, { res: .03 });
+  const rig = makeRig(cat); applyPose(rig, sitPose(rig)); cat.updateMatrixWorld(true);
+  cat.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.frustumCulled = false; } });
+  cat.rotation.y = .55; scene.add(cat);
   const k = Math.max(1, new THREE.Box3().setFromObject(cat).max.y / 2.0);
   const rc = el.getBoundingClientRect();
   const cam = new THREE.PerspectiveCamera(24, rc.width / rc.height, .1, 50);
   cam.position.set(6.4 * k, 2.5 * k, 2.6 * k); cam.lookAt(0, .9 * k, .05);
   const x = rc.left, y = H - (rc.top - top0) - rc.height;
   renderer.setViewport(x, y, rc.width, rc.height); renderer.setScissor(x, y, rc.width, rc.height);
-  renderer.render(scene, cam);
+  renderer.clear(); renderer.render(scene, cam);
+  const box = document.querySelector(`.face[data-row="${i}"]`);
+  for (const bt of box.querySelectorAll('button')) bt.classList.toggle('on', r.face[bt.dataset.k] === bt.dataset.v);
+};
+cells.forEach((_, i) => draw(i));
+// the buttons: change this cat's eyes or whiskers and draw it again
+document.addEventListener('click', e => {
+  const bt = e.target.closest('.face button'); if (!bt) return;
+  const i = +bt.closest('.face').dataset.row;
+  results[i].face = { ...results[i].face, [bt.dataset.k]: bt.dataset.v };
+  draw(i);
 });
 window.__done = true;
 </script>
