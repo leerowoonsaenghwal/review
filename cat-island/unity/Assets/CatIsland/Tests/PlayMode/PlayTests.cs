@@ -358,6 +358,7 @@ namespace CatIsland.Tests
                         (rig.BodyZone.position - Cat.transform.forward * rig.BodyHalf.z * 0.7f, rig.BodyHalf.x * 0.8f),
                     };
                     foreach (var o in nav.obstacles)
+                        if (o.owner == null)   // (고양이 자신·다른 고양이의 움직이는 자리는 물건이 아니다)
                         foreach (var (p, r) in samples)
                         {
                             float d = o.Distance(p) - r;
@@ -643,6 +644,55 @@ namespace CatIsland.Tests
             CatMaker.Open(game.UI); yield return Shot("catmaker");
             StarLandUI.Open(game.UI); yield return Shot("starland");
             game.UI.CloseAll();
+        }
+    }
+}
+
+namespace CatIsland.Tests
+{
+    using System.Collections;
+    using System.Linq;
+    using NUnit.Framework;
+    using UnityEngine;
+    using UnityEngine.TestTools;
+
+    /// <summary>고양이 여러 마리: 저장대로 섬에 서고(품종마다), 돌아다녀도 서로·물건에 박히지 않는다. 산책 가면 섬에서 사라진다.</summary>
+    public class MultiCatTests : SceneFixture
+    {
+        [UnityTest]
+        public IEnumerator ThreeBreeds_RoamWithoutOverlap()
+        {
+            var g = game.Logic; g.S.catSlots = 4;
+            var a = g.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Playful);
+            var b = g.AddCat("persian", "보리", CatIsland.Game.Personality.Easygoing);
+            var c = g.AddCat("munchkin", "콩", CatIsland.Game.Personality.Foodie);
+            game.SyncCats();
+            yield return null;
+            var cats = Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).Where(x => x.isActiveAndEnabled).ToList();
+            Assert.AreEqual(3, cats.Count, "one cat on the island per cat in the save");
+            Assert.IsTrue(cats.Any(x => x.Rig.breed == "persian") && cats.Any(x => x.Rig.breed == "munchkin"));
+            Time.timeScale = 3f;
+            float worstItem = 0f, closest = 9f; string what = "";
+            for (float t = 0; t < 40f; t += Time.deltaTime)
+            {
+                yield return null;
+                foreach (var k in cats)
+                {
+                    foreach (var o in game.Nav.obstacles.Where(o => o.owner == null))
+                    {
+                        float d = o.Distance(k.Rig.BodyZone.position) - k.Rig.BodyHalf.x * .8f;
+                        if (d < worstItem) { worstItem = d; what = $"{k.name} in {o.name}"; }
+                    }
+                    foreach (var k2 in cats) if (k2 != k && !k.OnTower && !k2.OnTower) closest = Mathf.Min(closest, Vector3.Distance(k.Rig.BodyZone.position, k2.Rig.BodyZone.position));
+                }
+            }
+            Time.timeScale = 1f;
+            Debug.Log($"[MultiCat] worst item overlap {worstItem * 1000:F0} mm ({what}), closest cats {closest:F2} m");
+            Assert.Greater(worstItem, -0.03f, what);
+            Assert.Greater(closest, 0.25f, "cats never stand inside each other");
+            // 산책 보내면 섬에서 사라지고, 돌아오면 다시 선다
+            g.SendWalk(b.uid, 1); game.SyncCats(); yield return null;
+            Assert.AreEqual(2, Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).Count(x => x.isActiveAndEnabled));
         }
     }
 }

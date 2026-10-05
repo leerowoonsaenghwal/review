@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -77,24 +79,13 @@ namespace CatIsland
             }
             IslandCam = camGo.AddComponent<IslandCamera>();
 
-            // 고양이
-            var catGo = new GameObject("Cat");
-            catGo.transform.position = new Vector3(0f, 0f, -0.6f);
-            catGo.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
-            catGo.AddComponent<CatRig>();
-            Audio = catGo.AddComponent<CatAudio>();
-            Cat = catGo.AddComponent<CatBrain>();
-            Cat.bowl = Bowl;
-            Cat.cushion = Cushion;
-            Cat.tower = Tower;
-            Cat.nav = Nav;
-            Cat.audioOut = Audio;
-            Cat.cam = camGo.transform;
-            IslandCam.follow = catGo.transform;
+            // 고양이 (저장에 고양이가 있으면 SyncCats 가 저장대로 다시 세운다)
+            Cat = SpawnCat("korean_shorthair", new Vector3(0f, 0f, -0.6f), 180f, null, camGo.transform);
+            IslandCam.follow = Cat.transform;
             IslandCam.SnapNow();
 
             Router = new GameObject("TouchRouter").AddComponent<TouchRouter>();
-            Router.cat = Cat;
+            Router.cat = Cat; Router.cats.Add(Cat);
             Router.bowl = Bowl;
             Router.cushion = Cushion;
             Router.tower = Tower;
@@ -111,12 +102,60 @@ namespace CatIsland
             if (Logic.S.zonesUnlocked.Contains(1)) IslandBuilder.OpenYardGate(world.Find("Island"));
             CatIsland.UI.Press.OnPress = () => { if (Logic.S.hapticsOn) Haptics.Impact(ImpactStyle.Soft, .5f); };
             if (Logic.S.cats.Count == 0 && OpenCatMakerIfEmpty) CatIsland.UI.CatMaker.Open(UI);
-            Cat.OnPetted = pleasure => { var c = Logic.S.cats.Find(x => x.status == "home"); if (c != null) Logic.Pet(c.uid, pleasure); };
+            SyncCats();
+            Router.BeforeBowlFill = () =>
+            {
+                if (Logic.S.cats.Count == 0) return true;      // (첫 고양이를 만들기 전 미리보기)
+                var hungry = Logic.HomeCats.OrderBy(c => c.hunger).FirstOrDefault(); if (hungry == null) return false;
+                if (Logic.Feed(hungry.uid)) { UI.Refresh(); return true; }
+                if (Logic.AdAvailable(CatIsland.Game.Catalog.AdSpot.FreeFood)) UI.Toast("사료가 떨어졌어요. 고양이 메뉴에서 광고로 한 봉지 받을 수 있어요");
+                else UI.Toast("사료가 떨어졌어요. 상점에서 사 와요");
+                return false;
+            };
 
             gameObject.AddComponent<DebugOverlay>();
             gameObject.AddComponent<PerfMonitor>();
             gameObject.AddComponent<BackgroundMusic>();
         }
+
+        CatBrain SpawnCat(string breed, Vector3 pos, float yaw, CatIsland.Game.CatData data, Transform camT)
+        {
+            var go = new GameObject(data != null ? "Cat_" + data.name : "Cat"); go.SetActive(false);
+            go.transform.position = pos; go.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+            var rig = go.AddComponent<CatRig>(); rig.breed = breed;
+            var audio = go.AddComponent<CatAudio>(); var brain = go.AddComponent<CatBrain>();
+            brain.bowl = Bowl; brain.cushion = Cushion; brain.tower = Tower; brain.nav = Nav; brain.audioOut = audio; brain.cam = camT; brain.Data = data;
+            if (Audio == null) Audio = audio;
+            go.SetActive(true);
+            return brain;
+        }
+
+        readonly Dictionary<string, CatBrain> catViews = new Dictionary<string, CatBrain>();
+        /// <summary>섬의 3D 고양이를 저장과 맞춘다: 집에 있는 고양이마다 하나 (산책 중·별나라는 섬에 없다).</summary>
+        public void SyncCats()
+        {
+            if (Logic == null || Logic.S.cats.Count == 0) return;
+            if (catViews.Count == 0 && Cat && Cat.Data == null) { Router.cats.Remove(Cat); Destroy(Cat.gameObject); Cat = null; }   // (미리보기 고양이 치우기)
+            var cam = IslandCam.transform; int i = 0;
+            foreach (var c in Logic.S.cats)
+            {
+                bool home = c.status == "home";
+                if (!catViews.TryGetValue(c.uid, out var view) || !view)
+                {
+                    if (!home) continue;
+                    var spot = Nav.NearestFree(new Vector3(-0.8f + 0.9f * i, 0f, -0.6f - 0.3f * (i % 2)));
+                    view = SpawnCat(HasArt(c.breed) ? c.breed : "korean_shorthair", spot, 180f, c, cam);
+                    view.OnPetted = p => Logic.Pet(c.uid, p);
+                    catViews[c.uid] = view; Router.cats.Add(view);
+                }
+                view.gameObject.SetActive(home);
+                i++;
+            }
+            foreach (var kv in catViews.Where(kv => kv.Value && Logic.Cat(kv.Key) == null).ToList()) { Router.cats.Remove(kv.Value); Destroy(kv.Value.gameObject); catViews.Remove(kv.Key); }
+            var first = Logic.HomeCats.Select(c => catViews.TryGetValue(c.uid, out var v) ? v : null).FirstOrDefault(v => v);
+            if (first) { Cat = first; Router.cat = first; IslandCam.follow = first.transform; if (Cat.Data != null) Audio = Cat.GetComponent<CatAudio>(); }
+        }
+        static bool HasArt(string breed) => Resources.Load<TextAsset>("Art/Cats/" + breed + "_info") != null;
 
         void Update()
         {

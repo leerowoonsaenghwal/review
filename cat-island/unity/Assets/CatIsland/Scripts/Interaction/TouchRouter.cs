@@ -13,6 +13,10 @@ namespace CatIsland
         enum Mode { None, Pet, Bowl, Cushion, Tower, Background, CameraDrag, Pinch }
 
         public CatBrain cat;
+        /// <summary>섬의 고양이들 (손가락이 닿은 고양이를 쓰다듬는다). 비어 있으면 cat 하나.</summary>
+        public readonly List<CatBrain> cats = new List<CatBrain>();
+        /// <summary>그릇을 눌렀을 때: 게임 규칙이 밥을 줄 수 있는지 (사료가 없으면 false: 그릇을 채우지 않는다).</summary>
+        public System.Func<bool> BeforeBowlFill;
         public FoodBowl bowl;
         public Cushion cushion;
         public CatTower tower;
@@ -124,6 +128,7 @@ namespace CatIsland
             mode = Mode.Background;
             if (Physics.Raycast(ray, out var hit, 100f))
             {
+                foreach (var c in cats) if (c && c.isActiveAndEnabled && c.Rig.IsCatCollider(hit.collider)) { cat = c; break; }
                 if (cat && cat.Rig.IsCatCollider(hit.collider)) mode = Mode.Pet;
                 else if (bowl && hit.collider.gameObject == bowl.gameObject) mode = Mode.Bowl;
                 else if (cushion && hit.collider.gameObject == cushion.gameObject) mode = Mode.Cushion;
@@ -141,7 +146,7 @@ namespace CatIsland
                     cat.SetPetInput(PetZone.None, 0f, Vector3.zero, false);
                     break;
                 case Mode.Bowl:
-                    if (tap || !movedFar)
+                    if ((tap || !movedFar) && (BeforeBowlFill == null || BeforeBowlFill()))
                     {
                         bowl.Fill();
                         audioOut?.Kibble();

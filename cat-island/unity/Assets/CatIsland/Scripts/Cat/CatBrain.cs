@@ -33,6 +33,40 @@ namespace CatIsland
 
         /// <summary>기분 좋게 한 번 쓰다듬어졌다 (하트가 나올 때마다): 게임 규칙 쪽 호감도·할 일에 센다.</summary>
         public Action<float> OnPetted;
+        /// <summary>게임 저장의 고양이 (없으면 시제품 혼자 사는 고양이). 배고픔은 저장 값을 따른다.</summary>
+        public CatIsland.Game.CatData Data;
+        Obstacle selfObstacle;
+        // 용품은 한 번에 한 마리만 (방석·캣타워·그릇에 두 마리가 겹치지 않게)
+        static readonly Dictionary<Transform, CatBrain> claims = new Dictionary<Transform, CatBrain>();
+        public static readonly List<CatBrain> All = new List<CatBrain>();
+        void OnEnable() { if (!All.Contains(this)) All.Add(this); }
+        float blockedFor;
+        /// <summary>앞을 막고 있는 다른 고양이 (몸 반 마리 거리 안, 가는 쪽).</summary>
+        CatBrain CatAhead(Vector3 dir, float range)
+        {
+            foreach (var o in All)
+            {
+                if (!o || o == this || !o.isActiveAndEnabled || o.OnTower != OnTower) continue;
+                var d = Flat(o.transform.position - transform.position); float dist = d.magnitude;
+                if (dist < range && (dist < .3f || Vector3.Dot(d / dist, dir) > .35f)) return o;
+            }
+            return null;
+        }
+        bool OtherCatNear(Vector3 p, float r)
+        {
+            foreach (var o in All) if (o && o != this && o.isActiveAndEnabled && Flat(o.transform.position - p).magnitude < r) return true;
+            return false;
+        }
+        bool Free(Component item) => item && (!claims.TryGetValue(item.transform, out var o) || !o || o == this);
+        void ClaimFor(CatState s)
+        {
+            foreach (var k in new List<Transform>(claims.Keys)) if (claims[k] == this) claims.Remove(k);
+            var t = s == CatState.GoToBowl || s == CatState.WaitAtBowl || s == CatState.Eat ? (bowl ? bowl.transform : null)
+                  : s == CatState.GoToCushion || s == CatState.LieDown || s == CatState.Sleep ? (cushion ? cushion.transform : null)
+                  : s == CatState.GoToTower || s == CatState.OnTower ? (tower ? tower.transform : null) : null;
+            if (t) claims[t] = this;
+        }
+        void OnDestroy() { All.Remove(this); foreach (var k in new List<Transform>(claims.Keys)) if (claims[k] == this) claims.Remove(k); if (selfObstacle != null) nav?.obstacles.Remove(selfObstacle); }
         public FoodBowl bowl;
         public Cushion cushion;
         public CatTower tower;
@@ -156,6 +190,12 @@ namespace CatIsland
             inviteCooldown -= dt;
 
             Needs.Tick(dt, State == CatState.Eat && Rig.ActionClip == "Drink", State == CatState.Sleep);
+            if (Data != null && State != CatState.Eat) Needs.SetForTest(Data.hunger, Needs.Energy);   // (배고픔은 저장의 실제 시간 값)
+            if (nav != null)
+            {
+                if (selfObstacle == null) selfObstacle = nav.Add(new Obstacle { name = "cat", owner = this, radius = .1f });
+                selfObstacle.center = new Vector3(transform.position.x, 0f, transform.position.z);
+            }
 
             var f = Pet.Update(touchingCat ? petZone : PetZone.None, strokeSpeed, dt);
             if (f.Enjoying) lastPetTime = Time.time;
@@ -259,12 +299,13 @@ namespace CatIsland
         }
 
         void OnApplicationPause(bool pause) { if (pause) PlayerPrefs.SetFloat(PrefAffection, Affection.Points); }
-        void OnDisable() { if (Affection != null) PlayerPrefs.SetFloat(PrefAffection, Affection.Points); }
+        void OnDisable() { All.Remove(this); if (Affection != null) PlayerPrefs.SetFloat(PrefAffection, Affection.Points); }
 
         void Enter(CatState s)
         {
             if (Rig.ActionClip == "Drink" || Rig.ActionClip == "GroomFace") Rig.StopAction();
             State = s;
+            ClaimFor(s);
             StateTime = 0f;
             faceDir = null;
             actionStarted = false;
@@ -304,8 +345,8 @@ namespace CatIsland
             idleDecide -= dt;
             if (idleDecide > 0f) return;
 
-            if (Needs.IsHungry) { Enter(bowl && bowl.HasFood ? CatState.GoToBowl : CatState.WaitAtBowl); return; }
-            if (Needs.IsSleepy && cushion) { Enter(CatState.GoToCushion); return; }
+            if (Needs.IsHungry && Free(bowl)) { Enter(bowl && bowl.HasFood ? CatState.GoToBowl : CatState.WaitAtBowl); return; }
+            if (Needs.IsSleepy && cushion && Free(cushion)) { Enter(CatState.GoToCushion); return; }
             if (Time.time - lastUserActivity > GameConfig.IdleInviteDelay && inviteCooldown <= 0f && cam)
             {
                 inviteCooldown = 20f;
@@ -313,7 +354,7 @@ namespace CatIsland
                 return;
             }
             float r = UnityEngine.Random.value;
-            if (r < 0.12f && tower) Enter(CatState.GoToTower);
+            if (r < 0.12f && tower && Free(tower)) Enter(CatState.GoToTower);
             else if (r < 0.2f && Needs.Energy > 0.6f) Enter(CatState.Zoomies);
             else if (r < 0.35f) Enter(CatState.Groom);
             else if (r < 0.5f) Enter(CatState.SitIdle);
@@ -336,7 +377,7 @@ namespace CatIsland
             {
                 pathGoal = target;
                 replanTimer = 1.5f;
-                path = nav.FindPath(transform.position, target, item);
+                nav.Self = this; path = nav.FindPath(transform.position, target, item); nav.Self = null;
             }
             if (path == null || path.Count == 0) return target;
             while (path.Count > 1 && Flat(path[0] - transform.position).magnitude < 0.3f) path.RemoveAt(0);
@@ -346,7 +387,8 @@ namespace CatIsland
                 float d0 = Flat(path[0] - transform.position).magnitude;
                 float k = Mathf.Clamp01(1f - d0 / 0.7f);
                 Vector3 carrot = Vector3.Lerp(path[0], path[1], k * 0.5f);
-                if (nav.Clear(transform.position, carrot, item)) return carrot;
+                nav.Self = this; bool clear = nav.Clear(transform.position, carrot, item); nav.Self = null;
+                if (clear) return carrot;
             }
             return path[0];
         }
@@ -362,6 +404,16 @@ namespace CatIsland
             Vector3 pos = transform.position;
             float distGoal = Flat(target - pos).magnitude;
             if (distGoal <= arriveDist) { Speed = Mathf.MoveTowards(Speed, 0f, dt * 4f); return Speed < 0.05f; }
+            // 다른 고양이: 목적지에 이미 있으면 그 옆에서 멈추고, 앞을 막고 있으면 잠깐 기다린다 (오래 막히면 여기서 멈춘다)
+            if (distGoal < .75f && OtherCatNear(target, .55f)) { Speed = Mathf.MoveTowards(Speed, 0f, dt * 4f); return Speed < 0.05f; }
+            var ahead = CatAhead(Flat(target - pos).normalized, .6f);
+            if (ahead != null)
+            {
+                blockedFor += dt; Speed = Mathf.MoveTowards(Speed, 0f, dt * 5f);
+                if (blockedFor > 1.2f) { blockedFor = 0f; return true; }
+                return false;
+            }
+            blockedFor = 0f;
 
             Vector3 aim = Steer(target, dt);
             Vector3 to = Flat(aim - pos);
@@ -859,7 +911,9 @@ namespace CatIsland
         {
             if (!cam) return Vector3.zero;
             Vector3 toCam = Flat(cam.position);
-            var p = ClampToIsland(toCam.normalized * 1.6f);
+            int k = Mathf.Max(0, All.IndexOf(this));
+            var side = Vector3.Cross(Vector3.up, toCam.normalized) * ((k % 2 == 0 ? 1 : -1) * ((k + 1) / 2) * .8f);
+            var p = ClampToIsland(toCam.normalized * 1.6f + side);
             return nav != null ? nav.NearestFree(p) : p;
         }
 

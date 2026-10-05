@@ -41,6 +41,7 @@ namespace CatIsland
         public void Refresh()
         {
             var g = boot.Logic; if (g?.S == null) return;
+            boot.SyncCats();
             foreach (var p in spawned.Keys.ToList()) if (!g.S.placed.Contains(p)) { UnityEngine.Object.Destroy(spawned[p]); spawned.Remove(p); if (obstacles.TryGetValue(p, out var o)) { boot.Nav.obstacles.Remove(o); obstacles.Remove(p); } }
             foreach (var p in g.S.placed)
             {

@@ -12,6 +12,7 @@ namespace CatIsland
         public float radius;        // 원
         public Vector2 half;        // 직사각형 반 크기 (x, z). 0 이면 원
         public float yaw;           // 직사각형 회전 (도)
+        public object owner;        // 움직이는 장애물(고양이)이면 그 고양이: 자기 자신은 피하지 않는다
 
         public bool IsBox => half.x > 0f;
 
@@ -51,13 +52,16 @@ namespace CatIsland
         public Obstacle Add(Obstacle o) { obstacles.Add(o); return o; }
 
         /// <summary>점이 막혔는가. using: 지금 쓰러 가는 물건 (좁은 여유).</summary>
+        /// <summary>지금 길을 찾는 고양이 (다른 고양이는 피하고 자기는 피하지 않는다).</summary>
+        public object Self;
         public bool Blocked(Vector3 p, Transform using_ = null, float extra = 0f)
         {
             p.y = 0f;
             if (p.magnitude > walkRadius) return true;
             foreach (var o in obstacles)
             {
-                float clear = (o.item != null && o.item == using_ ? UseClearance : BodyClearance) + extra;
+                if (o.owner != null && o.owner == Self) continue;
+                float clear = (o.owner != null ? .25f : o.item != null && o.item == using_ ? UseClearance : BodyClearance) + extra;
                 if (o.Distance(p) < clear) return true;
             }
             return false;
@@ -141,6 +145,7 @@ namespace CatIsland
             var cells = new List<Vector3>();
             for (var c = goal; c != start; c = came[c.x, c.y]) cells.Add(ToWorld(c));
             cells.Reverse();
+            if (cells.Count == 0) return new List<Vector3> { to };   // (출발과 도착이 같은 칸)
             cells[cells.Count - 1] = to;
             // 곧게 펴기: 보이는 가장 먼 지점으로 바로 간다
             var path = new List<Vector3>();
