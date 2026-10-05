@@ -1029,6 +1029,14 @@ export const BREEDS = [
   { id: 'japanese_bobtail', ko: '재패니즈 밥테일', shape: { tail: 'bob', earSize: 1.15, bodyBulk: .9, legLen: 1.15, headTri: 1, earSet: 'high', rumpHigh: .1, eyeShape: 'oval', eyeTilt: .3 }, coat: { pattern: 'calico', base: '#2f2c2c', second: '#df8d3d', whiteLevel: .6, seed: 9 } },
   { id: 'bombay', ko: '봄베이', shape: { eyeSize: 1.2, bodyBulk: 1.0, bodyLen: .95, earRound: .3, chest: 1.1, eyeShape: 'round' }, coat: { pattern: 'solid', base: '#232125', eye: '#d9a52c', lightMuzzle: false, nose: '#2d2a2e', sheen: .8 } },
 ];
+// whiskers in the game look (style 'ac', docs/ART_DIRECTION.md): short by default; long on the big long-haired
+// breeds, short with whisker-pad dots on the spotted / wild-looking ones. A breed's shape.whiskerStyle wins.
+const WHISKER_STYLE = {
+  long: ['maine_coon', 'norwegian_forest', 'siberian', 'turkish_angora', 'ragdoll', 'birman', 'turkish_van'],
+  dots: ['bengal', 'egyptian_mau', 'savannah', 'abyssinian', 'somali', 'american_shorthair'],
+};
+for (const [style, ids] of Object.entries(WHISKER_STYLE)) for (const b of BREEDS) if (ids.includes(b.id)) b.shape.whiskerStyle ??= style;
+
 
 export const KOREAN_COATS = [
   { id: 'godeungeo', ko: '고등어 태비', coat: { pattern: 'mackerel', base: '#9c968c', dark: '#4d4740' } },

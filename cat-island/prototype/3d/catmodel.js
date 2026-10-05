@@ -521,7 +521,7 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
     // whiskers in style 'ac' (opts.whiskers): 'short' real whiskers, tapering to a point, sticking out a little
     // from the whisker pad; 'dots' the same plus three whisker-pad dots; 'long' a longer version; 'marks' short
     // lines drawn on the cheek
-    const WS = opts.whiskers || 'short';
+    const WS = opts.whiskers || s.whiskerStyle || 'short';   // per breed (catgen.js WHISKER_STYLE), short by default
     const coatLum = (() => { const b0 = C(coatSpec.base || '#999999'); return .2126 * b0.r + .7152 * b0.g + .0722 * b0.b; })();
     const wCol = C(coatSpec.whiskerColor || (coatLum > .55 ? '#d9cfc2' : '#fbf8f2'));
     const taper = (curve, segs, r0) => {   // a tube that thins to a fine tip
