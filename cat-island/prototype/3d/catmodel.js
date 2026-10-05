@@ -51,8 +51,22 @@ function bend2(A, T, l1, l2, bend) {
 const segT = (p, a, b) => { const ab = b.clone().sub(a); return Math.min(1, Math.max(0, p.clone().sub(a).dot(ab) / ab.lengthSq())); };
 const segDist = (p, a, b) => { const t = segT(p, a, b); return p.distanceTo(a.clone().lerp(b, t)); };
 
+// One frame for every cat, as in Animal Crossing (villagers of a kind share a body, and so its motions and
+// how it sits at every item): the same size and the same body, neck and leg length for every breed. A breed
+// shows in its face, ears, eyes, coat, fur and tail, and a little in how stocky it is (bodyBulk / legBulk
+// within +-10%). The one exception is the Munchkin's short legs, a second frame (legLen below FRAME_SHORT_LEG).
+// The breed tables (catgen.js) and photo2cat keep their own values; they are brought to the frame here.
+export const FRAME = { size: 1, bodyLen: 1, neckLen: 1, rumpHigh: 0 };
+export const FRAME_SHORT_LEG = .7;
+export function frameShape(shapeIn = {}) {
+  const s = { ...SHAPE_DEFAULT, ...shapeIn, ...FRAME };
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  s.legLen = (shapeIn.legLen ?? 1) < FRAME_SHORT_LEG ? .5 : 1;
+  s.bodyBulk = clamp(s.bodyBulk, .9, 1.1); s.legBulk = clamp(s.legBulk, .9, 1.1);
+  return s;
+}
 export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
-  const s = { ...SHAPE_DEFAULT, ...shapeIn };
+  const s = frameShape(shapeIn);
   const colorAt = makeCoat(coatSpec);
   const h = opts.res ?? .016;
   const long = s.fur === 'long', curly = s.fur === 'curly', hairless = s.fur === 'none';
