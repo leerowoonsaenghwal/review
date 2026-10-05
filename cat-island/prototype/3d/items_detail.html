@@ -1,0 +1,211 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:transparent}canvas{display:block}</style>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+</head><body>
+<script type="module">
+// Item detail test (docs/ART_DIRECTION.md 5장, step A): three items rebuilt with toy detail - crisp but rounded
+// edges, painted textures (fabric check, weave, wood grain, glaze, sisal), small parts (piping, button,
+// stitches, screws, pompom), colour variants, and a cushion that gives under a loafing cat. Same sizes and
+// cat-used heights as the game items (items.js: BOWL_SURF, DECK_STEP, cushion top).
+// ?shot=hero|variants|bowl|tower&size=1024&variant=0
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { BREEDS } from './catgen.js';
+import { buildCatModel } from './catmodel.js';
+import { makeRig, applyPose, loafPose } from './catmotion.js';
+const q = new URLSearchParams(location.search);
+const N = +(q.get('size') || 1024), shot = q.get('shot') || 'hero';
+const C = h => new THREE.Color(h), V = (x, y, z) => new THREE.Vector3(x, y, z);
+let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+// ---------------------------------------------------------------- painted textures (canvas)
+function tex(w, h, draw, rx = 1, ry = 1) {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h; draw(cv.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); t.anisotropy = 8; return t;
+}
+const weave = (g, w, h, a = .07) => {   // fine fabric weave over whatever is painted
+  for (let y = 0; y < h; y += 4) { g.fillStyle = `rgba(255,255,255,${a})`; g.fillRect(0, y, w, 1); }
+  for (let x = 0; x < w; x += 4) { g.fillStyle = `rgba(0,0,0,${a * .7})`; g.fillRect(x, 0, 1, h); }
+};
+const gingham = (c1, c2, c3) => tex(512, 512, (g, w, h) => {
+  g.fillStyle = c1; g.fillRect(0, 0, w, h);
+  const s = 64; g.globalAlpha = .55; g.fillStyle = c2;
+  for (let i = 0; i < w; i += s * 2) { g.fillRect(i, 0, s, h); g.fillRect(0, i, w, s); }
+  g.globalAlpha = .45; g.fillStyle = c3; for (let i = 0; i < w; i += s * 2) for (let j = 0; j < h; j += s * 2) g.fillRect(i, j, s, s);
+  g.globalAlpha = 1; weave(g, w, h);
+}, 1.6, 1.6);
+const felt = (c, c2) => tex(256, 256, (g, w, h) => { g.fillStyle = c; g.fillRect(0, 0, w, h); for (let i = 0; i < 2500; i++) { g.fillStyle = rnd() < .5 ? c2 : 'rgba(255,255,255,.18)'; g.fillRect(rnd() * w, rnd() * h, 2, 1); } weave(g, w, h, .05); }, 4, 4);
+const woodTex = (base, dark, light, rx = 1, ry = 1) => tex(512, 512, (g, w, h) => {
+  g.fillStyle = base; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 60; i++) { const y = rnd() * h, amp = 4 + rnd() * 10, ph = rnd() * 6; g.strokeStyle = rnd() < .6 ? dark : light; g.lineWidth = 1 + rnd() * 2.5; g.globalAlpha = .35 + rnd() * .35;
+    g.beginPath(); for (let x = 0; x <= w; x += 8) g.lineTo(x, y + Math.sin(x / 70 + ph) * amp); g.stroke(); }
+  g.globalAlpha = .6; for (let k = 0; k < 3; k++) { const x = rnd() * w, y = rnd() * h; g.fillStyle = dark; g.beginPath(); g.ellipse(x, y, 10, 6, 0, 0, 7); g.fill(); g.strokeStyle = dark; for (let r = 14; r < 40; r += 7) { g.beginPath(); g.ellipse(x, y, r * 1.6, r * .7, 0, 0, 7); g.stroke(); } }
+  g.globalAlpha = 1;
+}, rx, ry);
+const sisalTex = tex(256, 256, (g, w, h) => {   // twisted rope wound round the post
+  g.fillStyle = '#d8b57d'; g.fillRect(0, 0, w, h);
+  for (let y = -w; y < h + w; y += 16) { g.strokeStyle = '#b8935b'; g.lineWidth = 5; g.beginPath(); g.moveTo(0, y); g.lineTo(w, y + 22); g.stroke();
+    g.strokeStyle = '#ecd2a0'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, y + 6); g.lineTo(w, y + 28); g.stroke();
+    for (let x = 0; x < w; x += 12) { g.strokeStyle = 'rgba(120,90,50,.35)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y + x * 22 / w + 2); g.lineTo(x + 6, y + x * 22 / w + 12); g.stroke(); } }
+}, 3, 6);
+const std = (o) => new THREE.MeshStandardMaterial({ roughness: .85, ...o });
+
+// ---------------------------------------------------------------- the cushion (round, puffy, piped, buttoned)
+// game size: radius .544, the seat top (where a cat lies) at .134
+const CUSHION_VARIANTS = [
+  { name: '복숭아', check: ['#ffd9c9', '#ff9f8a', '#e9785f'], roll: '#ff9f8a', pipe: '#fff3e2', button: '#e9785f' },
+  { name: '민트', check: ['#e3f6ec', '#8fd6b1', '#5bb98c'], roll: '#8fd6b1', pipe: '#fffaf0', button: '#4aa47a' },
+  { name: '라일락', check: ['#efe6ff', '#bfa8f2', '#9a80e0'], roll: '#bfa8f2', pipe: '#fffaf0', button: '#8a6fd4' },
+];
+function cushion(v, press = null) {
+  const g = new THREE.Group(), R = .544, top = .134;
+  // seat: a lathe profile, domed and soft at the edge
+  const prof = []; const Rs = R - .07;
+  for (let i = 0; i <= 40; i++) { const t = i / 40, r = Rs * t, y = top - .006 * t * t - .05 * Math.pow(t, 5); prof.push(new THREE.Vector2(r + .0001, y)); }
+  prof.push(new THREE.Vector2(Rs + .02, .06), new THREE.Vector2(Rs, .0), new THREE.Vector2(0.0001, 0));
+  let seatG = new THREE.LatheGeometry(prof.slice().reverse(), 96);
+  seatG = mergeVertices(seatG);
+  // tufting: a soft dimple at the centre button; press: the dent a lying cat makes
+  const p = seatG.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), r = Math.hypot(x, z);
+    let dy = -.018 * Math.exp(-(r * r) / (2 * .035 * .035));
+    for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + Math.PI / 4, ex = x - Math.cos(a) * .2, ez = z - Math.sin(a) * .2; dy -= .014 * Math.exp(-(ex * ex + ez * ez) / (2 * .03 * .03)); }
+    if (press) { const dx = (x - press.x) / press.rx, dz = (z - press.z) / press.rz; dy -= press.d * Math.exp(-(dx * dx + dz * dz) * 1.4); }
+    if (y > .03) p.setY(i, y + dy * Math.min(1, (y - .03) / .08));
+  }
+  { const uv = seatG.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / (2 * R) + .5, p.getZ(i) / (2 * R) + .5); }   // (the check lies flat across the top)
+  seatG.computeVertexNormals();
+  const seat = new THREE.Mesh(seatG, std({ map: gingham(...v.check), roughness: .95 })); g.add(seat);
+  // the bolster roll round the edge, and white piping on its two seams
+  const roll = new THREE.Mesh(new THREE.TorusGeometry(R - .08, .08, 32, 128), std({ map: felt(v.roll, 'rgba(0,0,0,.06)'), roughness: .95 }));
+  roll.rotation.x = Math.PI / 2; roll.position.y = .08; roll.scale.z = 1.05; g.add(roll);
+  for (const [rr, yy] of [[R - .08, .162], [R, .08]]) {
+    const pipe = new THREE.Mesh(new THREE.TorusGeometry(rr, .009, 12, 160), std({ color: v.pipe, roughness: .8 })); pipe.rotation.x = Math.PI / 2; pipe.position.y = yy; g.add(pipe);
+  }
+  // stitches: a dashed ring on the seat just inside the roll
+  for (let k = 0; k < 64; k++) { const a = k / 64 * Math.PI * 2, s = new THREE.Mesh(new THREE.CapsuleGeometry(.0035, .016, 4, 8), std({ color: v.pipe }));
+    s.position.set(Math.cos(a) * (Rs - .03), top - .028, Math.sin(a) * (Rs - .03)); s.rotation.set(Math.PI / 2, 0, -a); g.add(s); }
+  // tufting: four more buttons in a ring, each in a soft dimple
+  for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + Math.PI / 4, bx = Math.cos(a) * .2, bz = Math.sin(a) * .2;
+    const b2 = new THREE.Mesh(new THREE.CylinderGeometry(.02, .022, .01, 24), std({ color: v.button, roughness: .45 })); b2.position.set(bx, top - .012 - .01, bz); g.add(b2); }
+  // centre button with two holes and a thread cross
+  const btn = new THREE.Mesh(new THREE.CylinderGeometry(.028, .03, .012, 32), std({ color: v.button, roughness: .45 })); btn.position.y = top - .014; g.add(btn);
+  for (const s of [-1, 1]) { const h = new THREE.Mesh(new THREE.CylinderGeometry(.005, .005, .013, 12), std({ color: '#5a4632' })); h.position.set(s * .009, top - .013, 0); g.add(h); }
+  g.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
+  return g;
+}
+
+// ---------------------------------------------------------------- the food bowl (glazed ceramic, painted fish)
+// game size: radius .16, food surface at BOWL_SURF .03
+function foodBowl() {
+  const g = new THREE.Group(), R = .16, H = .033;
+  const prof = [[0, .0], [R - .03, 0], [R - .028, .004], [R - .022, .004], [R - .012, .012], [R - .002, H - .006], [R + .002, H], [R - .004, H + .006], [R - .012, H + .003], [R - .02, H - .004], [R - .03, H - .01], [0.0001, H - .012]];
+  const lat = new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r + .0001, y)), 96);
+  // glaze: a deep band of colour with a white rim line and a fish painted round the outside
+  const glaze = tex(1024, 128, (gg, w, h) => {
+    gg.fillStyle = '#ff8d7a'; gg.fillRect(0, 0, w, h);
+    gg.fillStyle = '#fff6ea'; gg.fillRect(0, h * .62, w, h * .38);      // inside (cream)
+    gg.fillStyle = '#fff6ea'; gg.fillRect(0, h * .5, w, h * .06);        // rim line
+    gg.fillStyle = '#e8644f'; gg.fillRect(0, h * .08, w, h * .05);       // foot line
+    for (let k = 0; k < 4; k++) {   // little fish round the side
+      const x = (k + .5) * w / 4, y = h * .3; gg.fillStyle = '#fff6ea';
+      gg.beginPath(); gg.ellipse(x, y, 26, 10, 0, 0, 7); gg.fill();
+      gg.beginPath(); gg.moveTo(x + 22, y); gg.lineTo(x + 40, y - 11); gg.lineTo(x + 40, y + 11); gg.closePath(); gg.fill();
+      gg.fillStyle = '#5a4632'; gg.beginPath(); gg.arc(x - 14, y - 2, 2.4, 0, 7); gg.fill();
+    }
+  });
+  glaze.wrapS = THREE.RepeatWrapping; glaze.repeat.set(1, 1);
+  const body = new THREE.Mesh(lat, new THREE.MeshPhysicalMaterial({ map: glaze, roughness: .35, clearcoat: .6, clearcoatRoughness: .3 }));
+  g.add(body);
+  // kibble: a heap of little fish- and ring-shaped pieces, crowned at the food surface
+  const kc = ['#b06b35', '#8a4f26', '#c98447'];
+  const bed = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 16), std({ color: '#8a4f26', roughness: 1 })); bed.scale.set(.116, .01, .116); bed.position.y = .012; g.add(bed);
+  const kG = [new THREE.CylinderGeometry(.0068, .0068, .0045, 12), new THREE.SphereGeometry(.0062, 10, 8)];
+  for (let i = 0; i < 420; i++) {
+    const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * .112, crown = .03 - .004 - (r / .112) ** 2 * .006;
+    const m = new THREE.Mesh(kG[i % 2], std({ color: kc[i % 3], roughness: .9 })); m.position.set(Math.cos(a) * r, crown - rnd() * .003, Math.sin(a) * r); m.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3); g.add(m);
+  }
+  g.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
+  return g;
+}
+
+// ---------------------------------------------------------------- cat tower, 1 deck (wood, carpet, sisal)
+// game size: deck top at DECK_STEP .2, deck .72 x 1.0, base .80 x 1.08
+function tower() {
+  const g = new THREE.Group(), DW = .72, DL = 1.0, DT = .04, Y = .2;
+  const woodA = woodTex('#c98f58', '#a06a3a', '#e0b07a', 1, 1), woodB = woodTex('#d29a62', '#a8703f', '#e8bd87', 1, 1);
+  const base = new THREE.Mesh(new RoundedBoxGeometry(DW + .08, .03, DL + .08, 4, .012), std({ map: woodA, roughness: .7 })); base.position.y = .015; g.add(base);
+  const deck = new THREE.Mesh(new RoundedBoxGeometry(DW, DT, DL, 4, .012), std({ map: woodB, roughness: .7 })); deck.position.y = Y - DT / 2; g.add(deck);
+  // carpet top inside a painted rim
+  const carpetTex = tex(256, 256, (gg, w, h) => { gg.fillStyle = '#7fcbe8'; gg.fillRect(0, 0, w, h); for (let i = 0; i < 1800; i++) { gg.fillStyle = rnd() < .5 ? 'rgba(40,90,120,.16)' : 'rgba(255,255,255,.16)'; gg.fillRect(rnd() * w, rnd() * h, 2, 1); }
+    const paw = (x, y) => { gg.fillStyle = 'rgba(255,255,255,.55)'; gg.beginPath(); gg.ellipse(x, y, 13, 11, 0, 0, 7); gg.fill(); for (const [dx, dy] of [[-15, -14], [-5, -21], [6, -21], [16, -14]]) { gg.beginPath(); gg.ellipse(x + dx, y + dy, 5, 6, 0, 0, 7); gg.fill(); } };
+    paw(64, 80); paw(190, 200); }, 3, 4);
+  const carpet = new THREE.Mesh(new RoundedBoxGeometry(DW - .08, .008, DL - .08, 3, .004), std({ map: carpetTex, roughness: 1 })); carpet.position.y = Y + .002; g.add(carpet);
+  const rimM = std({ map: woodTex('#f6c768', '#e0a83f', '#ffe09a'), roughness: .6 });
+  for (const [w, l, x, z] of [[DW, .045, 0, -DL / 2 + .0225], [DW, .045, 0, DL / 2 - .0225], [.045, DL - .09, -DW / 2 + .0225, 0], [.045, DL - .09, DW / 2 - .0225, 0]]) {
+    const r = new THREE.Mesh(new RoundedBoxGeometry(w, .032, l, 4, .014), rimM); r.position.set(x, Y + .016, z); g.add(r);
+  }
+  // posts: sisal rope between wooden collars
+  for (const [px, pz] of [[-DW / 2 + .07, -DL / 2 + .07], [DW / 2 - .07, -DL / 2 + .07], [0, DL / 2 - .08]]) {
+    const h = Y - DT - .03;
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(.042, .042, h - .03, 32), std({ map: sisalTex, roughness: 1 })); post.position.set(px, .03 + h / 2, pz); g.add(post);
+    for (const yy of [.03 + .012, Y - DT - .012]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(.052, .052, .024, 32), std({ map: woodA, roughness: .7 })); c.position.set(px, yy, pz); g.add(c); }
+  }
+  // screw heads at the deck corners
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const s = new THREE.Mesh(new THREE.CylinderGeometry(.008, .008, .004, 16), std({ color: '#8a7a68', roughness: .5 })); s.position.set(sx * (DW / 2 - .022), Y + .033, sz * (DL / 2 - .022)); g.add(s); }
+  // a pompom on a string from the front corner
+  const px = DW / 2 - .02, pz = DL / 2 - .05;
+  const str = new THREE.Mesh(new THREE.CylinderGeometry(.002, .002, .12, 6), std({ color: '#fffaf0' })); str.position.set(px, Y - DT - .06, pz); g.add(str);
+  const pomG = new THREE.IcosahedronGeometry(.026, 4), pp = pomG.attributes.position;
+  for (let i = 0; i < pp.count; i++) { const v = V(pp.getX(i), pp.getY(i), pp.getZ(i)); v.multiplyScalar(1 + .12 * Math.sin(v.x * 400) * Math.sin(v.y * 380) * Math.sin(v.z * 420)); pp.setXYZ(i, v.x, v.y, v.z); }
+  pomG.computeVertexNormals();
+  const pom = new THREE.Mesh(pomG, std({ color: '#ff7f9f', roughness: 1 })); pom.position.set(px, Y - DT - .14, pz); g.add(pom);
+  g.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } });
+  return g;
+}
+
+// ---------------------------------------------------------------- scene: the AC-direction island patch
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+r.setPixelRatio(1); r.setSize(N, N); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.NeutralToneMapping; r.toneMappingExposure = 1.0;
+document.body.append(r.domElement);
+const sc = new THREE.Scene(); const SKY = '#8fd6f2'; sc.background = C(SKY); sc.fog = new THREE.Fog(SKY, 9, 20);
+sc.add(new THREE.HemisphereLight('#cdeeff', '#7fb85a', 1.15));
+const sun = new THREE.DirectionalLight('#fff0d0', 3.1); sun.position.set(-2.2, 4.2, 3); sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096); sun.shadow.bias = -.0002; sun.shadow.normalBias = .012; sun.shadow.radius = 3;
+Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3, near: .1, far: 20 }); sc.add(sun);
+const grassTex = tex(512, 512, (g, w) => {
+  g.fillStyle = '#74c254'; g.fillRect(0, 0, w, w);
+  for (let i = 0; i < 220; i++) { g.fillStyle = rnd() < .5 ? '#7cc85b' : '#6dbb4e'; g.beginPath(); g.ellipse(rnd() * w, rnd() * w, 5 + rnd() * 12, 4 + rnd() * 8, rnd() * 3, 0, 7); g.fill(); }
+  for (let i = 0; i < 60; i++) { const x = rnd() * w, y = rnd() * w; g.fillStyle = '#63b247'; for (let k = 0; k < 3; k++) { const a = k * 2.1; g.beginPath(); g.arc(x + Math.cos(a) * 4, y + Math.sin(a) * 4, 4, 0, 7); g.fill(); } }
+  for (let i = 0; i < 20; i++) { g.fillStyle = rnd() < .6 ? '#fdfbef' : '#ffe27a'; g.beginPath(); g.arc(rnd() * w, rnd() * w, 3, 0, 7); g.fill(); }
+}, 14, 14);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), std({ map: grassTex, roughness: .95 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; sc.add(ground);
+const cam = new THREE.PerspectiveCamera(28, 1, .05, 80);
+
+if (shot === 'hero') {
+  // the three items together, a cat loafing on the cushion (the seat gives under it)
+  const b = BREEDS.find(x => x.id === (q.get('breed') || 'korean_shorthair'));
+  const cat = buildCatModel(b.shape, b.coat, { res: .016, style: 'ac' });
+  const rig = makeRig(cat); applyPose(rig, loafPose(rig)); cat.updateMatrixWorld(true);
+  cat.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.frustumCulled = false; } });
+  const cu = cushion(CUSHION_VARIANTS[+(q.get('variant') || 0)], { x: 0, z: .02, rx: .2, rz: .3, d: .035 }); cu.position.set(-.62, 0, .15); sc.add(cu);
+  cat.position.set(-.62, .134 - .03, .15); cat.rotation.y = .5; sc.add(cat);
+  const bw = foodBowl(); bw.position.set(.2, 0, .85); sc.add(bw);
+  const tw = tower(); tw.position.set(.8, 0, -.45); tw.rotation.y = -.3; sc.add(tw);
+  cam.position.set(.1, 2.3, 4.0); cam.lookAt(.05, .1, .1);
+} else if (shot === 'variants') {
+  CUSHION_VARIANTS.forEach((v, i) => { const cu = cushion(v); cu.position.set((i - 1) * 1.25, 0, 0); sc.add(cu); });
+  cam.position.set(0, 1.9, 3.3); cam.lookAt(0, .05, 0);
+} else if (shot === 'bowl') {
+  const bw = foodBowl(); sc.add(bw); cam.position.set(0, .34, .5); cam.lookAt(0, .015, 0);
+} else if (shot === 'tower') {
+  const tw = tower(); tw.rotation.y = -.5; sc.add(tw); cam.position.set(.4, 1.1, 2.0); cam.lookAt(0, .12, 0);
+}
+sc.updateMatrixWorld(true);
+r.render(sc, cam);
+window.__done = true;
+</script></body></html>
