@@ -10,6 +10,10 @@ namespace CatIsland
     public class IslandCamera : MonoBehaviour
     {
         public Transform follow;
+        Vector3 home = new Vector3(0f, 0.5f, 0.4f);    // (지금 보는 구역의 가운데)
+        /// <summary>구역 이동: 집 안 ↔ 마당 (마당에서는 고양이를 따라가지 않고 마당 전체를 본다).</summary>
+        public void ShowZone(CatIsland.Game.Zone z) { home = z == CatIsland.Game.Zone.Indoor ? new Vector3(0f, 0.5f, 0.4f) : IslandBuilder.YardCenter + new Vector3(0, .5f, .2f); followOn = z == CatIsland.Game.Zone.Indoor; }
+        bool followOn = true;
         public float pitch = 40f;
         public float fov = 28f;
         public float[] distances = { 17f, 8.5f };   // 0 = 멀리, 1 = 가까이
@@ -52,8 +56,8 @@ namespace CatIsland
         Vector3 FocusFor(Vector3 p)
         {
             // 가까이 볼 때만 고양이를 따라간다. 멀리 보면 섬 전체
-            float w = zoomLevel == distances.Length - 1 ? 0.75f : 0.2f;
-            Vector3 f = Vector3.Lerp(new Vector3(0f, 0.5f, 0.4f), new Vector3(p.x, 0.5f + p.y, p.z), w);
+            float w = !followOn ? 0f : zoomLevel == distances.Length - 1 ? 0.75f : 0.2f;
+            Vector3 f = Vector3.Lerp(home, new Vector3(p.x, 0.5f + p.y, p.z), w);
             return f;
         }
 

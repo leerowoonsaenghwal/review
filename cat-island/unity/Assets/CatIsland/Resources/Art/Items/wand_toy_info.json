@@ -1,0 +1,24 @@
+{
+ "id": "wand_toy",
+ "ko": "낚싯대 장난감",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "lure": [
+   -0.07265303954956111,
+   0.019200000000000002,
+   0.528
+  ]
+ },
+ "variants": [
+  "wand_toy_color.jpg",
+  "wand_toy_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 14,
+  "detail": 4,
+  "proxy": 0
+ },
+ "game_tris": 3500,
+ "texture": 512
+}

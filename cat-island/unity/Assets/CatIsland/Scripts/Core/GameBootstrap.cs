@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -20,6 +21,14 @@ namespace CatIsland
         public IslandCamera IslandCam { get; private set; }
         public TouchRouter Router { get; private set; }
         public CatAudio Audio { get; private set; }
+        /// <summary>게임 규칙과 저장 (Scripts/Game). 화면(GameUI)과 섬(WorldSync)이 이것을 본다.</summary>
+        public CatIsland.Game.Game Logic { get; private set; }
+        public CatIsland.UI.GameUI UI { get; private set; }
+        public WorldSync WorldLink { get; private set; }
+        /// <summary>테스트: 저장소를 바꿔 끼운다 (기본은 기기 저장소). OpenCatMakerIfEmpty: 고양이가 없으면 만들기 창을 연다.</summary>
+        public static Func<CatIsland.Game.IFileStore> NewFiles;
+        public static bool OpenCatMakerIfEmpty = true;
+        float logicTickAt;
 
         void Awake()
         {
@@ -92,10 +101,30 @@ namespace CatIsland
             Router.islandCamera = IslandCam;
             Router.audioOut = Audio;
 
+            // 게임 규칙 · 저장 · 화면
+            var files = NewFiles?.Invoke() ?? new CatIsland.Game.DiskFiles(System.IO.Path.Combine(Application.persistentDataPath, "save"));
+            Logic = new CatIsland.Game.Game(new CatIsland.Game.RealClock(), files, null, new CatIsland.Game.FakeAds(), new CatIsland.Game.FakeStore(), new CatIsland.Game.FakeGameCenter(), new CatIsland.Game.FakeNotifier());
+            Logic.LoadOrNew();
+            WorldLink = new WorldSync(this);
+            UI = CatIsland.UI.GameUI.Create(Logic, WorldLink);
+            WorldLink.Refresh();
+            if (Logic.S.zonesUnlocked.Contains(1)) IslandBuilder.OpenYardGate(world.Find("Island"));
+            CatIsland.UI.Press.OnPress = () => { if (Logic.S.hapticsOn) Haptics.Impact(ImpactStyle.Soft, .5f); };
+            if (Logic.S.cats.Count == 0 && OpenCatMakerIfEmpty) CatIsland.UI.CatMaker.Open(UI);
+            Cat.OnPetted = pleasure => { var c = Logic.S.cats.Find(x => x.status == "home"); if (c != null) Logic.Pet(c.uid, pleasure); };
+
             gameObject.AddComponent<DebugOverlay>();
             gameObject.AddComponent<PerfMonitor>();
             gameObject.AddComponent<BackgroundMusic>();
         }
+
+        void Update()
+        {
+            if (Logic == null || Time.unscaledTime < logicTickAt) return;
+            logicTickAt = Time.unscaledTime + 5f; Logic.Tick();
+        }
+        void OnApplicationPause(bool paused) { if (Logic == null) return; if (paused) Logic.Pause(); else Logic.Resume(); }
+        void OnApplicationQuit() => Logic?.Pause();
 
         static string DeviceGenerationName()
         {

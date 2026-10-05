@@ -1,0 +1,34 @@
+{
+ "id": "ball",
+ "ko": "공",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "center": [
+   0,
+   0.05600000000000001,
+   0
+  ],
+  "r": 0.05600000000000001
+ },
+ "variants": [
+  "ball_color.jpg",
+  "ball_color_v1.jpg",
+  "ball_color_v2.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 8,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 3000,
+ "texture": 512,
+ "roll": {
+  "pivot": [
+   0,
+   0.056,
+   0
+  ],
+  "r": 0.056
+ }
+}

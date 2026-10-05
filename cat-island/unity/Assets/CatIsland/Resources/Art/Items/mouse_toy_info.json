@@ -1,0 +1,25 @@
+{
+ "id": "mouse_toy",
+ "ko": "쥐돌이",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "center": [
+   0,
+   0.032,
+   0
+  ]
+ },
+ "variants": [
+  "mouse_toy_color.jpg",
+  "mouse_toy_color_v1.jpg",
+  "mouse_toy_color_v2.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 11,
+  "detail": 14,
+  "proxy": 0
+ },
+ "game_tris": 3000,
+ "texture": 512
+}

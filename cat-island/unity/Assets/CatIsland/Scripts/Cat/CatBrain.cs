@@ -31,6 +31,8 @@ namespace CatIsland
         public float Speed { get; private set; }
         public bool OnTower { get; private set; }
 
+        /// <summary>기분 좋게 한 번 쓰다듬어졌다 (하트가 나올 때마다): 게임 규칙 쪽 호감도·할 일에 센다.</summary>
+        public Action<float> OnPetted;
         public FoodBowl bowl;
         public Cushion cushion;
         public CatTower tower;
@@ -213,6 +215,7 @@ namespace CatIsland
                 if (heartAccum >= 2.2f)
                 {
                     heartAccum = 0f;
+                    OnPetted?.Invoke(Mathf.Clamp01(Pet.Pleasure + .3f));
                     FxPool.Instance?.Burst(Icon.Heart, Rig.BubbleAnchor.position - Vector3.up * 0.15f, 1, 0.15f, 0.22f);
                     Haptics.Impact(ImpactStyle.Soft, 0.35f);
                 }

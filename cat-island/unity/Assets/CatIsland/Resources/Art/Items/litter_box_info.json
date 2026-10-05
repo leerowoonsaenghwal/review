@@ -1,0 +1,24 @@
+{
+ "id": "litter_box",
+ "ko": "화장실",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "floor": 0.15,
+  "inner": [
+   0.74,
+   0.9400000000000001
+  ]
+ },
+ "variants": [
+  "litter_box_color.jpg",
+  "litter_box_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 6,
+  "detail": 60,
+  "proxy": 0
+ },
+ "game_tris": 8000,
+ "texture": 1024
+}

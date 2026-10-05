@@ -1,0 +1,26 @@
+{
+ "id": "water_bowl",
+ "ko": "물그릇",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "surface": {
+   "y": 0.03,
+   "r": 0.12999999999999998
+  },
+  "rimTop": 0.038,
+  "footprint": 0.16
+ },
+ "variants": [
+  "water_bowl_color.jpg",
+  "water_bowl_color_v1.jpg",
+  "water_bowl_color_v2.jpg"
+ ],
+ "gloss": 0.35,
+ "parts": {
+  "both": 2,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

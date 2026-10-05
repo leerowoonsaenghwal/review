@@ -321,6 +321,13 @@ namespace CatIsland.Game
                 switch (p.rot % 4) { case 0: z0--; break; case 1: x1++; break; case 2: z1++; break; default: x0--; break; }   // (앞쪽 한 칸)
             return (x0, z0, x1, z1);
         }
+        /// <summary>섬 모양에 맞는 칸인가: 집 안은 둥근 마루(격자 가운데에서 5.6칸 안), 마당은 네모 전부.</summary>
+        public static bool CellValid(Zone zone, int x, int z)
+        {
+            var (w, h) = GridSize(zone); if (x < 0 || z < 0 || x >= w || z >= h) return false;
+            if (zone == Zone.Yard) return true;
+            float dx = x + .5f - w / 2f, dz = z + .5f - h / 2f; return dx * dx + dz * dz <= 5.6f * 5.6f;
+        }
         public bool CanPlace(string item, Zone zone, int x, int z, int rot, Placement ignore = null)
         {
             var d = Catalog.Item(item); if (d == null || !S.zonesUnlocked.Contains((int)zone)) return false;
@@ -328,6 +335,7 @@ namespace CatIsland.Game
             var p = new Placement { item = item, zone = zone, x = x, z = z, rot = rot & 3 };
             var (gw, gh) = GridSize(zone); var f = Footprint(p, false);
             if (f.x0 < 0 || f.z0 < 0 || f.x1 >= gw || f.z1 >= gh) return false;
+            for (int cx = f.x0; cx <= f.x1; cx++) for (int cz = f.z0; cz <= f.z1; cz++) if (!CellValid(zone, cx, cz)) return false;
             var fu = Footprint(p, true);
             foreach (var o in S.placed)
             {
@@ -614,5 +622,6 @@ namespace CatIsland.Game
         static bool HasFinal(string w) { if (string.IsNullOrEmpty(w)) return false; char c = w[w.Length - 1]; return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 != 0; }
         public static string IGa(string w) => w + (HasFinal(w) ? "이" : "가");
         public static string EulReul(string w) => w + (HasFinal(w) ? "을" : "를");
+        public static string WaGwa(string w) => w + (HasFinal(w) ? "과" : "와");
     }
 }

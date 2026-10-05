@@ -140,14 +140,17 @@ namespace CatIsland.EditorTools
 
         static void SetupNativePlugins()
         {
-            // 골골 진동 플러그인은 CoreHaptics 프레임워크가 필요하다
-            var imp = AssetImporter.GetAtPath("Assets/Plugins/iOS/CatHaptics.mm") as PluginImporter;
-            if (imp == null) { Debug.LogError("[CatIslandSetup] CatHaptics.mm importer not found"); return; }
-            imp.SetCompatibleWithAnyPlatform(false);
-            imp.SetCompatibleWithEditor(false);
-            imp.SetCompatibleWithPlatform(BuildTarget.iOS, true);
-            imp.SetPlatformData(BuildTarget.iOS, "FrameworkDependencies", "CoreHaptics;");
-            imp.SaveAndReimport();
+            // 골골 진동은 CoreHaptics, 사진 고르기는 PhotosUI 프레임워크가 필요하다
+            foreach (var (file, frameworks) in new[] { ("CatHaptics.mm", "CoreHaptics;"), ("CatPhoto.mm", "PhotosUI;") })
+            {
+                var imp = AssetImporter.GetAtPath("Assets/Plugins/iOS/" + file) as PluginImporter;
+                if (imp == null) { Debug.LogError("[CatIslandSetup] plugin importer not found: " + file); continue; }
+                imp.SetCompatibleWithAnyPlatform(false);
+                imp.SetCompatibleWithEditor(false);
+                imp.SetCompatibleWithPlatform(BuildTarget.iOS, true);
+                imp.SetPlatformData(BuildTarget.iOS, "FrameworkDependencies", frameworks);
+                imp.SaveAndReimport();
+            }
         }
 
         static void SetupScene()

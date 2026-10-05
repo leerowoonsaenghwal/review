@@ -1,0 +1,25 @@
+{
+ "id": "churu",
+ "ko": "츄르",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "tip": [
+   0,
+   0.011200000000000002,
+   0.1264
+  ]
+ },
+ "variants": [
+  "churu_color.jpg",
+  "churu_color_v1.jpg",
+  "churu_color_v2.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 2,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 1500,
+ "texture": 512
+}

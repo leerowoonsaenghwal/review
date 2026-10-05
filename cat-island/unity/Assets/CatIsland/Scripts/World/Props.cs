@@ -170,6 +170,9 @@ namespace CatIsland
         public static readonly Vector3 RugCenter = new Vector3(0f, 0f, -0.5f);
         public const float RugRadius = 1.7f;
         public static readonly Vector3 SandCenter = new Vector3(-3.4f, 0f, -3.2f);
+        // 마당 (섬 구역 2): 섬 오른쪽에 이어진 풀밭. 열리기 전에는 나무 울타리로 막혀 있다
+        public static readonly Vector3 YardCenter = new Vector3(9.4f, 0f, 0.2f);
+        public const float YardRadius = 4.4f;
         public const float SandRadius = 1.2f;
 
         static float Flat(Vector3 a, Vector3 b) { a.y = 0f; b.y = 0f; return Vector3.Distance(a, b); }
@@ -222,6 +225,7 @@ namespace CatIsland
             Shapes.Make(root, "Pebble", sphere, Palette.Hex("c9c4ba"), SandCenter + new Vector3(0.1f, 0.02f, 0.55f), new Vector3(0.12f, 0.07f, 0.1f), default, false);
 
             BuildTier(root, grass);
+            BuildYard(root, grass, sand);
 
             // 뭉툭한 나무: 언덕 위 셋, 땅 위 둘 (나무마다 크기·색을 조금씩 다르게)
             var rng = new System.Random(21);
@@ -307,6 +311,35 @@ namespace CatIsland
                 float a = deg * Mathf.Deg2Rad;
                 Solids.Add(("Tier" + Mathf.RoundToInt(deg), new Vector3(Mathf.Cos(a) * mid, 0f, Mathf.Sin(a) * mid), hw));
             }
+        }
+
+        /// <summary>마당: 오른쪽에 이어진 둥근 풀밭 (같은 높이), 이음목에 나무 울타리와 문. 열리면 문이 열린다 (YardGate).</summary>
+        static void BuildYard(Transform root, Material grass, Material sand)
+        {
+            float D = YardRadius * 2f;
+            var y = Shapes.Pivot(root, "Yard", YardCenter);
+            Shapes.Make(y, "YardGrass", MeshFactory.IslandTop(), grass, Vector3.zero, new Vector3(D, 1.4f, D), default, false);
+            Shapes.Make(y, "YardSoil", MeshFactory.IslandSoil(), Palette.Hex("e6cf93"), new Vector3(0f, -0.07f, 0f), new Vector3(D - 0.1f, 2.6f, D - 0.1f), default, false);
+            Shapes.Make(y, "YardBeach", MeshFactory.Lathe("yardbeach", new List<Vector2> { new Vector2(6.6f, -0.42f), new Vector2(5.6f, -0.2f), new Vector2(4.8f, -0.06f), new Vector2(4.4f, -0.03f), new Vector2(4.0f, -0.02f) }, 96), sand, Vector3.zero, Vector3.one, default, false);
+            // 울타리: 두 섬이 만나는 곳 (x ≈ 6), 가운데 문
+            var gate = Shapes.Pivot(root, "YardGate", new Vector3(5.9f, 0f, 0.3f), new Vector3(0, 90, 0));
+            var wood = Palette.Hex("e2b483");
+            for (int i = -3; i <= 3; i++)
+            {
+                if (i == 0) continue;
+                Shapes.Make(gate, "Post" + i, MeshFactory.RoundedCylinder(.03f), wood, new Vector3(i * .42f, .32f, 0), new Vector3(.12f, .64f, .12f));
+            }
+            Shapes.Make(gate, "RailL", MeshFactory.Capsule(.04f), wood, new Vector3(-.84f, .42f, 0), new Vector3(.08f, 1.3f, .08f), new Vector3(0, 0, 90));
+            Shapes.Make(gate, "RailR", MeshFactory.Capsule(.04f), wood, new Vector3(.84f, .42f, 0), new Vector3(.08f, 1.3f, .08f), new Vector3(0, 0, 90));
+            var door = Shapes.Pivot(gate, "Door", new Vector3(-.21f, 0, 0));
+            Shapes.Make(door, "Board", MeshFactory.RoundedCylinder(.03f), Palette.Hex("c99a6b"), new Vector3(.21f, .3f, 0), new Vector3(.4f, .55f, .06f));
+            Solids.Add(("YardFence", new Vector3(5.9f, 0f, 0.3f), 0.5f));
+        }
+
+        /// <summary>마당이 열리면 울타리 문이 열린다.</summary>
+        public static void OpenYardGate(Transform islandRoot)
+        {
+            var door = islandRoot ? islandRoot.Find("YardGate/Door") : null; if (door) door.localRotation = Quaternion.Euler(0, -100, 0);
         }
 
         /// <summary>뭉툭한 장난감 나무: 짧은 줄기 + 큰 동그란 잎 덩어리 넷 (시안 크기 × 2.56).</summary>

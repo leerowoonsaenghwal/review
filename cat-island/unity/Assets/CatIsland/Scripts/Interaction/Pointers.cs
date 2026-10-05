@@ -20,22 +20,32 @@ namespace CatIsland
 
     public class InputSystemPointers : IPointerSource
     {
+        // (화면 버튼·창 위에서 시작한 손가락은 뗄 때까지 섬으로 보내지 않는다)
+        readonly HashSet<int> onUI = new HashSet<int>(), down = new HashSet<int>();
+
         public void Collect(List<PointerSample> into)
         {
             into.Clear();
+            var now = new HashSet<int>();
             var ts = Touchscreen.current;
             if (ts != null)
             {
                 foreach (var t in ts.touches)
                 {
                     if (!t.press.isPressed) continue;
-                    into.Add(new PointerSample { id = t.touchId.ReadValue(), position = t.position.ReadValue(), pressed = true });
+                    int id = t.touchId.ReadValue(); now.Add(id);
+                    if (!down.Contains(id) && UI.GameUI.PointerOverUI(id)) onUI.Add(id);
+                    if (!onUI.Contains(id)) into.Add(new PointerSample { id = id, position = t.position.ReadValue(), pressed = true });
                 }
-                if (into.Count > 0) return;
             }
             var m = Mouse.current;
-            if (m != null && m.leftButton.isPressed)
-                into.Add(new PointerSample { id = -1, position = m.position.ReadValue(), pressed = true });
+            if (now.Count == 0 && m != null && m.leftButton.isPressed)
+            {
+                now.Add(-1);
+                if (!down.Contains(-1) && UI.GameUI.PointerOverUI()) onUI.Add(-1);
+                if (!onUI.Contains(-1)) into.Add(new PointerSample { id = -1, position = m.position.ReadValue(), pressed = true });
+            }
+            onUI.IntersectWith(now); down.Clear(); down.UnionWith(now);
         }
 
         public float ScrollDelta

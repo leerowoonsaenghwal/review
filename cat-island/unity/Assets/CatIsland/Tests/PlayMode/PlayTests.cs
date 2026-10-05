@@ -21,6 +21,8 @@ namespace CatIsland.Tests
         {
             PlayerPrefs.DeleteAll();
             Haptics.ResetCounters();
+            GameBootstrap.NewFiles = () => new CatIsland.Game.MemoryFiles();   // (사용자 저장을 건드리지 않는다)
+            GameBootstrap.OpenCatMakerIfEmpty = false;
             Time.timeScale = 1f;
             var go = new GameObject("Bootstrap");
             game = go.AddComponent<GameBootstrap>();
@@ -553,6 +555,94 @@ namespace CatIsland.Tests
             yield return new WaitForSeconds(0.3f);
             Capture("16_overview_late");
             Assert.Pass("shots saved to " + Dir);
+        }
+    }
+}
+
+namespace CatIsland.Tests
+{
+    using System.Collections;
+    using System.IO;
+    using CatIsland.UI;
+    using NUnit.Framework;
+    using UnityEngine;
+    using UnityEngine.TestTools;
+
+    /// <summary>
+    /// 화면 점검: 모든 창을 아이폰 SE · 기본 · Pro Max 크기로 찍어 unity/Shots/ui 에 남긴다 (사람이 보고 겹침·잘림 확인).
+    /// 자동 확인: 글자가 상자를 넘치지 않는지, 버튼이 44 pt 이상인지, 안전 영역 밖에 버튼이 없는지.
+    /// </summary>
+    [Category("Shots")]
+    public class UIShotTests : SceneFixture
+    {
+        static readonly (string name, int w, int h, Rect safe)[] Devices =
+        {
+            ("se", 750, 1334, new Rect(0, 0, 1, 1)),
+            ("iphone16", 1179, 2556, new Rect(0, 34f / 852, 1, 1 - (59f + 34f) / 852)),
+            ("promax", 1320, 2868, new Rect(0, 34f / 956, 1, 1 - (62f + 34f) / 956)),
+        };
+
+        IEnumerator Shot(string name)
+        {
+            yield return null; yield return null;
+            var dir = Path.GetFullPath(Path.Combine(Application.dataPath, "../Shots/ui")); Directory.CreateDirectory(dir);
+            var canvas = game.UI.GetComponent<Canvas>(); var cam = Cam;
+            foreach (var d in Devices)
+            {
+                SafeArea.NormOverride = d.safe;
+                var rt = new RenderTexture(d.w, d.h, 24) { antiAliasing = 4 };
+                canvas.renderMode = RenderMode.ScreenSpaceCamera; canvas.worldCamera = cam; canvas.planeDistance = 1f;
+                cam.targetTexture = rt;
+                foreach (var sa in game.UI.GetComponentsInChildren<SafeArea>()) sa.Apply();
+                for (int k = 0; k < 3; k++)   // (글자 크기가 정해진 뒤 배치를 다시: 해상도가 바뀐 첫 그림은 배치 전 값)
+                {
+                    Canvas.ForceUpdateCanvases();
+                    foreach (var lg in game.UI.GetComponentsInChildren<UnityEngine.UI.LayoutGroup>()) UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)lg.transform);
+                    Canvas.ForceUpdateCanvases(); cam.Render();
+                }
+                CheckLayout(name + "/" + d.name);
+                RenderTexture.active = rt; var tex = new Texture2D(d.w, d.h, TextureFormat.RGB24, false); tex.ReadPixels(new Rect(0, 0, d.w, d.h), 0, 0); tex.Apply(); RenderTexture.active = null;
+                File.WriteAllBytes(Path.Combine(dir, $"{name}_{d.name}.png"), tex.EncodeToPNG());
+                Object.Destroy(tex); cam.targetTexture = null; rt.Release();
+            }
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay; SafeArea.NormOverride = default;
+        }
+
+        void CheckLayout(string where)
+        {
+            float scale = game.UI.GetComponent<Canvas>().scaleFactor;
+            foreach (var t in game.UI.GetComponentsInChildren<UnityEngine.UI.Text>())
+            {
+                if (!t.isActiveAndEnabled || string.IsNullOrEmpty(t.text)) continue;
+                var gen = t.cachedTextGenerator; if (gen.characterCount == 0) continue;
+                Assert.GreaterOrEqual(gen.characterCountVisible, t.text.Replace("\n", "").Length - 1, $"{where}: text cut \"{t.text}\"");
+            }
+            foreach (var b in game.UI.GetComponentsInChildren<UnityEngine.UI.Button>())
+            {
+                if (!b.isActiveAndEnabled || b.name == "Shade" || b.name == "Sheet") continue;
+                var r = ((RectTransform)b.transform).rect;
+                Assert.GreaterOrEqual(Mathf.Min(r.width, r.height), 43.5f, $"{where}: button too small {b.name} {r.size}");
+            }
+        }
+
+        [UnityTest]
+        public IEnumerator AllScreens()
+        {
+            var g = game.Logic; g.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Playful); g.AddCoins(5000); g.AddJelly(200);
+            g.S.idleBank = 320; g.S.idleHours = 3;
+            game.UI.Refresh();
+            yield return Shot("hud");
+            game.UI.Open(b => { var m = typeof(GameUI).GetMethod("BuildIdle", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance); return (string)m.Invoke(game.UI, new object[] { b }); });
+            yield return Shot("idle");
+            foreach (var sheet in new[] { "BuildShop", "BuildJellyShop", "BuildBag", "BuildTasks", "BuildCats", "BuildSettings", "BuildGuest", "BuildOdds" })
+            {
+                var m = typeof(GameUI).GetMethod(sheet, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                game.UI.Open(b => (string)m.Invoke(game.UI, new object[] { b }));
+                yield return Shot(sheet.Substring(5).ToLower());
+            }
+            CatMaker.Open(game.UI); yield return Shot("catmaker");
+            StarLandUI.Open(game.UI); yield return Shot("starland");
+            game.UI.CloseAll();
         }
     }
 }
