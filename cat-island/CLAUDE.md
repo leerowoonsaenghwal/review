@@ -15,6 +15,7 @@
 | 문서 | 내용 |
 |---|---|
 | `docs/GAME_PLAN_FULL.md` | **게임 기획서 전체** (게임 기획 + 수익 + 디자인 스타일 + 만드는 조건). 모든 작업의 기준 |
+| `docs/PIPELINE.md` | **작업 방식**: 고양이·동작·용품·아이콘을 코드로 생성하고 자동 점검하는 방법. 개발 전에 반드시 읽는다 |
 | `docs/PROJECT_BRIEF.md` | 지금까지 만든 것, 결정 기록, 지금 상태와 다음 할 일 |
 | `docs/GAME_MODEL.md` | 고양이 모델·뼈대·동작 21종, Unity에서 쓰는 법 |
 | `docs/ITEMS.md` | 용품 13종, 고양이와 함께 놓는 법, 그림자 설정 |
@@ -24,6 +25,11 @@
 - 동물의 숲 같은 그림체, 방치형. 벌주지 않는다 / 고양이가 주인공 / 매일 조금씩 다르다.
 - **모든 고양이는 같은 크기·같은 뼈대** (먼치킨만 짧은 다리). 품종 특징은 얼굴·귀·눈·털·꼬리·무늬와 몸 두께(±10%)로. 코드: `prototype/3d/catmodel.js`의 `frameShape`.
 - 결제 상품은 젤리 묶음, 계절 세트, 별나라 꾸미기뿐. **광고 제거·월간 패스는 팔지 않는다.** 보상형 광고 중심, 배너 없음, 별나라에 광고 없음.
+
+## 작업 방식 요약 (자세히: `docs/PIPELINE.md`)
+- 손으로 조각·애니메이션하지 않는다. 모양과 동작을 **수식으로 정의해 코드로 생성**하고, 3D 겉면끼리 거리를 재서 **겹침·닿음을 자동 점검**한다.
+- 품종 = 숫자 묶음 (`catgen.js` BREEDS). 모든 고양이는 `frameShape`로 같은 크기·뼈대.
+- 동작을 고치면 대표 품종으로 `makeClips`의 `skippedClips`와 `qa_items.mjs`를 확인한 뒤 커밋한다.
 
 ## 폴더
 - `prototype/3d/`: 제작 도구 (three.js). 고양이 모델(`catmodel.js`), 동작(`catmotion.js`), 접촉 계산(`catcontact.js`), 용품(`items.js`), 사진→고양이(`photo2cat.js`), 점검(`qa.mjs`, `qa_items.mjs`), 내보내기(`export_cats.py`, `blender_finish.py`, `export_items.py`)
@@ -41,6 +47,7 @@ node qa_items.mjs <품종> [--only 장면]        # 용품과 함께 점검
 python3 export_cats.py OUT/raw <품종>          # 고양이 1종 (30분~4시간)
 python3 blender_finish.py OUT/raw/<품종>_raw.glb OUT/final/<품종> <품종>
 python3 export_items.py OUT_DIR [이름,...]     # 용품
+python3 icon_shot.py <품종> "clip=Sit&t=2&shot=island&yaw=0.35&zoom=1.3" out.png 1024   # 앱 아이콘 그림
 ```
 필요한 것: Node 20 이상, Python 3.11, `pip install bpy==4.2.0 playwright==1.49.1`, `python3 -m playwright install chromium`.
 고양이 1종을 만드는 데 시간이 오래 걸리므로, 여러 종은 컴퓨터 코어 수만큼 동시에 돌린다.

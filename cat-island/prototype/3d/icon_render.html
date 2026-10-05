@@ -1,0 +1,51 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:transparent}canvas{display:block}</style>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+</head><body>
+<script type="module">
+// App icon / logo renders of a finished cat (the game's glb, the game's light):
+// ?glb=out/icon/korean_shorthair.glb&clip=Sit&t=2&shot=island|face|peek&yaw=.35&zoom=1.3&bg=c7e3f2|none&noisland=1&size=1024
+// (python3 icon_shot.py copies the glb into out/icon/ and screenshots this page)
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const q = new URLSearchParams(location.search);
+const N = +(q.get('size') || 1024), shot = q.get('shot') || 'island', bg = q.get('bg') || 'c7e3f2';
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setPixelRatio(1); r.setSize(N, N); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1;
+document.body.append(r.domElement);
+const sc = new THREE.Scene(); if (bg !== 'none') sc.background = new THREE.Color('#' + bg);
+sc.add(new THREE.HemisphereLight('#f4fbff', '#c9b892', 1.35));
+const sun = new THREE.DirectionalLight('#fff1d6', 2.4); sun.position.set(-1.2, 2.6, 2.2); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -.0002; sun.shadow.normalBias = .01; sun.shadow.radius = 4;
+Object.assign(sun.shadow.camera, { left: -1.2, right: 1.2, top: 1.2, bottom: -1.2, near: .1, far: 8 }); sc.add(sun);
+const fill = new THREE.DirectionalLight('#ffd9c2', .5); fill.position.set(1.5, .8, 1.5); sc.add(fill);
+const mat = (c, rough = 1) => new THREE.MeshStandardMaterial({ color: c, roughness: rough });
+if (shot === 'island' && !q.get('noisland')) {
+  const water = new THREE.Mesh(new THREE.CircleGeometry(6, 64), mat('#8fcbe0', .6)); water.rotation.x = -Math.PI / 2; water.position.y = -.06; water.receiveShadow = true; sc.add(water);
+  const sand = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), mat('#f3dfae')); sand.scale.set(.82, .1, .82); sand.position.y = -.035; sand.receiveShadow = true; sc.add(sand);
+  const grass = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), mat('#a9d77f')); grass.scale.set(.7, .07, .7); grass.position.y = 0; grass.receiveShadow = true; sc.add(grass);
+  // a small palm and a flower or two, toy-like
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.02, .03, .5, 12), mat('#c99a6b')); trunk.position.set(-.42, .27, -.28); trunk.rotation.z = .15; trunk.castShadow = true; sc.add(trunk);
+  for (let i = 0; i < 5; i++) { const l = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12), mat('#6fb04f')); l.scale.set(.2, .03, .07); const a = i / 5 * Math.PI * 2; l.position.set(-.46 + Math.cos(a) * .14, .53, -.28 + Math.sin(a) * .14); l.rotation.y = -a; l.rotation.z = -.25; l.castShadow = true; sc.add(l); }
+  for (const [x, z, c] of [[.42, .2, '#ff8fa8'], [.5, -.05, '#f9cf7a'], [-.2, .45, '#ffffff']]) { const f = new THREE.Mesh(new THREE.SphereGeometry(.035, 16, 12), mat(c)); f.position.set(x, .055, z); f.castShadow = true; sc.add(f); }
+}
+const gl = await new GLTFLoader().loadAsync(q.get('glb') || 'out/icon/korean_shorthair.glb');
+const cat = gl.scene; cat.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.frustumCulled = false; } });
+const yaw = +(q.get('yaw') || 0); cat.rotation.y = yaw; if (shot === 'island') cat.position.y = .055;
+sc.add(cat);
+const clip = gl.animations.find(a => a.name === (q.get('clip') || 'Sit')) || gl.animations[0];
+const mixer = new THREE.AnimationMixer(cat); mixer.clipAction(clip).play(); mixer.setTime(+(q.get('t') || 1));
+cat.updateMatrixWorld(true);
+const head = new THREE.Vector3(); let hb = null; cat.traverse(o => { if (!hb && /^Head$/i.test(o.name)) hb = o; }); (hb || cat).getWorldPosition(head);
+const box = new THREE.Box3().setFromObject(cat), ctr = box.getCenter(new THREE.Vector3());
+const cam = new THREE.PerspectiveCamera(+(q.get('fov') || 26), 1, .01, 50);
+const ty = +(q.get('ty') || 0), dist = +(q.get('dist') || 1.6), up = +(q.get('up') || .1);
+if (shot === 'face' || shot === 'peek') { cam.position.set(head.x, head.y + ty + up, head.z + dist); cam.lookAt(head.x, head.y + ty, head.z); }
+else { cam.position.set(ctr.x + .9, ctr.y + 1.05, ctr.z + 2.6); cam.lookAt(ctr.x, ctr.y - .02, ctr.z); }
+const zoom = +(q.get('zoom') || 1); cam.position.sub(new THREE.Vector3().copy(cam.position).sub(shot === 'island' ? ctr : head).multiplyScalar(1 - 1 / zoom));
+r.render(sc, cam);
+window.__info = { head: head.toArray(), box: [box.min.toArray(), box.max.toArray()], clips: gl.animations.map(a => a.name) };
+window.__done = true;
+</script></body></html>
