@@ -508,12 +508,12 @@ export function withSettle(rig, pose, dur, opts = {}, n = 12) {
   };
   return t => { if (!keys) build(); return at(t); };
 }
-function sitPose(rig, S = rig) {
+export function sitPose(rig, S = rig) {
   const P = stand(rig);
   Object.assign(P, { hdPitch: .02, scapL: -.05, scapR: -.05, tailBase: -1.25, tailBend: .02, tailCurl: .3, tailYaw: .45 });
   return settle(S, fitSit(rig, P), { dense: true, iters: 20 });
 }
-function loafPose(rig) {
+export function loafPose(rig) {
   const P = stand(rig), h = rig.hipH, chestR = rig.chestY - rig.ballH;
   Object.assign(P, {
     hipY: -.56 * rig.hipY, spPitch: .02, nkPitch: .12, hdPitch: .04, breath: 0,

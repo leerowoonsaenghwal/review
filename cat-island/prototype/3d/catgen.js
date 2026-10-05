@@ -146,14 +146,15 @@ export function makeCoat(spec) {
       if (Math.abs(d.x) > .6 && Math.abs(d.x) < .88 && d.z > .38) s = Math.max(s, sstep(.06, .0, Math.abs(d.y + .1)) * sstep(.6, .7, Math.abs(d.x)) * sstep(.88, .78, Math.abs(d.x)) * .65);   // one soft cheek stripe, wide enough not to break into dashes on a game mesh  // whisker-cheek lines
       if (P === 'ticked' || P === 'spotted') s *= .8;
     } else if (part === 'tail') {
-      s = P === 'ticked' ? Math.max(sstep(.75, .95, info.t), .3) : sstep(.1, .6, Math.sin(info.t * 34)) * .85;
+      s = P === 'ticked' ? Math.max(sstep(.75, .95, info.t), .3) : spec.bold ? sstep(.25, .45, Math.sin(info.t * 20)) : sstep(.1, .6, Math.sin(info.t * 34)) * .85;
     } else if (part === 'leg') {
-      s = P === 'ticked' ? 0 : sstep(.2, .7, Math.sin(info.t * 16)) * sstep(.15, .35, info.t) * .7;
+      s = P === 'ticked' ? 0 : spec.bold ? sstep(.3, .5, Math.sin(info.t * 10)) * sstep(.15, .35, info.t) * .85 : sstep(.2, .7, Math.sin(info.t * 16)) * sstep(.15, .35, info.t) * .7;
     } else if (part === 'body') {
       const { nx, ny, nz } = info;
       const spine = sstep(.75, .95, ny) * (1 - Math.abs(nx) * 2) * (1 - sstep(.75, .95, Math.abs(nz)));
       const poleFade = 1 - sstep(.72, .92, Math.abs(nz));
-      if (P === 'mackerel') s = Math.max(spine, sstep(.15, .6, Math.sin(nz * 17 + ny * 2.2)) * sstep(-.45, -.15, ny) * poleFade);
+      // bold (style 'ac'): fewer, wider stripes with clean edges - big shapes read better than fine fur detail
+      if (P === 'mackerel') s = Math.max(spine, (spec.bold ? sstep(.2, .4, Math.sin(nz * 10 + ny * 1.6)) : sstep(.15, .6, Math.sin(nz * 17 + ny * 2.2))) * sstep(-.45, -.15, ny) * poleFade);
       else if (P === 'classic') {
         const r = Math.hypot(nz + .15, (ny - .1) * 1.3);
         s = Math.max(spine, sstep(.1, .5, Math.sin(r * 12)) * sstep(-.5, -.2, ny) * sstep(.2, .5, Math.abs(nx)) * poleFade);

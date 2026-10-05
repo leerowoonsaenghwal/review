@@ -11,9 +11,9 @@ with sync_playwright() as p:
     b = p.chromium.launch(args=["--use-gl=swiftshader", "--enable-unsafe-swiftshader"])
     pg = b.new_page(viewport={"width": W, "height": H}); errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
-    pg.goto("http://localhost:8766/%s?size=%d&W=%d&H=%d&%s" % (page, W, W, H, urllib.parse.quote(q, safe="=&")))
+    pg.goto("http://localhost:8766/%s?size=%d&W=%d&H=%d&%s" % (page, W, W, H, urllib.parse.quote(q, safe="=&")), wait_until="commit", timeout=120000)
     t0 = time.time()
-    while time.time() - t0 < 600 and not pg.evaluate("window.__done === true") and not errs: time.sleep(.5)
+    while time.time() - t0 < 1500 and not pg.evaluate("window.__done === true") and not errs: time.sleep(.5)
     print(json.dumps(pg.evaluate("window.__info || null")), errs[:3])
     pg.locator("canvas").screenshot(path=out, omit_background=True); b.close()
 Image.open(out).resize((w, h), Image.LANCZOS).save(out)

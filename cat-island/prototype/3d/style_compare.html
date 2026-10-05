@@ -1,0 +1,120 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:transparent}canvas{display:block}</style>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+</head><body>
+<script type="module">
+// Art-direction test (docs/ART_DIRECTION.md): the same cat and a patch of island, in the current look (side=now)
+// and in the Animal Crossing direction under review (side=ac): clearer, more vivid colour and light, simple
+// eyes and painted-on whiskers, plush legs, bold coat shapes, painted grass, a cliff tier, chunky trees, a sea,
+// and a world that curves away behind the cat.
+// ?side=now|ac&breed=korean_shorthair&size=1024
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { BREEDS } from './catgen.js';
+import { buildCatModel } from './catmodel.js';
+import { makeRig, applyPose, sitPose } from './catmotion.js';
+const q = new URLSearchParams(location.search);
+const N = +(q.get('size') || 1024), side = q.get('side') || 'ac', AC = side === 'ac';
+const b = BREEDS.find(x => x.id === (q.get('breed') || 'korean_shorthair'));
+const C = h => new THREE.Color(h);
+
+// ---- the cat, sitting
+const cat = buildCatModel(b.shape, b.coat, { res: +(q.get('res') || .016), style: AC ? 'ac' : undefined });
+const rig = makeRig(cat); applyPose(rig, sitPose(rig)); cat.updateMatrixWorld(true);
+cat.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.frustumCulled = false; } });
+cat.rotation.y = +(q.get('yaw') ?? .65);
+
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+r.setPixelRatio(1); r.setSize(N, N); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace;
+document.body.append(r.domElement);
+const sc = new THREE.Scene(); sc.add(cat);
+const std = (c, rough = .9, map) => new THREE.MeshStandardMaterial({ color: c, roughness: rough, map: map || null });
+const cam = new THREE.PerspectiveCamera(28, 1, .05, 80);
+
+if (!AC) {
+  // ---- the current look (as the app icon and the previews today)
+  r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.1;
+  sc.background = C('#c7e3f2'); sc.fog = new THREE.Fog('#c7e3f2', 8, 16);
+  sc.add(new THREE.HemisphereLight('#f4fbff', '#c9b892', 1.7));
+  const sun = new THREE.DirectionalLight('#fff1d6', 2.0); sun.position.set(-1.2, 2.6, 2.2); sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -.0002; sun.shadow.normalBias = .01; sun.shadow.radius = 4;
+  Object.assign(sun.shadow.camera, { left: -2, right: 2, top: 2, bottom: -2, near: .1, far: 10 }); sc.add(sun);
+  const water = new THREE.Mesh(new THREE.CircleGeometry(12, 64), std('#8fcbe0', .6)); water.rotation.x = -Math.PI / 2; water.position.y = -.06; sc.add(water);
+  const sand = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), std('#f3dfae')); sand.scale.set(1.6, .1, 1.6); sand.position.y = -.035; sand.receiveShadow = true; sc.add(sand);
+  const grass = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 32), std('#a9d77f')); grass.scale.set(1.4, .07, 1.4); grass.receiveShadow = true; sc.add(grass);
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.03, .045, .75, 12), std('#c99a6b')); trunk.position.set(-.8, .37, -.7); trunk.castShadow = true; sc.add(trunk);
+  for (let i = 0; i < 5; i++) { const l = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12), std('#6fb04f')); l.scale.set(.3, .045, .1); const a = i / 5 * Math.PI * 2; l.position.set(-.8 + Math.cos(a) * .2, .76, -.7 + Math.sin(a) * .2); l.rotation.y = -a; l.rotation.z = -.25; l.castShadow = true; sc.add(l); }
+  cat.position.y = .05;
+} else {
+  // ---- the Animal Crossing direction
+  r.toneMapping = THREE.NeutralToneMapping; r.toneMappingExposure = 1.0;
+  const SKY = '#8fd6f2'; sc.background = C(SKY); sc.fog = new THREE.Fog(SKY, 9, 20);
+  sc.add(new THREE.HemisphereLight('#cdeeff', '#7fb85a', 1.15));
+  const sun = new THREE.DirectionalLight('#fff0d0', 3.1); sun.position.set(-2.2, 4.2, 3); sun.castShadow = true;
+  sun.shadow.mapSize.set(4096, 4096); sun.shadow.bias = -.0002; sun.shadow.normalBias = .012; sun.shadow.radius = 3;
+  Object.assign(sun.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: .1, far: 20 }); sc.add(sun);
+  // painted textures (canvas): grass with clover and tiny flowers, a cliff face with soft strata, sand with specks
+  const tex = (w, draw, rep) => { const cv = document.createElement('canvas'); cv.width = cv.height = w; draw(cv.getContext('2d'), w); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep, rep); t.anisotropy = 8; return t; };
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const grassTex = tex(512, (g, w) => {
+    g.fillStyle = '#74c254'; g.fillRect(0, 0, w, w);
+    for (let i = 0; i < 220; i++) { g.fillStyle = rnd() < .5 ? '#7cc85b' : '#6dbb4e'; const x = rnd() * w, y = rnd() * w, rr = 5 + rnd() * 12; g.beginPath(); g.ellipse(x, y, rr, rr * .7, rnd() * 3, 0, 7); g.fill(); }
+    for (let i = 0; i < 70; i++) { const x = rnd() * w, y = rnd() * w; g.fillStyle = '#63b247'; for (let k = 0; k < 3; k++) { const a = k * 2.1 + rnd(); g.beginPath(); g.arc(x + Math.cos(a) * 4, y + Math.sin(a) * 4, 4, 0, 7); g.fill(); } }   // clover
+    for (let i = 0; i < 26; i++) { const x = rnd() * w, y = rnd() * w; g.fillStyle = rnd() < .6 ? '#fdfbef' : '#ffe27a'; g.beginPath(); g.arc(x, y, 3.2, 0, 7); g.fill(); }   // tiny flowers
+  }, 16);
+  const cliffTex = tex(256, (g, w) => {
+    g.fillStyle = '#c9a57a'; g.fillRect(0, 0, w, w);   // soft sandstone: a few uneven bands of rounded stones
+    for (let i = 0; i < 90; i++) { const y = rnd() * w; g.fillStyle = rnd() < .5 ? '#bd9970' : '#d4b288'; g.beginPath(); g.ellipse(rnd() * w, y, 12 + rnd() * 22, 7 + rnd() * 6, 0, 0, 7); g.fill(); }
+  }, 2); cliffTex.repeat.set(8, 1);
+  const sandTex = tex(256, (g, w) => { g.fillStyle = '#f5e2a8'; g.fillRect(0, 0, w, w); for (let i = 0; i < 300; i++) { g.fillStyle = rnd() < .5 ? '#ecd595' : '#fbefc6'; g.fillRect(rnd() * w, rnd() * w, 3, 3); } }, 6);
+  const mats = [];
+  const M = (c, rough, map) => { const m = std(c, rough, map); mats.push(m); return m; };
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(30, 30, 120, 120), M('#ffffff', .95, grassTex)); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; sc.add(ground);
+  // the upper tier behind the cat: a cliff with a grassy top, rounded like a toy
+  const cliff = new THREE.Mesh(new RoundedBoxGeometry(14, .8, 3, 6, .18), M('#ffffff', .95, cliffTex)); cliff.position.set(0, .4, -4.6); cliff.castShadow = cliff.receiveShadow = true; sc.add(cliff);
+  const top = new THREE.Mesh(new RoundedBoxGeometry(14.1, .14, 3.1, 4, .07), M('#ffffff', .95, grassTex)); top.position.set(0, .82, -4.6); top.receiveShadow = true; sc.add(top);
+  // the sea and a beach off to the right
+  const sand = new THREE.Mesh(new THREE.PlaneGeometry(6, 30), M('#ffffff', .95, sandTex)); sand.rotation.x = -Math.PI / 2; sand.position.set(5.2, .005, 0); sand.receiveShadow = true; sc.add(sand);
+  const sea = new THREE.Mesh(new THREE.PlaneGeometry(20, 40), M('#3fc4dc', .35)); sea.rotation.x = -Math.PI / 2; sea.position.set(16.5, .01, 0); sc.add(sea);
+  const shallow = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 40), M('#8ee6e4', .4)); shallow.rotation.x = -Math.PI / 2; shallow.position.set(7.2, .015, 0); sc.add(shallow);
+  // chunky trees: a stubby trunk and a crown of a few big round clumps
+  const tree = (x, y, z, s = 1, c = '#3f9a3e') => {
+    const g = new THREE.Group(); g.position.set(x, y, z); g.scale.setScalar(s);
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(.11, .16, .7, 12), M('#8b5e3c', .9)); t.position.y = .35; t.castShadow = true; g.add(t);
+    for (const [dx, dy, dz, rr] of [[0, 1.0, 0, .5], [-.3, .82, .1, .36], [.3, .84, .05, .38], [0, 1.35, 0, .34]]) { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(rr, 3), M(c, .85)); m.position.set(dx, dy, dz); m.scale.y = .9; m.castShadow = m.receiveShadow = true; g.add(m); }
+    sc.add(g);
+  };
+  tree(-2.2, .89, -4.4, .8); tree(-.4, .89, -5.2, .7, '#4aa845'); tree(1.6, .89, -4.6, .78); tree(2.6, 0, -1.8, .7, '#4aa845'); tree(-2.5, 0, -1.6, .75);
+  // flowers: little tulips in clumps
+  const tulip = (x, z, c) => { const g = new THREE.Group(); g.position.set(x, 0, z);
+    const st = new THREE.Mesh(new THREE.CylinderGeometry(.008, .01, .16, 6), M('#3e9a3a', .9)); st.position.y = .08; g.add(st);
+    const bl = new THREE.Mesh(new THREE.SphereGeometry(.045, 14, 10), M(c, .7)); bl.position.y = .18; bl.scale.y = 1.25; bl.castShadow = true; g.add(bl);
+    for (const s of [-1, 1]) { const lf = new THREE.Mesh(new THREE.SphereGeometry(.04, 10, 6), M('#4fae44', .9)); lf.scale.set(.35, 1.3, .9); lf.position.set(s * .03, .05, 0); lf.rotation.z = s * .5; g.add(lf); }
+    sc.add(g); };
+  for (const [cx, cz, c] of [[1.15, .55, '#ff5d6c'], [-1.25, .2, '#ffd23f'], [.9, -1.1, '#ffffff'], [-.6, -1.5, '#ff5d6c']]) for (let i = 0; i < 4; i++) tulip(cx + (i % 2) * .12 - .06, cz + Math.floor(i / 2) * .12 - .06, c);
+  // the world curves away behind the cat (rolling horizon), applied in every material's vertex stage
+  const bend = m => { m.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <project_vertex>', `
+    vec4 mvPosition = vec4( transformed, 1.0 );
+    #ifdef USE_INSTANCING
+      mvPosition = instanceMatrix * mvPosition;
+    #endif
+    vec4 wp = modelMatrix * mvPosition; float dz = max( 0.0, -wp.z - 2.0 ); wp.y -= 0.03 * dz * dz;
+    mvPosition = viewMatrix * wp;
+    gl_Position = projectionMatrix * mvPosition;`); }; };
+  mats.forEach(bend);
+}
+// ---- camera: the game's view, from above at about 32 degrees, the cat in the lower middle
+sc.updateMatrixWorld(true); cat.traverse(o => { if (o.isSkinnedMesh) o.skeleton.update(); });
+const box = new THREE.Box3().setFromObject(cat, true), ctr = box.getCenter(new THREE.Vector3());
+const dist = +(q.get('dist') || 5.4), el = +(q.get('el') || .42);
+if (q.get('shot') === 'face') {   // close-up on the face: the head is the top of the cat, in front
+  const hb = cat.getObjectByName('Head') || cat; const hp = new THREE.Vector3(); hb.getWorldPosition(hp);
+  const hc = new THREE.Vector3(hp.x, box.max.y - .2, hp.z + .05), dir = new THREE.Vector3(Math.sin(cat.rotation.y), 0, Math.cos(cat.rotation.y));
+  cam.position.copy(hc).addScaledVector(dir, dist).add(new THREE.Vector3(0, dist * .18, 0)); cam.lookAt(hc);
+} else { cam.position.set(ctr.x + .6, ctr.y + Math.sin(el) * dist, ctr.z + Math.cos(el) * dist); cam.lookAt(ctr.x, ctr.y + .25, ctr.z - 1.0); }
+r.render(sc, cam);
+window.__info = { box: [box.min.toArray(), box.max.toArray()] };
+window.__done = true;
+</script></body></html>
