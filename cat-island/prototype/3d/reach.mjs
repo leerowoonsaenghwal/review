@@ -11,7 +11,7 @@ const breeds = (args.find(a => !a.startsWith('--') && !/^[.\d]+$/.test(a)) || 'k
 const RES = opt('--res', .03);
 for (const id of breeds) {
   const b = BREEDS.find(x => x.id === id), t0 = Date.now();
-  const rig = makeRig(buildCatModel(b.shape, b.coat, { res: RES }));
+  const rig = makeRig(buildCatModel(b.shape, b.coat, { res: RES, ...(args.includes('--classic') ? { style: 'classic' } : {}) }));   // (--classic: the earlier look, to compare)
   const t1 = Date.now();
   const want = (args.find(a => a.startsWith('--clips=')) || '--clips=GroomFace,ScratchEar,NibbleClaws').slice(8).split(',');
   const verify = args.includes('--verify');

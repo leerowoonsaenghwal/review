@@ -9,13 +9,16 @@
    0.8
   ]
  },
- "rawTris": 90928,
- "rawCheck": {
-  "open": 0,
-  "nonManifold": 247,
-  "volume": 0.022666888057605673,
-  "minY": 0
+ "variants": [
+  "scratcher_color.jpg",
+  "scratcher_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 5,
+  "detail": 4,
+  "proxy": 0
  },
- "game_tris": 2000,
+ "game_tris": 2500,
  "texture": 1024
 }

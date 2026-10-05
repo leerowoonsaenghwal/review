@@ -12,13 +12,17 @@
   "r": 0.6,
   "catAhead": 0.2
  },
- "rawTris": 341780,
- "rawCheck": {
-  "open": 0,
-  "nonManifold": 1,
-  "volume": 0.2330335026329486,
-  "minY": 0
+ "variants": [
+  "hideout_color.jpg",
+  "hideout_color_v1.jpg",
+  "hideout_color_v2.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 5,
+  "detail": 0,
+  "proxy": 0
  },
- "game_tris": 5000,
+ "game_tris": 12000,
  "texture": 1024
 }

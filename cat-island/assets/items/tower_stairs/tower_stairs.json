@@ -1,0 +1,46 @@
+{
+ "id": "tower_stairs",
+ "ko": "캣타워 2단 계단형",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "step": 0.4,
+  "top": [
+   0.32,
+   0.8,
+   0
+  ],
+  "decks": [
+   {
+    "y": 0.4,
+    "x": -0.4,
+    "z": 0,
+    "size": [
+     0.7,
+     0.85
+    ]
+   },
+   {
+    "y": 0.8,
+    "x": 0.32,
+    "z": 0,
+    "size": [
+     0.75,
+     0.85
+    ]
+   }
+  ]
+ },
+ "variants": [
+  "tower_stairs_color.jpg",
+  "tower_stairs_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 26,
+  "detail": 4,
+  "proxy": 0
+ },
+ "game_tris": 14000,
+ "texture": 2048,
+ "gameUse": "not yet: needs the 0.4 m JumpUp and a jump down (step B)"
+}

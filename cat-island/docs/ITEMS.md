@@ -1,5 +1,11 @@
 # 고양이 용품 모델 (게임 에셋)
 
+> **2026-10-06 새 디테일 기준(ART_DIRECTION 5장)으로 다시 만들었다.** 용품은 이제 부품(각각 닫힌 메시)으로 조립한다:
+> `prototype/3d/itemkit.js` → `export_items.py` → `blender_kit.py`. 색 바꾸기는 `<이름>_color_v1.jpg`, `_v2.jpg` (같은 메시).
+> 방석은 `Press` 블렌드셰이프(누우면 눌림, 움직임 연결은 C단계). 새 캣타워 5종 `tower_stool / tower_stairs / tower_house / tower_tree / tower_tall`은
+> 파일만 있다 (0.4 m 점프·뛰어내리기가 생기는 B단계 전까지 게임은 `cat_tower_1`). 겹침 점검은 각 부품의 정확한 거리 함수(`kitField`)로 한다.
+> 아래 표의 크기·높이(그릇 표면 3 cm, 쥐돌이 윗면 6.1 cm, 방석 윗면, 숨숨집 바닥 8 cm, 캣타워 판 20 cm)는 그대로다.
+
 `assets/items/<이름>/`에 용품마다 Unity용 FBX와 glb, 색 텍스처, 노멀맵, 배치 정보(JSON)가 들어 있다.
 모두 고양이와 같은 장난감 그림체로 만들었다. 이 게임의 고양이는 머리가 큰 장난감 비율이라 실제 고양이보다 크다(메인쿤 길이 약 1.1 m). 용품도 이 크기에 맞췄다.
 

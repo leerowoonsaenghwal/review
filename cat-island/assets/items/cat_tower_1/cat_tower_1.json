@@ -26,13 +26,16 @@
    }
   ]
  },
- "rawTris": 424376,
- "rawCheck": {
-  "open": 0,
-  "nonManifold": 0,
-  "volume": 0.06112846349952416,
-  "minY": 0
+ "variants": [
+  "cat_tower_1_color.jpg",
+  "cat_tower_1_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 21,
+  "detail": 4,
+  "proxy": 0
  },
- "game_tris": 6000,
+ "game_tris": 8000,
  "texture": 2048
 }

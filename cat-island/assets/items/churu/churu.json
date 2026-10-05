@@ -9,13 +9,17 @@
    0.1264
   ]
  },
- "rawTris": 8956,
- "rawCheck": {
-  "open": 0,
-  "nonManifold": 0,
-  "volume": 0.00022884785679255342,
-  "minY": 0
+ "variants": [
+  "churu_color.jpg",
+  "churu_color_v1.jpg",
+  "churu_color_v2.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 2,
+  "detail": 0,
+  "proxy": 0
  },
- "game_tris": 800,
+ "game_tris": 1500,
  "texture": 512
 }
