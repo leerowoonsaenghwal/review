@@ -816,3 +816,43 @@ namespace CatIsland.Tests
         }
     }
 }
+
+namespace CatIsland.Tests
+{
+    using System.Collections;
+    using System.Linq;
+    using NUnit.Framework;
+    using UnityEngine;
+    using UnityEngine.TestTools;
+
+    /// <summary>새 용품을 놓으면 고양이가 바로 가서 써 본다 (쥐돌이 치기, 스크래처 기지개, 화장실 파기, 숨숨집 식빵). 다 쓰면 놀이 할 일에 센다.</summary>
+    public class ItemUseTests : SceneFixture
+    {
+        [UnityTest]
+        public IEnumerator NewItemsGetTriedRightAway()
+        {
+            var g = game.Logic; var c = g.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Playful); g.AddCoins(5000);
+            game.WorldLink.Refresh(); yield return null;
+            var cat = Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).First(b => b.Data == c);
+            cat.Needs.SetForTest(1f, 1f); c.hunger = 1f;
+            Time.timeScale = 3f;
+            foreach (var (id, x, z) in new[] { ("mouse_toy", 3, 8), ("scratcher", 2, 4), ("litter_box", 8, 8), ("hideout", 7, 2) })
+            {
+                Assert.IsTrue(g.Buy(id), id); Assert.IsTrue(g.Place(id, CatIsland.Game.Zone.Indoor, x, z, 2), id + " placed");
+                int playBefore = CatIsland.Game.Bag.Get(g.S.counters, "play");
+                game.WorldLink.Refresh(); yield return null;
+                bool used = false;
+                for (float t = 0; t < 40f; t += Time.deltaTime)
+                {
+                    yield return null;
+                    if (cat.State == CatState.UseItem) used = true;
+                    if (used && cat.State != CatState.UseItem) break;
+                }
+                Assert.IsTrue(used, $"the cat tried the new {id}");
+                if (id != "litter_box") Assert.Greater(CatIsland.Game.Bag.Get(g.S.counters, "play"), playBefore, $"{id}: counted as play");
+                yield return new WaitForSeconds(1f);
+            }
+            Time.timeScale = 1f;
+        }
+    }
+}

@@ -67,6 +67,7 @@ namespace CatIsland
             public float jumpD = 0.8f, jumpH = 0.2f, deckBack = 0.5f, turnIn;
             public RootCurve jumpDown;
             public JumpSet[] jumps;            // (높이별 점프: 새 에셋부터. 없으면 jump / jumpDown 하나)
+            public float toyX, toyZ = .35f, toyYaw, hideZ = -.2f, hideLift = .08f; public Vector3 lickTip = new Vector3(0, .5f, .45f);
         }
         /// <summary>높이 차이 dh(m, 오르기 +)에 가장 가까운 점프. 높이별 점프가 없는 에셋은 null.</summary>
         public JumpSet NearestJump(bool up, float dh)

@@ -10,8 +10,12 @@ namespace CatIsland
         GoToBowl, WaitAtBowl, Eat,
         GoToCushion, LieDown, Sleep,
         GoToTower, JumpUp, OnTower, JumpDown,
-        Petted, BellyUp, Nip
+        Petted, BellyUp, Nip,
+        GoToItem, UseItem
     }
+
+    /// <summary>섬에 놓인 용품 표시 (고양이가 골라 쓴다).</summary>
+    public class ItemTag : MonoBehaviour { public string id; public CatIsland.Game.Placement placement; }
 
     /// <summary>
     /// 고양이의 행동. 상태, 성격(좋아하는 곳), 쓰다듬기 입력에 따라 스스로 움직인다.
@@ -63,7 +67,8 @@ namespace CatIsland
             foreach (var k in new List<Transform>(claims.Keys)) if (claims[k] == this) claims.Remove(k);
             var t = s == CatState.GoToBowl || s == CatState.WaitAtBowl || s == CatState.Eat ? (bowl ? bowl.transform : null)
                   : s == CatState.GoToCushion || s == CatState.LieDown || s == CatState.Sleep ? (cushion ? cushion.transform : null)
-                  : s == CatState.GoToTower || s == CatState.OnTower || s == CatState.JumpUp || s == CatState.JumpDown ? (curTower ? curTower.transform : tower ? tower.transform : null) : null;
+                  : s == CatState.GoToTower || s == CatState.OnTower || s == CatState.JumpUp || s == CatState.JumpDown ? (curTower ? curTower.transform : tower ? tower.transform : null)
+                  : s == CatState.GoToItem || s == CatState.UseItem ? (useTarget ? useTarget.transform : null) : null;
             if (t) claims[t] = this;
         }
         void OnDestroy() { All.Remove(this); foreach (var k in new List<Transform>(claims.Keys)) if (claims[k] == this) claims.Remove(k); if (selfObstacle != null) nav?.obstacles.Remove(selfObstacle); }
@@ -221,6 +226,8 @@ namespace CatIsland
                 case CatState.JumpUp:
                 case CatState.JumpDown: TickJump(dt); break;
                 case CatState.OnTower: TickOnTower(dt); break;
+                case CatState.GoToItem: TickGoToItem(dt); break;
+                case CatState.UseItem: TickUseItem(dt); break;
                 case CatState.Petted: TickPetted(dt); break;
                 case CatState.BellyUp: TickBellyUp(dt); break;
                 case CatState.Nip: TickNip(dt); break;
@@ -354,6 +361,8 @@ namespace CatIsland
                 return;
             }
             float r = UnityEngine.Random.value;
+            if (r < 0.22f) { var it = PickItemUse(); if (it != null) { BeginUse(it); return; } }
+            r = UnityEngine.Random.value;
             if (r < 0.12f && PickTower()) { curTower = PickTower(); Enter(CatState.GoToTower); }
             else if (r < 0.2f && Needs.Energy > 0.6f) Enter(CatState.Zoomies);
             else if (r < 0.35f) Enter(CatState.Groom);
@@ -365,7 +374,8 @@ namespace CatIsland
         Transform UsingItem() =>
             State == CatState.GoToBowl || State == CatState.WaitAtBowl || State == CatState.Eat ? (bowl ? bowl.transform : null)
             : State == CatState.GoToCushion || State == CatState.LieDown || State == CatState.Sleep ? (cushion ? cushion.transform : null)
-            : State == CatState.GoToTower ? (curTower ? curTower.transform : null) : null;
+            : State == CatState.GoToTower ? (curTower ? curTower.transform : null)
+            : State == CatState.GoToItem || State == CatState.UseItem ? (useTarget ? useTarget.transform : null) : null;
 
         /// <summary>다음에 향할 곳: 길찾기 경로의 다음 지점 (장애물을 돌아간다).</summary>
         Vector3 Steer(Vector3 target, float dt)
@@ -775,6 +785,108 @@ namespace CatIsland
             }
         }
 
+        // ---- 용품 쓰기: 장난감 치기, 스크래처에서 기지개, 화장실에서 파기, 숨숨집에서 식빵, (모델이 아직 없는 용품은 옆에 앉기)
+        ItemTag useTarget; string useKind; Vector3 useSpot; float useYaw, useLift; int useStep; float useTimer;
+        /// <summary>새로 놓인 용품을 바로 써 본다 (느낌표 말풍선). 기획서 2-2: 고양이가 바로 그 용품을 써 보는 것이 보상.</summary>
+        public bool TryNewItem(ItemTag t)
+        {
+            if (!t || !IsFree() || OnTower || State == CatState.Sleep || !Free(t)) return false;
+            if (!BeginUse(t)) return false;
+            Bubble?.Show(Icon.Exclaim); audioOut?.Chirp(); return true;
+        }
+        ItemTag PickItemUse()
+        {
+            var all = FindObjectsByType<ItemTag>(FindObjectsSortMode.None); if (all.Length == 0) return null;
+            ItemTag best = null; float bs = 0f;
+            foreach (var t in all)
+            {
+                if (!t || !Free(t) || Kind(t.id) == null) continue;
+                var d = CatIsland.Game.Catalog.Item(t.id); float sc = UnityEngine.Random.value;
+                if (Data != null)
+                {
+                    if (System.Array.IndexOf(CatIsland.Game.Catalog.FavoriteItems(Data.personality), t.id) >= 0) sc += .8f;
+                    if (d.fills == CatIsland.Game.NeedKind.Play && Data.play < .6f) sc += .6f;
+                    if ((t.id == "litter_box" || t.id == "sandbox") && Data.clean < .7f) sc += .5f;
+                }
+                if (sc > bs) { bs = sc; best = t; }
+            }
+            return best;
+        }
+        static string Kind(string id)
+        {
+            var d = CatIsland.Game.Catalog.Item(id); if (d == null || d.consumable) return null;
+            if (id == "litter_box" || id == "sandbox") return "litter";
+            if (id == "scratcher") return "stretch";
+            if (id == "hideout") return "hide";
+            if (d.category == CatIsland.Game.ItemCategory.Toy && id != "paper_box" && id != "tunnel") return "bat";
+            if (d.category == CatIsland.Game.ItemCategory.Food || d.category == CatIsland.Game.ItemCategory.Tower) return null;
+            return "near";
+        }
+        bool BeginUse(ItemTag t)
+        {
+            useKind = Kind(t.id); if (useKind == null) return false;
+            useTarget = t; useStep = 0; useLift = 0f;
+            var tp = t.transform.position; var f = Flat(t.transform.forward); if (f.sqrMagnitude < .01f) f = Vector3.forward; f.Normalize();
+            var toItem = Flat(tp - transform.position); if (toItem.sqrMagnitude < .01f) toItem = -f; toItem.Normalize();
+            float yawTo = Mathf.Atan2(toItem.x, toItem.z) * Mathf.Rad2Deg;
+            switch (useKind)
+            {
+                case "bat":   // 쥐돌이가 고양이 앞 (toyX, toyZ) 에 오게 선다
+                    useYaw = yawTo; useSpot = tp - Quaternion.Euler(0, useYaw, 0) * new Vector3(Rig.Info.toyX, 0, Rig.Info.toyZ); break;
+                case "stretch":   // 앞발이 판 위에 닿게: 판 가운데에서 몸 반만큼 뒤
+                    useYaw = yawTo; useSpot = tp - toItem * .38f; break;
+                case "litter":    // 통 가운데, 긴 쪽을 따라
+                    useYaw = Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg; useSpot = tp; useLift = .15f; if (t.id == "sandbox") useLift = .05f; break;
+                case "hide":      // 몸은 안에, 머리는 문 밖 (qa_items 숨숨집 장면과 같은 자리)
+                    useYaw = Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg; useSpot = tp - Quaternion.Euler(0, useYaw, 0) * new Vector3(0, 0, Rig.Info.hideZ); useLift = Rig.Info.hideLift; break;
+                default:          // 옆에 앉아 바라보기
+                    useYaw = yawTo; useSpot = tp - toItem * .7f; break;
+            }
+            useSpot.y = 0f;
+            Enter(CatState.GoToItem); return true;
+        }
+        void TickGoToItem(float dt)
+        {
+            if (!useTarget || OtherCatNear(useSpot, .5f)) { Enter(CatState.Idle); return; }   // (다른 고양이가 그 자리에 있으면 다음에)
+            bool inside = useKind == "litter" || useKind == "hide";
+            if (MoveTowards(useSpot, GameConfig.WalkSpeed, dt, inside ? .06f : .1f) || (inside && Flat(useSpot - transform.position).magnitude < .45f))
+            {
+                // (통·숨숨집 안으로는 마지막 몇 걸음을 곧게: 길찾기는 물건 안을 막아 둔다)
+                transform.position = Vector3.MoveTowards(transform.position, new Vector3(useSpot.x, transform.position.y, useSpot.z), .3f * dt);
+                faceDir = Quaternion.Euler(0, useYaw, 0) * Vector3.forward;
+                if (Flat(useSpot - transform.position).magnitude < .03f && FacingAngle(faceDir) < 4f) Enter(CatState.UseItem);
+            }
+            else if (StateTime > 14f) Enter(CatState.Idle);
+        }
+        void TickUseItem(float dt)
+        {
+            if (!useTarget) { Enter(CatState.Idle); return; }
+            Speed = 0f; useTimer -= dt;
+            if (useStep == 0)
+            {
+                useStep = 1;
+                switch (useKind)
+                {
+                    case "bat": Rig.Request(Posture.Stand); Rig.PlayAction("PawBat", true, .2f); useTimer = 3.2f; break;
+                    case "stretch": Rig.Request(Posture.Stand); Rig.PlayAction("Stretch", false, .2f); useTimer = 4.3f; break;
+                    case "litter": Rig.Request(Posture.Stand); if (Rig.HasClip("Dig")) Rig.PlayAction("Dig", false, .2f); useTimer = 2.5f; break;
+                    case "hide": Rig.Request(Posture.Loaf); useTimer = UnityEngine.Random.Range(8f, 16f); break;
+                    default: Rig.Request(Posture.Sit); useTimer = UnityEngine.Random.Range(3f, 6f); break;
+                }
+                return;
+            }
+            if (useKind == "litter" && useStep == 1 && useTimer <= 0f) { useStep = 2; Rig.Request(Posture.Sit); useTimer = 3f; return; }
+            if (useKind == "litter" && useStep == 2 && useTimer <= 0f) { useStep = 3; Rig.Request(Posture.Stand); if (Rig.HasClip("Dig")) Rig.PlayAction("Dig", false, .2f); useTimer = 2.5f; return; }
+            if (useTimer > 0f) return;
+            if (useKind == "bat" || useKind == "stretch") Rig.StopAction();
+            var id = useTarget.id; useTarget = null;
+            if (Data != null) OnUsedItem?.Invoke(id);
+            if (Rig.Current != Posture.Stand) Rig.Request(Posture.Stand);
+            Enter(CatState.Idle);
+        }
+        /// <summary>용품을 다 썼다 (게임 규칙 쪽: 놀이·할 일).</summary>
+        public Action<string> OnUsedItem;
+
         // ---- 쓰다듬기 반응
 
         void TickPetted(float dt)
@@ -914,6 +1026,7 @@ namespace CatIsland
         {
             float target = 0f;
             if (OnTower && curTower) target = curTower.Height(deck);
+            else if (State == CatState.UseItem && useLift > 0f) target = useLift;
             else if (cushion)
             {
                 float d = Flat(transform.position - cushion.transform.position).magnitude;

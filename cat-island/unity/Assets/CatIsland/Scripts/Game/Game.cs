@@ -282,7 +282,7 @@ namespace CatIsland.Game
         public bool PlayWith(string uid, string toy)
         {
             var c = Cat(uid); var d = Catalog.Item(toy);
-            if (c == null || c.status != "home" || d == null || (d.category != ItemCategory.Toy && d.category != ItemCategory.Tower)) return false;
+            if (c == null || c.status != "home" || d == null || (d.category != ItemCategory.Toy && d.category != ItemCategory.Tower && d.fills != NeedKind.Play && d.fills != NeedKind.Rest)) return false;
             if (!S.placed.Any(p => p.item == toy) && Bag.Get(S.inventory, toy) <= 0) return false;
             bool fav = Catalog.FavoriteItems(c.personality).Contains(toy);
             c.play = Mathf.Clamp01(c.play + .5f); c.affection += fav ? 8 : 5; Count("play");

@@ -1165,6 +1165,31 @@ export function makeClips(rig, opts = {}) {
     P.blink = Math.max(P.blink, blinkAt(t, [2.5]));
     return P;
   }, 4.2, { floor: -.001 }, 32));
+  // Dig: in the litter box (or sand) - standing, head down watching, the front paws rake the sand back in turn
+  // (4 strokes each, alternating); each stroke drags along the floor and the paw lifts to come forward again
+  add('Dig', 2.4, false, withSettle(S, t => {
+    const P = { ...P0 }, on = ss(seg(t, 0, .3)) * (1 - ss(seg(t, 2.1, 2.4)));
+    P.hipY = -.05 * h * on; P.hipPitch = .08 * on; P.spPitch = .1 * on; P.nkPitch = .3 * on; P.hdPitch = .3 * on;
+    for (const [f, ph] of [['FL', 0], ['FR', .5]]) {
+      const u = frac(t / .5 + ph), drag = u < .6, k = drag ? u / .6 : (u - .6) / .4;
+      const z = drag ? lerp(.1, -.05, ss(k)) : lerp(-.05, .1, ss(k)), lift = drag ? 0 : .06 * Math.sin(Math.PI * k);
+      P[f + 'z'] += on * z * h; P[f + 'y'] += on * lift * h; P[f + 'a'] = lerp(P[f + 'a'], drag ? .9 : .2, on); P[f + 't'] = on * (drag ? .4 : 0);
+    }
+    P.tailBase = lerp(P.tailBase ?? -.3, .3, on); P.tailWave = .05; P.blink = blinkAt(t, [1.2]);
+    return P;
+  }, 2.4, { floor: -.001 }, 24));
+  // LickUp: sitting, licking a treat held up in front of the mouth (the churu: the game holds its tip where the
+  // tongue reaches, clip.lickUp.tip, root space) - head up a little, quick laps
+  {
+    const SITU = over(sitPose(rig, S), { nkPitch: -.12, hdPitch: -.18 });
+    const lapsL = 6, rateL = 3.2, durL = lapsL / rateL + .6;
+    add('LickUp', durL, true, withSettle(S, t => {
+      const P = { ...SITU }; const u = (t - .3) * rateL;
+      if (u >= 0 && u < lapsL) addTongue(P, lickCycle(frac(u)));
+      P.blink = .35 + .3 * Math.sin(t * 2); P.earLp = P.earRp = .1; P.tailWave = .12; P.tailWph = t;
+      return P;
+    }, durL, {}, 16), { lickUp: (() => { const Q = over(SITU, {}); addTongue(Q, lickCycle(.37)); applyPose(S, Q); const m = S.B.Head.localToWorld(S.d.mouth.clone().sub(S.d.joints.Head)); return { tip: [+m.x.toFixed(3), +(m.y - .01).toFixed(3), +(m.z + .06).toFixed(3)] }; })() });
+  }
   // drinking: crouched over the bowl, lapping ~3.5 times a second. Like real cats (Reis et al. 2010, Science):
   // the tongue tip curls under into a J so only its top touches the surface, then whips back up, pulling a
   // column of liquid that the jaw snaps shut on. Every 8 laps a short pause to swallow.

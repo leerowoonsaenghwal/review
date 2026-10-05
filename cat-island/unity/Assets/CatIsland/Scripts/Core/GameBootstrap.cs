@@ -155,6 +155,7 @@ namespace CatIsland
                     var spot = Nav.NearestFree(new Vector3(-0.8f + 0.9f * i, 0f, -0.6f - 0.3f * (i % 2)));
                     view = SpawnCat(HasArt(c.breed) ? c.breed : "korean_shorthair", spot, 180f, c, cam);
                     view.OnPetted = p => Logic.Pet(c.uid, p);
+                    view.OnUsedItem = id => { Logic.PlayWith(c.uid, id); UI?.Refresh(); };
                     catViews[c.uid] = view; Router.cats.Add(view);
                 }
                 view.gameObject.SetActive(home);
@@ -176,6 +177,13 @@ namespace CatIsland
             guestView = go.AddComponent<CatRig>(); guestView.breed = Logic.S.guestBreed; go.SetActive(true); guestView.Request(Posture.Sit);
             guestBreedShown = Logic.S.guestBreed;
             Router.TapOther = c => { if (guestView && guestView.IsCatCollider(c)) { UI.OpenGuest(); return true; } return false; };
+        }
+
+        /// <summary>새 용품: 가장 가까운 한가한 고양이가 바로 써 본다.</summary>
+        public void OnNewItem(ItemTag tag)
+        {
+            var cats = catViews.Values.Where(v => v && v.isActiveAndEnabled).OrderBy(v => Vector3.Distance(v.transform.position, tag.transform.position));
+            foreach (var v in cats) if (v.TryNewItem(tag)) return;
         }
 
         static bool HasArt(string breed) => Resources.Load<TextAsset>("Art/Cats/" + breed + "_info") != null;

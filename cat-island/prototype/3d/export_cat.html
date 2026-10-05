@@ -36,6 +36,6 @@ const bytes = new Uint8Array(glb);
 let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
 window.__glb = btoa(bin);
 window.__info = { id: b.id, ko: b.ko, tris: cat.userData.tris, bones: cat.userData.skeleton.bones.length,
-  clips: defs.map(d => ({ name: d.name, dur: +d.dur.toFixed(3), loop: d.loop, rootMotion: !!d.rootMotion, speed: d.speed && +d.speed.toFixed(3), stride: d.stride && +d.stride.toFixed(3), jump: d.jump, drink: d.drink })), groomRoutine: GROOM_ROUTINE.filter(r => defs.some(d => d.name === r.clip)), skippedClips: defs.skipped || [], itemSpots };
+  clips: defs.map(d => ({ name: d.name, dur: +d.dur.toFixed(3), loop: d.loop, rootMotion: !!d.rootMotion, speed: d.speed && +d.speed.toFixed(3), stride: d.stride && +d.stride.toFixed(3), jump: d.jump, drink: d.drink, lickUp: d.lickUp })), groomRoutine: GROOM_ROUTINE.filter(r => defs.some(d => d.name === r.clip)), skippedClips: defs.skipped || [], itemSpots };
 window.__done = true;
 </script></body></html>

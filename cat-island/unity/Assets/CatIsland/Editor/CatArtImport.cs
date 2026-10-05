@@ -23,9 +23,10 @@ namespace CatIsland.EditorTools
         [Serializable] class XZ { public float x; public float z; }
         [Serializable] class DrinkInfo { public XZ bowl; }
         [Serializable] class JumpInfo { public float D; public float H; public float deckBack; public float turnIn; public float edge; }
-        [Serializable] class ClipInfo { public string name; public float dur; public bool loop; public bool rootMotion; public DrinkInfo drink; public JumpInfo jump; }
-        [Serializable] class CushionSpot { public float x; public float z; public float catLift; }
-        [Serializable] class ItemSpots { public CushionSpot cushion; }
+        [Serializable] class ClipInfo { public string name; public float dur; public bool loop; public bool rootMotion; public DrinkInfo drink; public JumpInfo jump; public LickUpInfo lickUp; }
+        [Serializable] class CushionSpot { public float x; public float z; public float catLift; public float yaw; }
+        [Serializable] class ItemSpots { public CushionSpot cushion; public CushionSpot hideout; public CushionSpot mouse_toy; }
+        [Serializable] class LickUpInfo { public float[] tip; }
         [Serializable] class SkipInfo { public string clip; public string reason; public string playInstead; }
         [Serializable] class ClipsJson { public string id; public ClipInfo[] clips; public SkipInfo[] skippedClips; public ItemSpots itemSpots; }
 
@@ -42,6 +43,7 @@ namespace CatIsland.EditorTools
             public Vector3 flopBelly;   // 발라당(FlopIdle) 자세에서 배가 향하는 방향 (고양이 기준)
             public float jumpD, jumpH, deckBack, turnIn; // clips.json JumpUp.jump: 판 뒤쪽 끝이 출발점에서 deckBack 앞 (qa_items 와 같은 배치)
             public JumpSet[] jumps;     // 높이별 점프 (CatRig.JumpSet 과 같은 모양)
+            public float toyX, toyZ = .35f, toyYaw, hideZ = -.2f, hideLift = .08f; public Vector3 lickTip = new Vector3(0, .5f, .45f);   // (쥐돌이·숨숨집·츄르 자리: 고양이 루트 기준)
         }
         [Serializable] public class JumpSet { public string clip; public bool up; public float H, D, deckBack, turnIn, edge; public RootCurve curve; }
 
@@ -217,6 +219,9 @@ namespace CatIsland.EditorTools
             info.jumps = json.clips.Where(c => c.jump != null && (c.name.StartsWith("JumpUp") || c.name.StartsWith("JumpDown")) && !skipped.Contains(c.name) && Clip(c.name))
                 .Select(c => new JumpSet { clip = c.name, up = c.name.StartsWith("JumpUp"), H = c.jump.H, D = c.jump.D, deckBack = c.jump.deckBack, turnIn = c.jump.turnIn, edge = c.jump.edge, curve = SampleRoot(Clip(c.name)) })
                 .Where(j => j.curve != null).ToArray();
+            if (json.itemSpots?.mouse_toy != null) { info.toyX = json.itemSpots.mouse_toy.x; info.toyZ = json.itemSpots.mouse_toy.z; info.toyYaw = json.itemSpots.mouse_toy.yaw; }
+            if (json.itemSpots?.hideout != null) { info.hideZ = json.itemSpots.hideout.z; info.hideLift = json.itemSpots.hideout.catLift; }
+            var lu = json.clips.FirstOrDefault(c => c.name == "LickUp")?.lickUp; if (lu?.tip != null && lu.tip.Length == 3) info.lickTip = new Vector3(lu.tip[0], lu.tip[1], lu.tip[2]);
             if (json.itemSpots?.cushion != null) { info.cushionZ = json.itemSpots.cushion.z; info.cushionLift = json.itemSpots.cushion.catLift; }
 
             // 6. 프리팹
