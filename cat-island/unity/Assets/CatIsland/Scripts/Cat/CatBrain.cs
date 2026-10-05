@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace CatIsland
@@ -33,6 +34,7 @@ namespace CatIsland
         public FoodBowl bowl;
         public Cushion cushion;
         public CatTower tower;
+        public NavGrid nav;
         public CatAudio audioOut;
         public Transform cam;
 
@@ -50,7 +52,9 @@ namespace CatIsland
         Vector3? faceDir;
         bool firstPetChecked, actionStarted;
         int zoomiesLeft;
-        float savedAffection, heightY;
+        float savedAffection, heightY, stepPhase, turnStep, replanTimer;
+        List<Vector3> path;
+        Vector3 pathGoal = new Vector3(999f, 0f, 999f);
         Vector3 jumpStart, jumpDir;
         Quaternion flopFacing;
         bool leaveTower;
@@ -107,6 +111,7 @@ namespace CatIsland
             if (OnTower && IsFree()) { leaveTower = true; leaveToward = ClampToIsland(world); if (State != CatState.OnTower) Enter(CatState.OnTower); return; }
             if (!IsFree() || OnTower) return;
             moveTarget = ClampToIsland(world);
+            if (nav != null) moveTarget = nav.NearestFree(moveTarget);
             audioOut?.Chirp();
             Enter(CatState.Called);
         }
@@ -180,6 +185,7 @@ namespace CatIsland
             }
 
             if (!IsJumping()) { ApplyFace(dt); ApplyHeight(dt); }
+            UpdateFootsteps(dt);
             UpdateExpression(dt);
             UpdateBubble();
             SaveIfNeeded();
@@ -311,6 +317,37 @@ namespace CatIsland
             else Enter(CatState.Wander);
         }
 
+        /// <summary>지금 쓰러 가는 물건 (길찾기에서 그 물건에만 좁게 다가간다).</summary>
+        Transform UsingItem() =>
+            State == CatState.GoToBowl || State == CatState.WaitAtBowl || State == CatState.Eat ? (bowl ? bowl.transform : null)
+            : State == CatState.GoToCushion || State == CatState.LieDown || State == CatState.Sleep ? (cushion ? cushion.transform : null)
+            : State == CatState.GoToTower ? (tower ? tower.transform : null) : null;
+
+        /// <summary>다음에 향할 곳: 길찾기 경로의 다음 지점 (장애물을 돌아간다).</summary>
+        Vector3 Steer(Vector3 target, float dt)
+        {
+            if (nav == null) return target;
+            var item = UsingItem();
+            replanTimer -= dt;
+            if (path == null || Flat(target - pathGoal).magnitude > 0.1f || replanTimer <= 0f)
+            {
+                pathGoal = target;
+                replanTimer = 1.5f;
+                path = nav.FindPath(transform.position, target, item);
+            }
+            if (path == null || path.Count == 0) return target;
+            while (path.Count > 1 && Flat(path[0] - transform.position).magnitude < 0.3f) path.RemoveAt(0);
+            // 꺾이는 곳 가까이에서는 다음 구간 쪽으로 미리 돌아 곡선으로 지나간다 (각지게 꺾지 않게)
+            if (path.Count > 1)
+            {
+                float d0 = Flat(path[0] - transform.position).magnitude;
+                float k = Mathf.Clamp01(1f - d0 / 0.7f);
+                Vector3 carrot = Vector3.Lerp(path[0], path[1], k * 0.5f);
+                if (nav.Clear(transform.position, carrot, item)) return carrot;
+            }
+            return path[0];
+        }
+
         bool MoveTowards(Vector3 target, float maxSpeed, float dt, float arriveDist = 0.08f)
         {
             if (!Rig.CanMove)
@@ -320,38 +357,28 @@ namespace CatIsland
                 return false;
             }
             Vector3 pos = transform.position;
-            Vector3 to = Flat(target - pos);
-            float dist = to.magnitude;
-            if (dist <= arriveDist) { Speed = Mathf.MoveTowards(Speed, 0f, dt * 4f); return Speed < 0.05f; }
+            float distGoal = Flat(target - pos).magnitude;
+            if (distGoal <= arriveDist) { Speed = Mathf.MoveTowards(Speed, 0f, dt * 4f); return Speed < 0.05f; }
 
-            Vector3 dir = to / dist;
-            dir = AvoidProps(pos, dir);
+            Vector3 aim = Steer(target, dt);
+            Vector3 to = Flat(aim - pos);
+            if (to.sqrMagnitude < 1e-6f) to = Flat(target - pos);
+            Vector3 dir = to.normalized;
             float angle = Vector3.SignedAngle(transform.forward, dir, Vector3.up);
-            float turn = Mathf.Clamp(angle, -GameConfig.TurnSpeedDeg * dt, GameConfig.TurnSpeedDeg * dt);
+            // 천천히 갈수록 더 빨리 돌 수 있다 (작은 걸음으로 방향 바꾸기)
+            float turnRate = GameConfig.TurnSpeedDeg * Mathf.Lerp(1.4f, 0.8f, Mathf.Clamp01(Speed / GameConfig.TrotSpeed));
+            float turn = Mathf.Clamp(angle, -turnRate * dt, turnRate * dt);
             transform.Rotate(0f, turn, 0f);
-            // 크게 꺾을 때만 멈춰서 돌고, 웬만한 방향 바꾸기는 걸으면서 돈다 (제자리에서 미끄러지듯 도는 것 방지)
+            // 크게 꺾어도 멈춰서 미끄러지듯 돌지 않고, 작은 걸음으로 돌면서 간다
             float a = Mathf.Abs(angle);
-            float align = a > 120f ? 0f : Mathf.Lerp(0.35f, 1f, Mathf.Clamp01(1f - a / 90f));
-            float targetSpeed = maxSpeed * align * Mathf.Clamp01(dist / (0.25f + maxSpeed * 0.35f) + 0.15f);
+            float align = a > 100f ? 0.18f : Mathf.Lerp(0.35f, 1f, Mathf.Clamp01(1f - a / 90f));
+            float targetSpeed = Mathf.Max(0.12f, maxSpeed * align * Mathf.Clamp01(distGoal / (0.25f + maxSpeed * 0.35f) + 0.15f));
             Speed = Mathf.MoveTowards(Speed, targetSpeed, dt * (maxSpeed > 1.5f ? 4f : 2.5f));
             Vector3 next = pos + transform.forward * Speed * dt;
             next = ClampToIsland(next);
             next.y = transform.position.y;
             transform.position = next;
             return false;
-        }
-
-        Vector3 AvoidProps(Vector3 pos, Vector3 dir)
-        {
-            void Push(Vector3 c, float r)
-            {
-                Vector3 away = Flat(pos - c);
-                float d = away.magnitude;
-                if (d < r && d > 0.001f) dir = (dir + away / d * (r - d) * 3f).normalized;
-            }
-            if (bowl && State != CatState.GoToBowl && State != CatState.WaitAtBowl) Push(bowl.transform.position, 0.6f);
-            if (tower && State != CatState.GoToTower) Push(tower.transform.position, 0.9f);
-            return dir;
         }
 
         void TickMoveTo(float dt, float speed, CatState then)
@@ -616,6 +643,7 @@ namespace CatIsland
                 heightY = jumpTo;
                 bool up2 = State == CatState.JumpUp;
                 OnTower = up2;
+                audioOut?.Step(up2 ? Surface.Rug : IslandBuilder.SurfaceAt(transform.position), 0.9f);
                 Enter(up2 ? CatState.OnTower : CatState.Idle);
             }
         }
@@ -698,6 +726,7 @@ namespace CatIsland
                 Vector3 away = Flat(transform.position - pointerWorld);
                 if (away.sqrMagnitude < 0.0001f) away = -transform.forward;
                 moveTarget = ClampToIsland(transform.position + away.normalized * 0.6f);
+                if (nav != null) moveTarget = nav.NearestFree(moveTarget);
                 Enter(CatState.Called);
             }
         }
@@ -708,7 +737,8 @@ namespace CatIsland
         {
             float p = Pet.Pleasure;
             var r = Rig;
-            r.moveSpeed = Speed;
+            r.moveSpeed = Mathf.Max(Speed, turnStep);
+            turnStep = Mathf.MoveTowards(turnStep, 0f, dt * 0.6f);
             bool sleep = State == CatState.Sleep || r.Current == Posture.Sleep;
             float happyClose = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 0.75f, p));
             r.eyeOpen = sleep ? 0f : 1f - happyClose;
@@ -756,7 +786,33 @@ namespace CatIsland
             }
             if (!dir.HasValue || !canTurn || dir.Value.sqrMagnitude < 0.0001f) return;
             float angle = Vector3.SignedAngle(transform.forward, dir.Value, Vector3.up);
-            transform.Rotate(0f, Mathf.Clamp(angle, -turnSpeed * dt, turnSpeed * dt), 0f);
+            float step = Mathf.Clamp(angle, -turnSpeed * dt, turnSpeed * dt);
+            transform.Rotate(0f, step, 0f);
+            // 제자리에서 돌 때도 발을 옮긴다 (미끄러지듯 도는 대신 아주 느린 걸음)
+            if (Mathf.Abs(step) / dt > 20f) turnStep = 0.13f;
+        }
+
+        /// <summary>
+        /// 발소리: 걸음 주기에 맞춰 (앞발 두 번 = 한 주기). 걷기 0.75 s, 종종걸음 0.4 s, 달리기 0.29 s 주기.
+        /// 바닥 재질은 위치로 정한다 (마루, 러그, 풀밭, 모래밭, 캣타워·방석 위).
+        /// </summary>
+        void UpdateFootsteps(float dt)
+        {
+            if (Speed < 0.05f || Rig.Current != Posture.Stand || IsJumping()) { stepPhase = 0.6f; return; }
+            float cycle = Speed < 0.4f ? 0.75f / Mathf.Max(0.3f, Speed / 0.4f)
+                : Speed < 1.06f ? Mathf.Lerp(0.75f, 0.4f, (Speed - 0.4f) / 0.66f)
+                : Mathf.Lerp(0.4f, 0.29f, Mathf.Clamp01((Speed - 1.06f) / 1.21f));
+            stepPhase += dt / (cycle * 0.5f);
+            if (stepPhase < 1f) return;
+            stepPhase -= 1f;
+            audioOut?.Step(SurfaceUnderfoot(), 0.45f + 0.55f * Mathf.Clamp01(Speed / GameConfig.RunSpeed));
+        }
+
+        Surface SurfaceUnderfoot()
+        {
+            if (OnTower) return Surface.Rug;   // (캣타워 판은 카펫)
+            if (cushion && Flat(transform.position - cushion.transform.position).magnitude < cushion.Radius) return Surface.Rug;
+            return IslandBuilder.SurfaceAt(transform.position);
         }
 
         /// <summary>바닥 높이: 캣타워 판 위, 방석 위(방석 중심 가까이 갈수록 올라감), 그 밖은 땅.</summary>
@@ -790,8 +846,7 @@ namespace CatIsland
                 Vector2 r = UnityEngine.Random.insideUnitCircle * GameConfig.WanderRadius;
                 var p = new Vector3(r.x, 0f, r.y * 0.8f - 0.3f);
                 if (Flat(p - transform.position).magnitude < minDist) continue;
-                if (bowl && Flat(p - bowl.transform.position).magnitude < 0.8f) continue;
-                if (tower && Flat(p - tower.transform.position).magnitude < 1.1f) continue;
+                if (nav != null && nav.Blocked(p)) continue;
                 return p;
             }
             return Vector3.zero;
@@ -801,7 +856,8 @@ namespace CatIsland
         {
             if (!cam) return Vector3.zero;
             Vector3 toCam = Flat(cam.position);
-            return ClampToIsland(toCam.normalized * 1.6f);
+            var p = ClampToIsland(toCam.normalized * 1.6f);
+            return nav != null ? nav.NearestFree(p) : p;
         }
 
         public static Vector3 ClampToIsland(Vector3 p)

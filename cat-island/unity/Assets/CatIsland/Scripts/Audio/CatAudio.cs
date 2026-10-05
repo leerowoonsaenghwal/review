@@ -8,14 +8,24 @@ namespace CatIsland
     /// 모든 소리는 최대 크기를 절반 아래로 두어, 겹쳐도 넘쳐서 찌그러지지 않게 한다.
     /// 밥그릇 누를 때는 오르골 같은 "똑똑똑", 먹을 때는 작고 둥근 "냠냠" (둘 다 음정 있는 소리).
     /// </summary>
+    public enum Surface { Wood = 0, Rug = 1, Grass = 2, Sand = 3 }
+
     public class CatAudio : MonoBehaviour
     {
         public const int Rate = 44100;
         public const float Peak = 0.45f;
 
-        AudioSource purrSrc, sfx;
-        AudioClip purr, pop, nip, chirp, kibble;
+        AudioSource purrSrc, sfx, stepSrc;
+        AudioClip purr, pop, kibble;
+        AudioClip[] chirps, nips;
+        public bool UsingRecordings { get; private set; }
+        public int MeowCount => meows.Length;
+        public string LastMeow { get; private set; }
         AudioClip[] noms;
+        AudioClip[][] steps;
+        int lastMeow = -1, lastStep = -1;
+        public int StepCount { get; private set; }
+        public Surface LastStepSurface { get; private set; }
         AudioClip[] meows;
         float purrTarget;
         public float PurrVolume => purrSrc ? purrSrc.volume : 0f;
@@ -31,11 +41,30 @@ namespace CatIsland
             sfx = gameObject.AddComponent<AudioSource>();
             sfx.playOnAwake = false;
             sfx.spatialBlend = 0f;
+            stepSrc = gameObject.AddComponent<AudioSource>();
+            stepSrc.playOnAwake = false;
+            stepSrc.spatialBlend = 0f;
 
             purr = Clip("purr", Synth.Purr());
-            meows = new[] { Clip("meow1", Synth.Meow(640f, 0.5f)), Clip("meow2", Synth.Meow(720f, 0.42f)), Clip("meow3", Synth.Meow(580f, 0.6f)) };
-            chirp = Clip("chirp", Synth.Chirp());
-            nip = Clip("nip", Synth.Meow(820f, 0.2f));
+            // 실제 고양이 녹음이 있으면 그것을 쓴다 (assets/sounds/cat, 출처: SOURCES.md). 없으면 합성 소리
+            var real = Resources.LoadAll<AudioClip>("Sounds/cat");
+            AudioClip[] Pick(string prefix) => System.Array.FindAll(real, c => c.name.StartsWith(prefix));
+            var mv = Synth.MeowVariants();
+            meows = new AudioClip[mv.Length];
+            for (int i = 0; i < mv.Length; i++) meows[i] = Clip("meow" + i, mv[i]);
+            steps = new AudioClip[4][];
+            for (int s = 0; s < 4; s++)
+            {
+                steps[s] = new AudioClip[4];
+                for (int v = 0; v < 4; v++) steps[s][v] = Clip($"step{s}_{v}", Synth.Step((Surface)s, v));
+            }
+            chirps = new[] { Clip("chirp", Synth.Chirp()) };
+            nips = new[] { Clip("nip", Synth.Meow(820f, 0.2f)) };
+            if (Pick("meow_").Length > 0) { meows = Pick("meow_"); UsingRecordings = true; }
+            if (Pick("chirp_").Length > 0) chirps = Pick("chirp_");
+            if (Pick("nip_").Length > 0) nips = Pick("nip_");
+            var realPurr = Pick("purr_");
+            if (realPurr.Length > 0) purr = realPurr[0];
             pop = Clip("pop", Synth.Pop());
             kibble = Clip("kibble", Synth.Kibble());
             noms = new[] { Clip("nom1", Synth.Nom(520f)), Clip("nom2", Synth.Nom(600f)), Clip("nom3", Synth.Nom(470f)) };
@@ -52,12 +81,33 @@ namespace CatIsland
             else if (v <= 0.001f && purrSrc.isPlaying) purrSrc.Stop();
         }
 
-        public void Meow() => Play(meows[Random.Range(0, meows.Length)], 0.8f, Random.Range(0.95f, 1.08f));
+        /// <summary>누를 때마다 다른 야옹 (바로 전과 같은 것은 고르지 않는다).</summary>
+        public void Meow()
+        {
+            int i = Random.Range(0, meows.Length - 1);
+            if (i >= lastMeow && lastMeow >= 0) i++;
+            lastMeow = i;
+            LastMeow = meows[i].name;
+            Play(meows[i], 0.85f, Random.Range(0.97f, 1.04f));
+        }
+
+        /// <summary>발소리: 바닥 재질별로 네 가지 중 하나 (같은 소리가 연달아 나지 않게).</summary>
+        public void Step(Surface surface, float loudness)
+        {
+            var set = steps[(int)surface];
+            int i = Random.Range(0, set.Length - 1);
+            if (i >= lastStep && lastStep >= 0) i++;
+            lastStep = i;
+            stepSrc.pitch = Random.Range(0.93f, 1.07f);
+            stepSrc.PlayOneShot(set[i], Mathf.Clamp01(loudness));
+            StepCount++;
+            LastStepSurface = surface;
+        }
         public void Pop() => Play(pop, 0.5f, Random.Range(0.95f, 1.1f));
-        public void Nip() => Play(nip, 0.7f, 1f);
+        public void Nip() => Play(nips[Random.Range(0, nips.Length)], 0.75f, Random.Range(1.0f, 1.08f));
         public void Kibble() => Play(kibble, 0.55f, 1f);
         public void Crunch() => Play(noms[Random.Range(0, noms.Length)], 0.35f, Random.Range(0.96f, 1.05f));
-        public void Chirp() => Play(chirp, 0.7f, Random.Range(0.96f, 1.06f));
+        public void Chirp() => Play(chirps[Random.Range(0, chirps.Length)], 0.6f, Random.Range(1.02f, 1.12f));
 
         void Play(AudioClip c, float vol, float pitch)
         {
@@ -112,31 +162,136 @@ namespace CatIsland
                 return Normalize(d, 0.4f);
             }
 
-            /// <summary>야옹: 음높이가 올라갔다 내려오고, 입모양(미→아→우)에 따라 배음이 바뀐다.</summary>
-            public static float[] Meow(float baseF, float dur)
+            // 모음 공명 (F1, F2). 작은 고양이의 목이라 사람보다 높다
+            static readonly Vector2 VI = new Vector2(420f, 2500f), VA = new Vector2(1050f, 1750f), VO = new Vector2(700f, 1150f), VU = new Vector2(480f, 1000f), VM = new Vector2(320f, 1400f);
+
+            /// <summary>
+            /// 고양이 울음 한 번: "ㅁ"(입 다문 콧소리)로 시작해 모음을 지나며(이→아→오 등) 음높이가 올라갔다 내려온다.
+            /// 짧고 낮으면 강아지처럼 들려서, 고양이답게 높고 길게, 모음 변화를 뚜렷하게 만든다.
+            /// f: 시작·최고·끝 음높이, vowels: 지나가는 모음들
+            /// </summary>
+            public static float[] Cry(float fStart, float fPeak, float fEnd, float dur, float peakAt, Vector2[] vowels, float vibrato = 0.015f, int seed = 1)
             {
                 int n = Mathf.RoundToInt(dur * Rate);
                 var d = new float[n];
-                float phase = 0f;
+                var rng = new System.Random(seed);
+                float phase = 0f, drift = 0f, driftT = 0f;
                 for (int i = 0; i < n; i++)
                 {
-                    float t = i / (float)Rate;
-                    float k = t / dur;
-                    float contour = k < 0.35f ? Mathf.Lerp(0.82f, 1.25f, Smooth01(k / 0.35f)) : Mathf.Lerp(1.25f, 0.88f, Smooth01((k - 0.35f) / 0.65f));
-                    float f0 = baseF * contour * (1f + Mathf.Sin(t * 2f * Mathf.PI * 6f) * 0.012f);
+                    float t = i / (float)Rate, k = t / dur;
+                    float f0 = k < peakAt ? Mathf.Lerp(fStart, fPeak, Smooth01(k / peakAt)) : Mathf.Lerp(fPeak, fEnd, Smooth01((k - peakAt) / (1f - peakAt)));
+                    if (t > driftT) { driftT = t + 0.05f; drift = ((float)rng.NextDouble() - 0.5f) * 0.012f; }
+                    f0 *= 1f + vibrato * Mathf.Sin(2f * Mathf.PI * 5.5f * t) * Smooth01((k - 0.2f) / 0.3f) + drift;
                     phase += f0 / Rate;
-                    float formant = k < 0.3f ? Mathf.Lerp(900f, 1800f, k / 0.3f) : Mathf.Lerp(1800f, 1050f, (k - 0.3f) / 0.7f);
+                    // 모음: 처음 10%는 콧소리(ㅁ), 이어서 vowels 를 고르게 지나간다
+                    Vector2 fm;
+                    if (k < 0.1f) fm = Vector2.Lerp(VM, vowels[0], Smooth01(k / 0.1f));
+                    else
+                    {
+                        float u = (k - 0.1f) / 0.9f * (vowels.Length - 1);
+                        int a = Mathf.Min(vowels.Length - 2, Mathf.FloorToInt(u));
+                        fm = vowels.Length == 1 ? vowels[0] : Vector2.Lerp(vowels[a], vowels[a + 1], Smooth01(u - a));
+                    }
                     float s = 0f;
-                    for (int h = 1; h <= 7; h++)
+                    for (int h = 1; h <= 10; h++)
                     {
                         float fh = f0 * h;
-                        float w = Mathf.Exp(-Mathf.Pow((fh - formant) / 650f, 2f)) + 0.25f / h;
+                        if (fh > 5200f) break;
+                        float w = 1.0f / Mathf.Pow(h, 0.8f) * (0.25f + Mathf.Exp(-Mathf.Pow((fh - fm.x) / 260f, 2f)) + 0.7f * Mathf.Exp(-Mathf.Pow((fh - fm.y) / 380f, 2f)));
                         s += Mathf.Sin(phase * h * Mathf.PI * 2f) * w;
                     }
-                    float env = Smooth01(k / 0.1f) * Smooth01((1f - k) / 0.35f);
+                    float env = Smooth01(k / 0.08f) * Smooth01((1f - k) / 0.28f) * (k < 0.1f ? 0.55f + 4.5f * k : 1f);
                     d[i] = s * env;
                 }
                 return Normalize(d);
+            }
+
+            /// <summary>짧은 울음 (깨물 때 "먀!" 등에 쓴다).</summary>
+            public static float[] Meow(float baseF, float dur) => Cry(baseF * 0.92f, baseF * 1.12f, baseF * 0.95f, dur, 0.35f, new[] { VI, VA, VO }, 0.01f, 3);
+
+            /// <summary>야옹 여러 가지: 누를 때마다 다른 소리가 나도록.</summary>
+            public static float[][] MeowVariants() => new[]
+            {
+                Cry(720f, 1000f, 640f, 0.78f, 0.38f, new[] { VI, VA, VO }, 0.015f, 1),          // 미야옹
+                Cry(680f, 760f, 1080f, 0.52f, 0.25f, new[] { VI, VU }, 0.01f, 2),               // 미유? (끝이 올라감)
+                Cry(860f, 940f, 780f, 0.24f, 0.4f, new[] { VA }, 0.0f, 3),                       // 먀
+                Concat(Cry(880f, 960f, 820f, 0.18f, 0.4f, new[] { VA }, 0f, 4), 0.06f, Cry(920f, 1000f, 840f, 0.2f, 0.4f, new[] { VA, VO }, 0f, 5)),   // 먀먀
+                Cry(980f, 1220f, 900f, 0.9f, 0.45f, new[] { VI, VA, VA, VO }, 0.02f, 6),         // 냐아앙 (새끼 고양이처럼 길게)
+                Cry(1120f, 1260f, 1050f, 0.34f, 0.4f, new[] { VI, VI }, 0.01f, 7),               // 미이
+                Cry(600f, 840f, 560f, 0.86f, 0.42f, new[] { VI, VA, VO, VU }, 0.018f, 8),        // 야아옹 (낮고 느긋하게)
+                Cry(760f, 900f, 980f, 0.4f, 0.5f, new[] { VM, VA }, 0.008f, 9),                  // 응냐? (입 다물었다 열며)
+            };
+
+            public static float[] Concat(float[] a, float gapSec, float[] b)
+            {
+                int gap = Mathf.RoundToInt(gapSec * Rate);
+                var d = new float[a.Length + gap + b.Length];
+                a.CopyTo(d, 0);
+                b.CopyTo(d, a.Length + gap);
+                return Normalize(d);
+            }
+
+            /// <summary>
+            /// 발소리. 마루 = 작은 나무 "톡", 러그 = 폭신한 "툭", 풀 = 부드러운 사각, 모래 = 고운 알갱이 서걱.
+            /// 풀·모래는 잡음 성분이 필요하지만 높은 소리를 깎고 아주 작게 해서 "지지직"으로 들리지 않게 한다.
+            /// </summary>
+            public static float[] Step(Surface surface, int variant)
+            {
+                var rng = new System.Random(100 + (int)surface * 10 + variant);
+                float dur = surface == Surface.Grass || surface == Surface.Sand ? 0.16f : 0.08f;
+                var d = new float[Mathf.RoundToInt(dur * Rate)];
+                float r = 1f + (variant - 1.5f) * 0.05f;
+                switch (surface)
+                {
+                    case Surface.Wood:
+                        for (int i = 0; i < d.Length; i++)
+                        {
+                            float t = i / (float)Rate;
+                            d[i] = Smooth01(t / 0.002f) * (Mathf.Sin(2f * Mathf.PI * 300f * r * t) * Mathf.Exp(-t * 70f) + 0.4f * Mathf.Sin(2f * Mathf.PI * 820f * r * t) * Mathf.Exp(-t * 120f));
+                        }
+                        return Normalize(d, 0.16f);
+                    case Surface.Rug:
+                        for (int i = 0; i < d.Length; i++)
+                        {
+                            float t = i / (float)Rate;
+                            d[i] = Smooth01(t / 0.006f) * (Mathf.Sin(2f * Mathf.PI * 120f * r * t) + 0.3f * Mathf.Sin(2f * Mathf.PI * 250f * r * t)) * Mathf.Exp(-t * 45f);
+                        }
+                        return Normalize(d, 0.12f);
+                    case Surface.Grass:
+                    {
+                        // 걸러낸 부드러운 사각임 (약 600~2500 Hz) + 아주 작은 낮은 툭
+                        float lp1 = 0f, lp2 = 0f, hp = 0f;
+                        for (int i = 0; i < d.Length; i++)
+                        {
+                            float t = i / (float)Rate, k = t / dur;
+                            float x = (float)(rng.NextDouble() * 2.0 - 1.0);
+                            lp1 += (x - lp1) * 0.18f; lp2 += (lp1 - lp2) * 0.18f;   // 저역 통과 (~1.8 kHz): 높은 소리를 깎아 "지지직" 없이
+                            hp += (lp2 - hp) * 0.08f;                                 // 아주 낮은 것은 뺀다
+                            float rustle = (lp2 - hp) * Mathf.Sin(Mathf.PI * Mathf.Clamp01(k * 1.3f)) * (0.6f + 0.4f * Mathf.Sin(2f * Mathf.PI * 23f * t));
+                            d[i] = rustle * 2.2f + 0.25f * Mathf.Sin(2f * Mathf.PI * 140f * t) * Mathf.Exp(-t * 60f);
+                        }
+                        return Normalize(d, 0.11f);
+                    }
+                    default: // Sand: 고운 알갱이가 짧게 여러 번 (음정 있는 작은 알갱이 소리 + 낮은 눌림)
+                    {
+                        for (int g = 0; g < 26; g++)
+                        {
+                            float st = (float)rng.NextDouble() * dur * 0.7f, f = 1300f + (float)rng.NextDouble() * 1500f, a = 0.3f + 0.7f * (float)rng.NextDouble();
+                            int s0 = Mathf.RoundToInt(st * Rate);
+                            for (int i = 0; i < Rate * 0.006f && s0 + i < d.Length; i++)
+                            {
+                                float t = i / (float)Rate;
+                                d[s0 + i] += a * Mathf.Sin(2f * Mathf.PI * f * t) * Mathf.Exp(-t * 700f) * Smooth01(t / 0.0006f);
+                            }
+                        }
+                        for (int i = 0; i < d.Length; i++)
+                        {
+                            float t = i / (float)Rate;
+                            d[i] = d[i] * 0.35f + 0.5f * Mathf.Sin(2f * Mathf.PI * 110f * t) * Mathf.Exp(-t * 35f) * Smooth01(t / 0.008f);
+                        }
+                        return Normalize(d, 0.13f);
+                    }
+                }
             }
 
             /// <summary>반가운 "프릇": 짧게 위로 올라가는 두 음 (야옹과 같은 목소리).</summary>

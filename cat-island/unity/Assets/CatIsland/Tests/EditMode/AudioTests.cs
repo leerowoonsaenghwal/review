@@ -79,7 +79,12 @@ namespace CatIsland.Tests
                 ("purr", Repeat(CatAudio.Synth.Purr(), 3)), ("meow", CatAudio.Synth.Meow(640f, 0.5f)), ("chirp", CatAudio.Synth.Chirp()),
                 ("nip", CatAudio.Synth.Meow(820f, 0.2f)), ("pop", CatAudio.Synth.Pop()), ("kibble", CatAudio.Synth.Kibble()), ("nom", CatAudio.Synth.Nom(520f)),
             };
-            foreach (var (name, data) in sounds)
+            var list = new System.Collections.Generic.List<(string, float[])>(sounds);
+            var mv = CatAudio.Synth.MeowVariants();
+            for (int i = 0; i < mv.Length; i++) list.Add(("meow_v" + i, mv[i]));
+            foreach (Surface sf in System.Enum.GetValues(typeof(Surface)))
+                for (int v = 0; v < 4; v++) list.Add(($"step_{sf}_{v}".ToLower(), CatAudio.Synth.Step(sf, v)));
+            foreach (var (name, data) in list)
             {
                 SaveWav(name, data, CatAudio.Rate);
                 var padded = data.Length >= 4096 ? data : Repeat(data, 4096 / data.Length + 2);
@@ -88,6 +93,35 @@ namespace CatIsland.Tests
                 Assert.LessOrEqual(PeakOf(data), 0.5f, name + " leaves headroom so overlapping sounds never clip");
                 Assert.Less(hf, 0.03f, name + " has no hiss");
             }
+        }
+
+        [Test]
+        public void Meows_AreAllDifferent_AndCatLike()
+        {
+            var mv = CatAudio.Synth.MeowVariants();
+            Assert.GreaterOrEqual(mv.Length, 6, "many meows so taps do not repeat");
+            for (int i = 0; i < mv.Length; i++)
+                for (int j = i + 1; j < mv.Length; j++)
+                {
+                    bool sameLen = Mathf.Abs(mv[i].Length - mv[j].Length) < CatAudio.Rate * 0.02f;
+                    float diff = 0f; int n = Mathf.Min(mv[i].Length, mv[j].Length);
+                    for (int k = 0; k < n; k++) diff += Mathf.Abs(mv[i][k] - mv[j][k]);
+                    Assert.IsFalse(sameLen && diff / n < 0.01f, $"meow {i} and {j} sound the same");
+                }
+            // 고양이 울음은 높다: 가장 센 음 성분이 500 Hz 위 (짧고 낮으면 강아지처럼 들린다)
+            foreach (var m in mv) Assert.Greater(DominantHz(m, CatAudio.Rate), 500f);
+        }
+
+        static float DominantHz(float[] x, int rate)
+        {
+            const int N = 4096;
+            int start = Mathf.Max(0, x.Length / 2 - N / 2);
+            var re = new double[N]; var im = new double[N];
+            for (int i = 0; i < N && start + i < x.Length; i++) re[i] = x[start + i] * (0.5 - 0.5 * System.Math.Cos(2 * System.Math.PI * i / (N - 1)));
+            FFT(re, im);
+            int best = 1; double be = 0;
+            for (int k = 1; k < N / 2; k++) { double e = re[k] * re[k] + im[k] * im[k]; if (e > be) { be = e; best = k; } }
+            return best * rate / (float)N;
         }
 
         [Test]

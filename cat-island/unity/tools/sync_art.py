@@ -61,6 +61,10 @@ def main() -> int:
     for item in manifest["items"]:
         for name in (f"{item}.fbx", f"{item}_color.jpg", f"{item}_normal.png", f"{item}.json"):
             ok &= copy(ASSETS / "items" / item / name, ART / "Items" / item / name)
+    # 소리: assets/sounds/<묶음>/*.wav → Resources/Sounds/<묶음>/ (게임이 이름 앞부분으로 고른다: meow_, chirp_, nip_, purr_)
+    snd_dst = UNITY / "Assets" / "CatIsland" / "Resources" / "Sounds"
+    for wav in sorted((ASSETS / "sounds").glob("*/*.wav")):
+        ok &= copy(wav, snd_dst / wav.parent.name / wav.name)
     print("완료" if ok else "일부 파일이 없습니다")
     return 0 if ok else 1
 

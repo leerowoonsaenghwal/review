@@ -163,9 +163,30 @@ namespace CatIsland
     public static class IslandBuilder
     {
         public const float Radius = 6.6f;
+        // 바닥 구역 (발소리 재질): 마루, 러그, 모래밭. 나머지는 풀밭
+        public static readonly Vector3 DeckCenter = new Vector3(0f, 0f, 0.5f);
+        public const float DeckRadius = 3.8f;
+        public static readonly Vector3 RugCenter = new Vector3(0f, 0f, -0.5f);
+        public const float RugRadius = 1.7f;
+        public static readonly Vector3 SandCenter = new Vector3(-3.4f, 0f, -3.2f);
+        public const float SandRadius = 1.2f;
+
+        static float Flat(Vector3 a, Vector3 b) { a.y = 0f; b.y = 0f; return Vector3.Distance(a, b); }
+
+        /// <summary>섬 장식 중 고양이가 지나가면 안 되는 것 (위치, 반경): 덤불, 나무 줄기, 꽃.</summary>
+        public static readonly List<(string name, Vector3 pos, float radius)> Solids = new List<(string, Vector3, float)>();
+
+        public static Surface SurfaceAt(Vector3 p)
+        {
+            if (Flat(p, RugCenter) < RugRadius) return Surface.Rug;
+            if (Flat(p, DeckCenter) < DeckRadius) return Surface.Wood;
+            if (Flat(p, SandCenter) < SandRadius) return Surface.Sand;
+            return Surface.Grass;
+        }
 
         public static Transform Build(Transform parent)
         {
+            Solids.Clear();
             var root = Shapes.Pivot(parent, "Island", Vector3.zero);
             var sphere = MeshFactory.Sphere();
             float D = Radius * 2f;
@@ -174,8 +195,13 @@ namespace CatIsland
             Shapes.Make(root, "Soil", MeshFactory.IslandSoil(), Palette.Soil, new Vector3(0f, -0.07f, 0f), new Vector3(D - 0.1f, 2.6f, D - 0.1f), default, false);
 
             // 마루 (집 안 자리)
-            Shapes.Make(root, "Deck", MeshFactory.RoundedCylinder(0.04f), Palette.Wood, new Vector3(0f, -0.046f, 0.5f), new Vector3(7.6f, 0.05f, 7.6f));
-            Shapes.Make(root, "Rug", MeshFactory.RoundedCylinder(0.06f), Palette.Mint, new Vector3(0f, -0.028f, -0.5f), new Vector3(3.4f, 0.04f, 3.4f), default, false);
+            Shapes.Make(root, "Deck", MeshFactory.RoundedCylinder(0.04f), Palette.Wood, DeckCenter + new Vector3(0f, -0.046f, 0f), new Vector3(DeckRadius * 2f, 0.05f, DeckRadius * 2f));
+            Shapes.Make(root, "Rug", MeshFactory.RoundedCylinder(0.06f), Palette.Mint, RugCenter + new Vector3(0f, -0.028f, 0f), new Vector3(RugRadius * 2f, 0.04f, RugRadius * 2f), default, false);
+            // 모래밭: 섬 앞 왼쪽 가장자리. 조개 두 개와 조약돌
+            Shapes.Make(root, "Sand", MeshFactory.RoundedCylinder(0.08f), Palette.Hex("f1dfb2"), SandCenter + new Vector3(0f, -0.04f, 0f), new Vector3(SandRadius * 2f, 0.05f, SandRadius * 2f), default, false);
+            Shapes.Make(root, "Shell1", sphere, Palette.Peach, SandCenter + new Vector3(0.45f, 0.02f, -0.3f), new Vector3(0.14f, 0.06f, 0.12f), new Vector3(0f, 30f, 0f), false);
+            Shapes.Make(root, "Shell2", sphere, Palette.Cream, SandCenter + new Vector3(-0.35f, 0.02f, 0.4f), new Vector3(0.11f, 0.05f, 0.1f), new Vector3(0f, -20f, 0f), false);
+            Shapes.Make(root, "Pebble", sphere, Palette.Hex("d9d3c7"), SandCenter + new Vector3(0.1f, 0.02f, 0.55f), new Vector3(0.12f, 0.07f, 0.1f), default, false);
 
             var rng = new System.Random(21);
             for (int i = 0; i < 11; i++)
@@ -185,11 +211,13 @@ namespace CatIsland
                 var pos = new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r);
                 float s = 0.9f + (float)rng.NextDouble() * 0.6f;
                 var bush = Shapes.Pivot(root, "Bush" + i, pos);
+                Solids.Add(("Bush" + i, pos, s * 0.62f));
                 Shapes.Make(bush, "A", sphere, Palette.GrassDark, new Vector3(0f, s * 0.35f, 0f), new Vector3(s, s * 0.8f, s));
                 Shapes.Make(bush, "B", sphere, Palette.GrassDark, new Vector3(s * 0.35f, s * 0.25f, -s * 0.1f), new Vector3(s * 0.7f, s * 0.6f, s * 0.7f));
             }
 
             var tree = Shapes.Pivot(root, "Tree", new Vector3(-4.0f, 0f, 4.0f));
+            Solids.Add(("TreeTrunk", tree.localPosition, 0.24f));
             Shapes.Make(tree, "Trunk", MeshFactory.Capsule(0.2f), Palette.Chestnut, new Vector3(0f, 0.9f, 0f), new Vector3(0.42f, 2.0f, 0.42f));
             Shapes.Make(tree, "Leaf1", sphere, Palette.GrassDark, new Vector3(0f, 2.4f, 0f), new Vector3(2.3f, 1.9f, 2.3f));
             Shapes.Make(tree, "Leaf2", sphere, Palette.Grass, new Vector3(0.6f, 2.9f, -0.35f), new Vector3(1.4f, 1.2f, 1.4f));
@@ -201,7 +229,9 @@ namespace CatIsland
                 float r = 4.3f + (float)rng.NextDouble() * 1.8f;
                 var pos = new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r);
                 if (pos.z < -2.5f && Mathf.Abs(pos.x) < 2.8f) continue; // 카메라 앞은 비워 둠
+                if (Flat(pos, SandCenter) < SandRadius + 0.2f) continue;
                 var f = Shapes.Pivot(root, "Flower" + i, pos);
+                Solids.Add(("Flower" + i, pos, 0.1f));
                 Shapes.Make(f, "Stem", MeshFactory.Capsule(0.3f), Palette.GrassDark, new Vector3(0f, 0.1f, 0f), new Vector3(0.04f, 0.22f, 0.04f), default, false);
                 Shapes.Make(f, "Petal", sphere, flowerColors[i % flowerColors.Length], new Vector3(0f, 0.24f, 0f), new Vector3(0.16f, 0.1f, 0.16f), default, false);
                 Shapes.Make(f, "Center", sphere, Palette.Cream, new Vector3(0f, 0.285f, 0f), new Vector3(0.06f, 0.04f, 0.06f), default, false);
