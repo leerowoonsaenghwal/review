@@ -63,6 +63,9 @@ export function frameShape(shapeIn = {}) {
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   s.legLen = (shapeIn.legLen ?? 1) < FRAME_SHORT_LEG ? .5 : 1;
   s.bodyBulk = clamp(s.bodyBulk, .9, 1.1); s.legBulk = clamp(s.legBulk, .9, 1.1);
+  // (the trunk's outline is part of the frame too: a pot belly or a deep chest is where a running front leg
+  //  passes - Sphynx's belly took its Gallop - so the belly is the standard one and the chest within +10%)
+  s.potBelly = 0; s.chest = clamp(s.chest ?? 1, .95, 1.1);
   return s;
 }
 export function buildCatModel(shapeIn = {}, coatSpec = {}, opts = {}) {
