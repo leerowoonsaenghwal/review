@@ -4,7 +4,7 @@
 // Prints one line per clip and the worst problems; exits 1 if anything fails.
 import { BREEDS } from './catgen.js';
 import { buildCatModel } from './catmodel.js';
-import { makeRig, makeClips, solveAt, applyPose, stand } from './catmotion.js';
+import { makeRig, makeClips, solveAt, applyPose, stand, jumpFloor } from './catmotion.js';
 import { makeContact, LIMBS } from './catcontact.js';
 
 const args = process.argv.slice(2), opt = (k, d) => args.includes(k) ? +args[args.indexOf(k) + 1] : d;
@@ -57,9 +57,11 @@ for (const id of breeds) {
       if (dh.d < -LIMIT.pen * 2) issues.push({ k: `head in ${dh.part}`, d: dh.d, at });
       const dc = C.depth(headPts, p => p === 'torso' || p.endsWith('u'));
       if (dc.d < -.012) issues.push({ k: `head on ${dc.part} (warn)`, d: dc.d, at, warn: true });
-      const who = {}, y = C.lowest(allPts, who);
+      // (jumps: the floor moves with the clip - the deck top up a jump, the floor below once off a deck)
+      const fl = clip.jump ? jumpFloor(clip.jump, P) : 0;
+      const who = {}, y = C.lowest(allPts, who) - fl;
       if (y < LIMIT.floor) issues.push({ k: `${who.part} below floor`, d: y, at });
-      for (const L of LIMBS) { const yb = C.lowest(beanPts[L]); if (yb < LIMIT.floor) issues.push({ k: `${L} beans below floor`, d: yb, at }); }
+      for (const L of LIMBS) { const yb = C.lowest(beanPts[L]) - fl; if (yb < LIMIT.floor) issues.push({ k: `${L} beans below floor`, d: yb, at }); }
       (clip.contacts || []).forEach((c, ci) => {
         const on = c.when(P, t);
         const r = runs[ci];

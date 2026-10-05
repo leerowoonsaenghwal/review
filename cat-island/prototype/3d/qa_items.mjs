@@ -4,6 +4,7 @@
 //   Drink  + water / milk / food bowl at clip.drink.bowl : no part of the cat inside the bowl; the tongue
 //          meets the liquid (or kibble) at the bottom of every lap
 //   JumpUp + cat tower (1 deck) where the jump lands     : nothing inside the tower all the way up; paws on the deck
+//   JumpDown from where JumpUp landed, turned round      : nothing inside the tower all the way down
 //   Loaf / Sleep / FlopIdle on the cushion (cat raised to the seat top)
 //   Loaf inside the hideout (cat raised to its floor)    : head and ears clear of the dome
 //   PawBat + mouse toy under the tapping paw              : paw meets the toy, does not sink into it
@@ -21,7 +22,7 @@ let failed = 0;
 for (const id of breeds) {
   const b = BREEDS.find(x => x.id === id);
   const rig = makeRig(buildCatModel(b.shape, b.coat, { res: .03 }));
-  const clips = makeClips(rig, { only: ['Drink', 'JumpUp', 'Loaf', 'Sleep', 'FlopIdle', 'PawBat'] }), C = contactOf(rig);
+  const clips = makeClips(rig, { only: ['Drink', 'JumpUp', 'JumpDown', 'Loaf', 'Sleep', 'FlopIdle', 'PawBat'] }), C = contactOf(rig);
   const clip = n => clips.find(c => c.name === n);
   console.log(`\n${b.ko} (${id})`);
   // world positions of every cat vertex (body + face, which holds the tongue and the beans)
@@ -65,6 +66,11 @@ for (const id of breeds) {
   const ju = clip('JumpUp');
   const deck = itemField('cat_tower_1').anchors.decks[0];
   scene('JumpUp · cat_tower_1', 'cat_tower_1', 'JumpUp', [0, 0, ju.jump.deckBack + deck.size[1] / 2]);   // (deck's back edge at jump.deckBack)
+  // JumpDown: the cat stands where JumpUp landed (root D in, the deck centre deckBack + depth/2 from the start),
+  // turned round and stepped turnIn in towards the centre: in its root space the tower is rotated 180 degrees and
+  // its base is H below
+  const jd = clip('JumpDown');
+  if (jd) scene('JumpDown · cat_tower_1', 'cat_tower_1', 'JumpDown', [0, jd.jump.H, ju.jump.D - ju.jump.deckBack - deck.size[1] / 2 + (jd.jump.turnIn || 0)], { yaw: Math.PI });
   // lying on the cushion / inside the hideout: centred under the trunk, cat raised to the seat
   applyPose(rig, stand(rig)); rig.model.updateMatrixWorld(true);
   const mid = rig.B.Hips.getWorldPosition(rig.B.Hips.position.clone()).add(rig.B.Chest.getWorldPosition(rig.B.Chest.position.clone())).multiplyScalar(.5);
