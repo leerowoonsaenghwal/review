@@ -246,12 +246,21 @@ const TOWERS = {
     for (const [x, y, z] of [[.38, STEP, .1], [-.36, 2 * STEP, -.05], [.05, 3 * STEP + .02, -.2]]) K.post(g, x * .55, z * .55, y - .14, y - .04, .035, K.M.bark);
     K.pompom(g, .6, STEP - .04, .2, .16, '#ffd23f'); } },
   // 5. tall: five levels, a tunnel on level two, toys
-  tall: { ko: '5단 높은 타워', top: [-.05, 5 * STEP, 0], build: g => { const K = KIT; K.base(g, 1.2, 1.1);
-    const L = [[-.25, .1, K.M.blue], [.3, -.05, K.M.cream], [-.25, -.1, K.M.pink], [.3, .05, K.M.blue], [-.05, 0, K.M.mint]];
-    K.post(g, -.5, -.42, .03, 4 * STEP - .04, .055); K.post(g, .5, .42, .03, 5 * STEP - .04, .055); K.post(g, .5, -.42, .03, 4 * STEP - .04, .055); K.post(g, -.5, .42, .03, 5 * STEP - .04, .055);
-    L.forEach(([x, z, m], i) => { const y = (i + 1) * STEP; K.deck(g, x, y, z, i === 4 ? .8 : .66, .8, m, i === 4); K.screws(g, x, y, z, .66, .8); });
-    const tun = K.add(g, new THREE.Mesh(new THREE.CylinderGeometry(.17, .17, .55, 32, 1, true), K.M.cream)); tun.material = K.M.cream.clone(); tun.material.side = THREE.DoubleSide; tun.rotation.z = Math.PI / 2; tun.position.set(.3, 2 * STEP + .17, -.05);
-    K.pompom(g, .62, 3 * STEP - .04, .35, .2); K.pompom(g, -.6, 2 * STEP - .04, -.3, .14, '#ffd23f'); } },
+  // two main sisal columns run the full height through the decks; left decks on levels 1 and 3, right decks on
+  // 2 and 4, each also held at its outer edge by a pair of short posts from the level below; a big bed on top
+  // rests on both columns; a tunnel lies on level 2
+  tall: { ko: '5단 높은 타워', top: [0, 5 * STEP, 0], build: g => { const K = KIT; K.base(g, 1.55, 1.0);
+    const H5 = 5 * STEP - .04;
+    K.post(g, -.35, 0, .03, H5, .06); K.post(g, .35, 0, .03, H5, .06);
+    const L = [[-.42, K.M.blue], [.42, K.M.cream], [-.42, K.M.pink], [.42, K.M.blue]];
+    L.forEach(([x, m], i) => {
+      const y = (i + 1) * STEP, side = Math.sign(x), y0 = i < 2 ? .03 : (i - 1) * STEP;   // outer posts stand on the base or on the same-side deck two levels down
+      K.deck(g, x, y, 0, .7, .8, m); K.screws(g, x, y, 0, .7, .8);
+      for (const z of [-.3, .3]) K.post(g, x + side * .27, z, y0, y - .04, .035);
+    });
+    K.deck(g, 0, 5 * STEP, 0, 1.0, .85, K.M.mint, true);
+    const tun = K.add(g, new THREE.Mesh(new THREE.CylinderGeometry(.17, .17, .5, 32, 1, true), K.M.cream)); tun.material = K.M.cream.clone(); tun.material.side = THREE.DoubleSide; tun.rotation.z = Math.PI / 2; tun.position.set(.47, 2 * STEP + .17, 0);
+    K.pompom(g, -.74, 3 * STEP - .04, .35, .2); K.pompom(g, .74, 2 * STEP - .04, -.35, .14, '#ffd23f'); } },
 };
 
 // ---------------------------------------------------------------- scene: the AC-direction island patch
