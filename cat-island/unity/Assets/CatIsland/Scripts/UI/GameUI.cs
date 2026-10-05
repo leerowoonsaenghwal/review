@@ -328,6 +328,7 @@ namespace CatIsland.UI
                     if (c.status == "home")
                     {
                         Kit.Size(Kit.Btn(r, "밥", () => { if (G.Feed(uid)) Toast("냠냠"); else if (G.AdAvailable(Catalog.AdSpot.FreeFood)) G.FreeFoodAd(ok => Toast(ok ? "사료 한 봉지를 받았어요" : Str.AdLater)); else Toast("상점에서 사료를 사 와요"); Open(BuildCats); }, Kit.Style.Secondary), 52, 44);
+                        if (Bag.Get(G.S.inventory, "churu") > 0 && GameBootstrap.Instance) Kit.Size(Kit.Btn(r, "츄르", () => { CloseAll(); if (!GameBootstrap.Instance.GiveChuru(uid)) Toast(Str.Oops); }, Kit.Style.Secondary), 60, 44);
                         Kit.Size(Kit.Btn(r, Str.Walk, () => Open(b => BuildWalk(b, uid)), Kit.Style.Primary), 64, 44);
                     }
                     else if (c.status == "walk" && G.AdAvailable(Catalog.AdSpot.WalkSkip))

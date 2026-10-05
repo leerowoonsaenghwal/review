@@ -158,7 +158,15 @@ namespace CatIsland
                     view.OnUsedItem = id => { Logic.PlayWith(c.uid, id); UI?.Refresh(); };
                     catViews[c.uid] = view; Router.cats.Add(view);
                 }
-                view.gameObject.SetActive(home);
+                // 산책: 걸어 나가서 사라지고, 돌아오면 선물을 물고 걸어 들어온다
+                if (!home && view.gameObject.activeSelf && view.State != CatState.LeaveForWalk) { var v = view; v.LeaveForWalk(() => v.gameObject.SetActive(false)); }
+                else if (!home && view.State != CatState.LeaveForWalk) view.gameObject.SetActive(false);
+                else if (home && !view.gameObject.activeSelf)
+                {
+                    view.gameObject.SetActive(true);
+                    var gift = ItemLoader.Spawn("ball", null, Vector3.zero, 0); if (gift) foreach (var col in gift.GetComponentsInChildren<Collider>()) Destroy(col);
+                    view.ReturnFromWalk(gift);
+                }
                 i++;
             }
             foreach (var kv in catViews.Where(kv => kv.Value && Logic.Cat(kv.Key) == null).ToList()) { Router.cats.Remove(kv.Value); Destroy(kv.Value.gameObject); catViews.Remove(kv.Key); }
@@ -177,6 +185,15 @@ namespace CatIsland
             guestView = go.AddComponent<CatRig>(); guestView.breed = Logic.S.guestBreed; go.SetActive(true); guestView.Request(Posture.Sit);
             guestBreedShown = Logic.S.guestBreed;
             Router.TapOther = c => { if (guestView && guestView.IsCatCollider(c)) { UI.OpenGuest(); return true; } return false; };
+        }
+
+        /// <summary>츄르 주기: 사료처럼 저장의 츄르를 쓰고, 고양이가 앞으로 와서 핥는다 (츄르만 입 앞에 떠 있다).</summary>
+        public bool GiveChuru(string uid)
+        {
+            if (!catViews.TryGetValue(uid, out var v) || !v || !v.isActiveAndEnabled) return false;
+            if (!Logic.Feed(uid, "churu")) return false;
+            GameObject prop = null;
+            return v.GiveTreat((pos, rot) => { prop = ItemLoader.Spawn("churu", null, pos, 0); if (prop) { prop.transform.rotation = rot * Quaternion.Euler(90, 0, 0); foreach (var col in prop.GetComponentsInChildren<Collider>()) Destroy(col); } }, () => { if (prop) Destroy(prop); UI?.Refresh(); });
         }
 
         /// <summary>새 용품: 가장 가까운 한가한 고양이가 바로 써 본다.</summary>

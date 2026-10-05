@@ -11,7 +11,8 @@ namespace CatIsland
         GoToCushion, LieDown, Sleep,
         GoToTower, JumpUp, OnTower, JumpDown,
         Petted, BellyUp, Nip,
-        GoToItem, UseItem
+        GoToItem, UseItem,
+        Treat, LeaveForWalk, ReturnFromWalk, GoToSleepNear
     }
 
     /// <summary>섬에 놓인 용품 표시 (고양이가 골라 쓴다).</summary>
@@ -228,6 +229,10 @@ namespace CatIsland
                 case CatState.OnTower: TickOnTower(dt); break;
                 case CatState.GoToItem: TickGoToItem(dt); break;
                 case CatState.UseItem: TickUseItem(dt); break;
+                case CatState.Treat: TickTreat(dt); break;
+                case CatState.LeaveForWalk: TickLeave(dt); break;
+                case CatState.ReturnFromWalk: TickReturn(dt); break;
+                case CatState.GoToSleepNear: TickMoveTo(dt, GameConfig.WalkSpeed, CatState.Sleep); break;
                 case CatState.Petted: TickPetted(dt); break;
                 case CatState.BellyUp: TickBellyUp(dt); break;
                 case CatState.Nip: TickNip(dt); break;
@@ -359,6 +364,14 @@ namespace CatIsland
                 inviteCooldown = 20f;
                 Enter(CatState.Invite);
                 return;
+            }
+            // 밤에는 잔다: 빈 방석이 있으면 방석에서, 아니면 자고 있는 다른 고양이 옆에서 (고양이끼리 같이 자기)
+            if (IsNight)
+            {
+                if (cushion && Free(cushion) && cushion.gameObject.activeInHierarchy) { Enter(CatState.GoToCushion); return; }
+                var sleeper = All.Find(o => o && o != this && o.isActiveAndEnabled && o.State == CatState.Sleep && !o.OnTower);
+                if (sleeper) { var side = sleeper.transform.right * (UnityEngine.Random.value < .5f ? .7f : -.7f); moveTarget = nav != null ? nav.NearestFree(sleeper.transform.position + side) : sleeper.transform.position + side; Enter(CatState.GoToSleepNear); return; }
+                Enter(CatState.Sleep); return;
             }
             float r = UnityEngine.Random.value;
             if (r < 0.22f) { var it = PickItemUse(); if (it != null) { BeginUse(it); return; } }
@@ -612,7 +625,7 @@ namespace CatIsland
         {
             Speed = 0f;
             Rig.Request(Posture.Sleep);
-            if (Needs.Energy >= GameConfig.WakeEnergy && !touchingCat)
+            if (Needs.Energy >= GameConfig.WakeEnergy && !touchingCat && !IsNight)
             {
                 audioOut?.Chirp();
                 Rig.Request(Posture.Stand);
@@ -886,6 +899,62 @@ namespace CatIsland
         }
         /// <summary>용품을 다 썼다 (게임 규칙 쪽: 놀이·할 일).</summary>
         public Action<string> OnUsedItem;
+
+        static bool IsNight => GameBootstrap.Instance && GameBootstrap.Instance.Day && GameBootstrap.Instance.Day.Night;
+
+        // ---- 츄르: 앞으로 와서 앉아 손에 든 츄르를 핥는다 (손은 보이지 않는다: 츄르만 입 앞에 떠 있다)
+        Action<Vector3, Quaternion> treatShow; Action treatDone;
+        public bool GiveTreat(Action<Vector3, Quaternion> showProp, Action done)
+        {
+            if (OnTower || IsJumping()) return false;
+            treatShow = showProp; treatDone = done; moveTarget = InviteSpot(); Enter(CatState.Treat); return true;
+        }
+        bool treatStarted;
+        void TickTreat(float dt)
+        {
+            if (StateTime < dt * 1.5f) treatStarted = false;
+            if (!treatStarted)
+            {
+                if (!MoveTowards(moveTarget, GameConfig.WalkSpeed, dt) && StateTime < 10f) return;
+                if (cam) faceDir = Flat(cam.position - transform.position);
+                if (FacingAngle(faceDir) > 8f && StateTime < 12f) return;
+                Rig.Request(Posture.Sit);
+                if (Rig.Current != Posture.Sit && StateTime < 14f) return;
+                var tip = transform.TransformPoint(Rig.Info.lickTip);
+                treatShow?.Invoke(tip, Quaternion.LookRotation(-transform.forward + Vector3.up * .3f)); treatShow = null;
+                if (Rig.HasClip("LickUp")) Rig.PlayAction("LickUp", true, .2f); else Rig.mouthOpen = .6f;
+                stateTimer = 4f; treatStarted = true; audioOut?.Chirp();
+                return;
+            }
+            stateTimer -= dt; if (stateTimer <= 0f) FinishTreat();
+        }
+        void FinishTreat() { Rig.StopAction(); Rig.mouthOpen = 0f; var d = treatDone; treatDone = null; d?.Invoke(); FxPool.Instance?.Burst(Icon.Heart, Rig.BubbleAnchor.position, 4, .25f, .22f); Enter(CatState.SitIdle); }
+
+        // ---- 산책: 바닷가 쪽으로 걸어 나가 섬에서 사라지고, 돌아올 때는 선물을 물고 걸어 들어온다
+        Action leaveDone; Transform carried;
+        public void LeaveForWalk(Action gone)
+        {
+            leaveDone = gone; moveTarget = ClampToIsland(new Vector3(4.4f, 0f, -2.6f)); if (nav != null) moveTarget = nav.NearestFree(moveTarget);
+            if (OnTower) { OnTower = false; heightY = 0; }
+            Enter(CatState.LeaveForWalk);
+        }
+        void TickLeave(float dt)
+        {
+            if (MoveTowards(moveTarget, GameConfig.WalkSpeed * 1.3f, dt) || StateTime > 12f) { var d = leaveDone; leaveDone = null; d?.Invoke(); }
+        }
+        public void ReturnFromWalk(GameObject gift)
+        {
+            transform.position = ClampToIsland(new Vector3(4.4f, 0f, -2.6f)); transform.rotation = Quaternion.LookRotation(-transform.position.normalized);
+            if (gift) { carried = gift.transform; carried.SetParent(Rig.Head, false); carried.localPosition = Rig.Head.InverseTransformPoint(Rig.HeadZone.position + transform.forward * (Rig.HeadRadius * .9f) - Vector3.up * Rig.HeadRadius * .45f); carried.localScale = Vector3.one * .6f; }
+            moveTarget = nav != null ? nav.NearestFree(new Vector3(.6f, 0f, -.8f)) : new Vector3(.6f, 0, -.8f);
+            Rig.mouthOpen = .35f; Enter(CatState.ReturnFromWalk);
+        }
+        void TickReturn(float dt)
+        {
+            if (!MoveTowards(moveTarget, GameConfig.WalkSpeed, dt) && StateTime < 12f) return;
+            if (carried) { FxPool.Instance?.Burst(Icon.Sparkle, carried.position, 6, .3f, .2f); Destroy(carried.gameObject); carried = null; }
+            Rig.mouthOpen = 0f; audioOut?.Chirp(); Enter(CatState.SitIdle);
+        }
 
         // ---- 쓰다듬기 반응
 

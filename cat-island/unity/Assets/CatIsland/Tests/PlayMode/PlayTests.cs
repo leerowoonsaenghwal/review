@@ -23,6 +23,7 @@ namespace CatIsland.Tests
             Haptics.ResetCounters();
             GameBootstrap.NewFiles = () => new CatIsland.Game.MemoryFiles();   // (사용자 저장을 건드리지 않는다)
             GameBootstrap.OpenCatMakerIfEmpty = false;
+            DayCycle.HourOverride = 13f;   // (테스트는 낮: 밤이면 고양이들이 잔다)
             Time.timeScale = 1f;
             var go = new GameObject("Bootstrap");
             game = go.AddComponent<GameBootstrap>();
@@ -692,7 +693,8 @@ namespace CatIsland.Tests
             Assert.Greater(worstItem, -0.03f, what);
             Assert.Greater(closest, 0.25f, "cats never stand inside each other");
             // 산책 보내면 섬에서 사라지고, 돌아오면 다시 선다
-            g.SendWalk(b.uid, 1); game.SyncCats(); yield return null;
+            g.SendWalk(b.uid, 1); game.SyncCats();
+            for (float t = 0; t < 15f && Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).Count(x => x.isActiveAndEnabled) > 2; t += Time.deltaTime) yield return null;   // (걸어 나간 뒤 사라진다)
             Assert.AreEqual(2, Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).Count(x => x.isActiveAndEnabled));
         }
     }
@@ -853,6 +855,51 @@ namespace CatIsland.Tests
                 yield return new WaitForSeconds(1f);
             }
             Time.timeScale = 1f;
+        }
+    }
+}
+
+namespace CatIsland.Tests
+{
+    using System.Collections;
+    using System.Linq;
+    using NUnit.Framework;
+    using UnityEngine;
+    using UnityEngine.TestTools;
+
+    /// <summary>츄르 주기, 산책 나가고 돌아오기, 밤에 같이 자기.</summary>
+    public class CareMomentsTests : SceneFixture
+    {
+        [UnityTest]
+        public IEnumerator Churu_Walk_AndNightSleep()
+        {
+            var g = game.Logic; g.S.catSlots = 3;
+            var a = g.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Foodie);
+            var b = g.AddCat("persian", "보리", CatIsland.Game.Personality.Easygoing);
+            g.AddCoins(1000); g.Buy("churu"); game.SyncCats(); yield return null;
+            var ca = Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).First(x => x.Data == a);
+            var cb = Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).First(x => x.Data == b);
+            Time.timeScale = 3f;
+            // 츄르
+            Assert.IsTrue(game.GiveChuru(a.uid));
+            Assert.AreEqual(0, CatIsland.Game.Bag.Get(g.S.inventory, "churu"), "the churu was used");
+            bool licked = false;
+            for (float t = 0; t < 20f && ca.State == CatState.Treat; t += Time.deltaTime) { yield return null; licked |= ca.Rig.ActionClip == "LickUp" || ca.Rig.mouthOpen > .5f; }
+            Assert.IsTrue(licked, "licked the churu"); Assert.AreNotEqual(CatState.Treat, ca.State);
+            // 산책: 나가서 사라지고, 돌아오면 다시 섬에
+            Assert.IsTrue(g.SendWalk(b.uid, 1)); game.SyncCats();
+            for (float t = 0; t < 15f && cb.gameObject.activeSelf; t += Time.deltaTime) yield return null;
+            Assert.IsFalse(cb.gameObject.activeSelf, "walked off the island");
+            b.walkEndsAt = g.Now - 1; g.Tick(); game.SyncCats(); yield return null;
+            Assert.IsTrue(cb.gameObject.activeSelf); Assert.AreEqual(CatState.ReturnFromWalk, cb.State, "walks back in carrying a gift");
+            for (float t = 0; t < 15f && cb.State == CatState.ReturnFromWalk; t += Time.deltaTime) yield return null;
+            Assert.AreNotEqual(CatState.ReturnFromWalk, cb.State);
+            // 밤: 모두 잔다
+            DayCycle.HourOverride = 23f; game.Day.Apply(23f);
+            ca.ForceState(CatState.Idle); cb.ForceState(CatState.Idle);
+            for (float t = 0; t < 30f && !(ca.State == CatState.Sleep && cb.State == CatState.Sleep); t += Time.deltaTime) yield return null;
+            Time.timeScale = 1f; DayCycle.HourOverride = 13f;
+            Assert.AreEqual(CatState.Sleep, ca.State); Assert.AreEqual(CatState.Sleep, cb.State);
         }
     }
 }
