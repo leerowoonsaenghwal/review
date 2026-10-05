@@ -20,5 +20,6 @@ for (const id of breeds) {
   const mm = v => v == null ? '-' : (v * 1000).toFixed(1) + 'mm';
   if (verify) console.log(`  skipped: ${JSON.stringify(clips.skipped || [])}`);
   if (r.scratchPose) console.log(`  scratch pose: ${JSON.stringify(r.scratchPose)}`);
+  if (args.includes("--info")) console.log("  info", JSON.stringify({ pawLick: r.pawLickInfo, wash: r.washEach, nibble: r.nibbleInfo }));
   console.log(`${id.padEnd(20)} scratch=${mm(r.scratch)} pawLick=${mm(r.pawLick)} wash=${mm(r.wash)} nibble=${mm(r.nibble)}  (model ${((t1 - t0) / 1000).toFixed(0)}s, clips ${((Date.now() - t1) / 1000).toFixed(0)}s)`);
 }
