@@ -12,7 +12,7 @@ namespace CatIsland
         public Transform follow;
         public float pitch = 40f;
         public float fov = 28f;
-        public float[] distances = { 11.5f, 7.2f };   // 0 = 멀리, 1 = 가까이
+        public float[] distances = { 17f, 8.5f };   // 0 = 멀리, 1 = 가까이
         public int zoomLevel = 1;
         public float yawLimit = 45f;
 
@@ -27,7 +27,7 @@ namespace CatIsland
             cam = GetComponent<Camera>();
             cam.fieldOfView = fov;
             dist = distances[zoomLevel];
-            focus = new Vector3(0f, 0.3f, 0.1f);
+            focus = new Vector3(0f, 0.5f, 0.4f);
             Apply();
         }
 
@@ -53,7 +53,7 @@ namespace CatIsland
         {
             // 가까이 볼 때만 고양이를 따라간다. 멀리 보면 섬 전체
             float w = zoomLevel == distances.Length - 1 ? 0.75f : 0.2f;
-            Vector3 f = Vector3.Lerp(new Vector3(0f, 0.3f, 0.1f), new Vector3(p.x, 0.3f, p.z), w);
+            Vector3 f = Vector3.Lerp(new Vector3(0f, 0.5f, 0.4f), new Vector3(p.x, 0.5f + p.y, p.z), w);
             return f;
         }
 

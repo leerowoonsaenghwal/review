@@ -39,11 +39,13 @@ namespace CatIsland
         public static readonly float[] AffectionLevelThresholds =
             { 0f, 20f, 50f, 95f, 155f, 230f, 320f, 430f, 560f, 720f };
 
-        // ---- 이동 ----
-        public const float WalkSpeed = 0.9f;
-        public const float TrotSpeed = 1.6f;
-        public const float TurnSpeedDeg = 300f;
-        public const float IslandWalkRadius = 3.1f;
+        // ---- 이동 (클립의 실제 속도: Walk 0.40, Trot 1.06, Gallop 2.27 m/s → 발이 미끄러지지 않는다) ----
+        public const float WalkSpeed = 0.4f;
+        public const float TrotSpeed = 1.06f;
+        public const float RunSpeed = 2.27f;
+        public const float TurnSpeedDeg = 160f;
+        public const float IslandWalkRadius = 5.0f;
+        public const float WanderRadius = 3.0f;
 
         // ---- 입력 ----
         public const float TapMaxDuration = 0.28f;

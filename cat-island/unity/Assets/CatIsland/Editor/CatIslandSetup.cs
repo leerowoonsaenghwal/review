@@ -24,6 +24,7 @@ namespace CatIsland.EditorTools
         public static void Run()
         {
             Directory.CreateDirectory(SettingsDir);
+            CatArtImport.Run();
             SetupPlayer();
             SetupUrp();
             SetupMaterials();
@@ -93,7 +94,7 @@ namespace CatIsland.EditorTools
             SetInt(so, "m_MainLightShadowmapResolution", 2048);
             SetBool(so, "m_MainLightShadowsSupported", true);
             SetBool(so, "m_SoftShadowsSupported", true);
-            SetFloat(so, "m_ShadowDistance", 16f);
+            SetFloat(so, "m_ShadowDistance", 24f); // 카메라가 11~19 m 떨어져 있어 섬 전체가 들어가게
             SetInt(so, "m_ShadowCascadeCount", 1);
             SetInt(so, "m_MSAA", 4);
             SetBool(so, "m_SupportsHDR", false);

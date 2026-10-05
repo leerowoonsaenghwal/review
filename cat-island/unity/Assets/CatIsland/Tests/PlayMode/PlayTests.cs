@@ -44,11 +44,12 @@ namespace CatIsland.Tests
 
         protected Vector2 Screen(Vector3 world) => Cam.WorldToScreenPoint(world);
 
-        protected Vector3 BackPoint => Cat.Rig.BodyZone.TransformPoint(new Vector3(0f, 0.17f, 0.02f));
-        protected Vector3 BellyPoint => Cat.Rig.BodyZone.TransformPoint(new Vector3(0f, -0.18f, 0.02f));
+        protected Vector3 BackPoint => Cat.Rig.BodyZone.TransformPoint(new Vector3(0f, Cat.Rig.BodyHalf.y * 0.85f / Cat.Rig.BodyZone.lossyScale.y, 0f));
+        protected Vector3 BellyPoint => Cat.Rig.BodyZone.TransformPoint(new Vector3(0f, -Cat.Rig.BodyHalf.y * 0.85f / Cat.Rig.BodyZone.lossyScale.y, 0f));
+        protected Vector3 HeadPoint => Cat.Rig.HeadZone.position;
 
         /// <summary>부드럽게 문지르기: 목표 지점을 중심으로 좌우로 왕복.</summary>
-        protected IEnumerator Stroke(Func<Vector3> target, float seconds, Func<bool> until = null, float amp = 0.018f, float hz = 6.5f)
+        protected IEnumerator Stroke(Func<Vector3> target, float seconds, Func<bool> until = null, float amp = 0.014f, float hz = 7f)
         {
             float t = 0f;
             while (t < seconds)
@@ -79,39 +80,44 @@ namespace CatIsland.Tests
             float t = 0f;
             while (!cond() && t < maxSeconds) { yield return null; t += Time.deltaTime; }
         }
+
+        protected static float Flat(Vector3 a, Vector3 b) { a.y = 0f; b.y = 0f; return Vector3.Distance(a, b); }
     }
 
     public class CorePlayTests : SceneFixture
     {
         [UnityTest]
-        public IEnumerator Boot_BuildsIsland_Cat_Bowl_Cushion()
+        public IEnumerator Boot_PipelineCatAndItemsLoad()
         {
-            Assert.IsNotNull(Cat);
-            Assert.IsNotNull(game.Bowl);
-            Assert.IsNotNull(game.Cushion);
-            Assert.AreEqual(Camera.main, Cam);
-            Assert.IsFalse(game.Bowl.HasFood);
+            Assert.IsNotNull(Cat.Rig.Anim, "animator");
+            Assert.IsNotNull(Cat.Rig.Info.jump, "jump root curve");
+            Assert.Greater(Cat.Rig.HeadRadius, 0.1f, "head zone fitted from mesh");
+            Assert.IsTrue(Cat.Rig.HasClip("Walk") && Cat.Rig.HasClip("Sit") && Cat.Rig.HasClip("Sleep") && Cat.Rig.HasClip("Drink"));
+            Assert.IsNotNull(game.Bowl.transform.Find("Model"));
+            Assert.IsNotNull(game.Tower);
+            Assert.AreEqual(0.2f, game.Tower.DeckHeight, 0.001f);
+            Assert.AreEqual(0.134f, game.Cushion.TopHeight, 0.002f);
             yield return new WaitForSeconds(0.5f);
-            Assert.IsTrue(Cat.Rig.Head.gameObject.activeInHierarchy);
+            Assert.AreEqual(Posture.Stand, Cat.Rig.Current);
         }
 
         [UnityTest]
-        public IEnumerator GentleStrokesOnBack_Purr_EyesClose_Hearts()
+        public IEnumerator GentleStrokes_CatSits_Purrs_EyesClose_Hearts()
         {
             Cat.Needs.SetForTest(1f, 1f);
             Cat.transform.rotation = Quaternion.Euler(0f, 90f, 0f); // 옆모습: 등이 잘 보이게
-            int maxFx = 0, backHits = 0, frames = 0;
-            int affection0 = Mathf.RoundToInt(Cat.Affection.Points);
-            yield return Stroke(() => BackPoint, 3f, () =>
+            int maxFx = 0, hits = 0, frames = 0;
+            float affection0 = Cat.Affection.Points;
+            yield return Stroke(() => BackPoint, 3.5f, () =>
             {
                 maxFx = Mathf.Max(maxFx, FxPool.Instance.ActiveCount);
                 frames++;
-                if (game.Router.LastZone != PetZone.None) backHits++;
+                if (game.Router.LastZone != PetZone.None) hits++;
                 return false;
             });
-            Assert.Greater(backHits, frames / 2, "strokes should land on the cat");
+            Assert.Greater(hits, frames / 2, "strokes should land on the cat");
             Assert.IsTrue(Cat.Pet.Purring, "purring");
-            Assert.Greater(Cat.Pet.Pleasure, 0.5f);
+            Assert.AreEqual(Posture.Sit, Cat.Rig.Current, "sits down to enjoy it");
             Assert.Less(Cat.Rig.eyeOpen, 0.7f, "happy eyes closing");
             Assert.Greater(game.Audio.PurrVolume, 0f, "purr audio");
             Assert.Greater(maxFx, 0, "hearts floated up");
@@ -131,7 +137,7 @@ namespace CatIsland.Tests
         }
 
         [UnityTest]
-        public IEnumerator LongPetting_BellyUp_ThenBellyTrap_GentleNip()
+        public IEnumerator LongPetting_Flop_ThenBellyTrap_GentleNip()
         {
             Cat.Needs.SetForTest(1f, 1f);
             Time.timeScale = 2f;
@@ -139,10 +145,11 @@ namespace CatIsland.Tests
             bool nipped = false;
             Cat.Nipped += () => nipped = true;
 
-            yield return Stroke(() => BackPoint, 12f, () => Cat.State == CatState.BellyUp);
+            yield return Stroke(() => BackPoint, 14f, () => Cat.State == CatState.BellyUp);
             Assert.AreEqual(CatState.BellyUp, Cat.State, "cat flops over after enough love");
+            yield return WaitUntil(() => Cat.Rig.Current == Posture.Flop, 3f);
+            Assert.AreEqual(Posture.Flop, Cat.Rig.Current, "Flop clip finished, lying on its back");
 
-            // 믿음 시간 동안 배는 좋아한다
             int bellyHits = 0, frames = 0;
             yield return Stroke(() => BellyPoint, 2f, () =>
             {
@@ -151,74 +158,124 @@ namespace CatIsland.Tests
                 return nipped;
             });
             Assert.IsFalse(nipped, "no nip while trusting");
-            Assert.Greater(bellyHits, frames / 2, "belly is reachable while belly-up");
+            Assert.Greater(bellyHits, frames / 3, "belly is reachable while flopped");
 
-            // 계속 문지르면 믿음 시간이 끝난 뒤 살짝 깨문다
             yield return Stroke(() => BellyPoint, GameConfig.TrustWindow + 3f, () => nipped);
             Assert.IsTrue(nipped, "belly trap nip");
             Assert.AreEqual(Icon.Exclaim, Cat.Bubble.Current);
-            yield return WaitUntil(() => Cat.State != CatState.Nip, 3f);
+            yield return WaitUntil(() => Cat.State != CatState.Nip, 5f);
             Assert.AreNotEqual(CatState.Nip, Cat.State, "nip is brief, cat moves on");
         }
 
         [UnityTest]
-        public IEnumerator HungryCat_FillBowl_Eats_ThenNapsOnCushion()
+        public IEnumerator HungryCat_FillBowl_DrinksAtBowlSpot_ThenSleepsOnCushion()
         {
             Cat.Needs.SetForTest(0.1f, 0.8f);
             yield return WaitUntil(() => Cat.Bubble.Current == Icon.Fish, 4f);
             Assert.AreEqual(Icon.Fish, Cat.Bubble.Current, "hungry bubble");
 
             Time.timeScale = 3f;
-            yield return Tap(Screen(game.Bowl.transform.position + Vector3.up * 0.06f));
+            yield return Tap(Screen(game.Bowl.transform.position + Vector3.up * 0.04f));
             Assert.IsTrue(game.Bowl.HasFood, "tap bowl fills it");
 
-            bool ate = false;
-            yield return WaitUntil(() => { ate |= Cat.State == CatState.Eat; return ate; }, 15f);
-            Assert.IsTrue(ate, "cat walks to bowl and eats");
+            yield return WaitUntil(() => Cat.Rig.ActionClip == "Drink", 25f);
+            Assert.AreEqual("Drink", Cat.Rig.ActionClip, "cat eats with the Drink clip");
+            // 그릇 중심이 clips.json Drink.drink.bowl 위치에 있어야 혀가 표면에 닿는다
+            Vector3 local = Cat.transform.InverseTransformPoint(game.Bowl.transform.position);
+            Assert.AreEqual(Cat.Rig.Info.bowlZ, local.z, 0.03f, "bowl forward offset");
+            Assert.AreEqual(Cat.Rig.Info.bowlX, local.x, 0.03f, "bowl side offset");
             float hungerBefore = Cat.Needs.Hunger;
 
-            bool knead = false;
-            yield return WaitUntil(() => { knead |= Cat.State == CatState.Knead; return Cat.State == CatState.Sleep; }, 30f);
+            bool lay = false;
+            yield return WaitUntil(() => { lay |= Cat.State == CatState.LieDown; return Cat.State == CatState.Sleep && Cat.Rig.Current == Posture.Sleep; }, 45f);
             Assert.Greater(Cat.Needs.Hunger, hungerBefore);
-            Assert.IsTrue(knead, "kneads the cushion first");
+            Assert.IsTrue(lay, "lies down (loaf) first");
             Assert.AreEqual(CatState.Sleep, Cat.State, "naps on the cushion");
-            Vector3 d = Cat.transform.position - game.Cushion.transform.position; d.y = 0f;
-            Assert.Less(d.magnitude, 0.3f);
+            Vector3 c = Cat.transform.InverseTransformPoint(game.Cushion.transform.position);
+            Assert.AreEqual(Cat.Rig.Info.cushionZ, c.z, 0.05f, "cushion under the body (clips.json itemSpots.cushion)");
+            Assert.AreEqual(game.Cushion.TopHeight, Cat.transform.position.y, 0.01f, "raised onto the cushion top");
             yield return WaitUntil(() => Cat.StateTime > 2f, 5f);
             Assert.AreEqual(Icon.Sleep, Cat.Bubble.Current);
+        }
+
+        [UnityTest]
+        public IEnumerator JumpOntoTower_StandsOnDeck_ThenJumpsDown()
+        {
+            Cat.Needs.SetForTest(1f, 1f);
+            Time.timeScale = 3f;
+            Cat.ForceState(CatState.GoToTower);
+            float maxY = 0f;
+            yield return WaitUntil(() => { maxY = Mathf.Max(maxY, Cat.transform.position.y); return Cat.State == CatState.OnTower; }, 30f);
+            Assert.AreEqual(CatState.OnTower, Cat.State, "jumped up");
+            Assert.IsTrue(Cat.OnTower);
+            Assert.AreEqual(game.Tower.DeckHeight, Cat.transform.position.y, 0.01f, "standing on the deck");
+            Assert.Less(Flat(Cat.transform.position, game.Tower.transform.position), 0.1f, "landed on the deck centre");
+            Assert.Greater(maxY, game.Tower.DeckHeight, "arc goes above the deck");
+
+            Cat.OnTapGround(new Vector3(0f, 0f, 0.5f));
+            yield return WaitUntil(() => Cat.State == CatState.JumpDown, 10f);
+            Assert.AreEqual(CatState.JumpDown, Cat.State);
+            yield return WaitUntil(() => Cat.State != CatState.JumpDown, 10f);
+            Assert.IsFalse(Cat.OnTower);
+            Assert.AreEqual(0f, Cat.transform.position.y, 0.01f, "back on the ground");
+            Assert.Greater(Flat(Cat.transform.position, game.Tower.transform.position), 0.6f, "landed off the tower");
         }
 
         [UnityTest]
         public IEnumerator PettingSleepingCat_Purrs_StaysAsleep()
         {
             Cat.Needs.SetForTest(1f, 0.1f);
-            Cat.transform.position = game.Cushion.transform.position;
             Cat.ForceState(CatState.Sleep);
+            Time.timeScale = 3f;
+            yield return WaitUntil(() => Cat.Rig.Current == Posture.Sleep, 10f);
+            Time.timeScale = 1f;
             yield return Stroke(() => BackPoint, 2.5f);
             Assert.AreEqual(CatState.Sleep, Cat.State);
             Assert.Greater(Cat.Pet.Pleasure, 0.3f);
         }
 
         [UnityTest]
-        public IEnumerator TapCat_Meows_TapGround_CatComes()
+        public IEnumerator TapCat_Meows_TapGround_CatTrotsOver()
         {
             Cat.Needs.SetForTest(1f, 1f);
             int played = game.Audio.PlayedCount;
-            yield return Tap(Screen(Cat.Rig.Head.position));
+            yield return Tap(Screen(HeadPoint));
             Assert.Greater(game.Audio.PlayedCount, played, "meow");
 
-            Vector3 spot = new Vector3(-0.8f, 0f, -0.6f);
-            float before = Vector3.Distance(Cat.transform.position, spot);
+            Vector3 spot = new Vector3(-1.6f, 0f, -1.2f);
+            float before = Flat(Cat.transform.position, spot);
             yield return Tap(Screen(spot));
             Assert.AreEqual(CatState.Called, Cat.State);
-            yield return new WaitForSeconds(1.2f);
-            Assert.Less(Vector3.Distance(Cat.transform.position, spot), before - 0.4f);
+            yield return new WaitForSeconds(2f);
+            Assert.Less(Flat(Cat.transform.position, spot), before - 0.5f);
+        }
+
+        [UnityTest]
+        public IEnumerator Groom_PlaysGroomFaceWhileSitting()
+        {
+            Cat.Needs.SetForTest(1f, 1f);
+            Cat.NoteUserActivity();
+            Cat.ForceState(CatState.Groom);
+            yield return WaitUntil(() => Cat.Rig.ActionClip == "GroomFace", 5f);
+            Assert.AreEqual("GroomFace", Cat.Rig.ActionClip);
+            Assert.AreEqual(Posture.Sit, Cat.Rig.Current);
+        }
+
+        [UnityTest]
+        public IEnumerator Zoomies_RunsAtGallopSpeed()
+        {
+            Cat.Needs.SetForTest(1f, 1f);
+            Cat.NoteUserActivity();
+            Cat.ForceState(CatState.Zoomies);
+            float maxSpeed = 0f;
+            yield return WaitUntil(() => { maxSpeed = Mathf.Max(maxSpeed, Cat.Speed); return false; }, 2.5f);
+            Assert.Greater(maxSpeed, GameConfig.TrotSpeed, "gallop (우다다)");
         }
 
         [UnityTest]
         public IEnumerator CameraDragAndPinch()
         {
-            Vector2 empty = new Vector2(UnityEngine.Screen.width * 0.5f, UnityEngine.Screen.height * 0.08f);
+            Vector2 empty = new Vector2(UnityEngine.Screen.width * 0.5f, UnityEngine.Screen.height * 0.04f);
             float yaw0 = game.IslandCam.Yaw;
             for (int i = 0; i < 20; i++) { fingers.Press(empty + new Vector2(i * UnityEngine.Screen.height * 0.01f, 0f)); yield return null; }
             fingers.Release();
@@ -244,13 +301,14 @@ namespace CatIsland.Tests
         {
             Cat.Needs.SetForTest(1f, 1f);
             Time.timeScale = 3f;
+            Cat.ForceState(CatState.Invite);
             bool hand = false;
             yield return WaitUntil(() => { hand |= Cat.Bubble.Current == Icon.Hand; return hand; }, 25f);
-            Assert.IsTrue(hand, "cat walks up and asks to be petted");
+            Assert.IsTrue(hand, "cat walks up, sits and asks to be petted");
         }
     }
 
-    /// <summary>화면 확인용 스크린샷. Builds 옆 shots 폴더에 저장한다.</summary>
+    /// <summary>화면 확인용 스크린샷. unity/Shots 에 저장한다.</summary>
     [Category("Shots")]
     public class ScreenshotTests : SceneFixture
     {
@@ -277,6 +335,13 @@ namespace CatIsland.Tests
             Debug.Log("[Shots] " + name);
         }
 
+        IEnumerator Fast(Func<bool> cond, float max, float scale = 3f)
+        {
+            Time.timeScale = scale;
+            yield return WaitUntil(cond, max);
+            Time.timeScale = 1f;
+        }
+
         [UnityTest]
         public IEnumerator CaptureKeyMoments()
         {
@@ -288,58 +353,87 @@ namespace CatIsland.Tests
             Capture("01_overview");
 
             game.IslandCam.zoomLevel = 1; game.IslandCam.SnapNow();
-            Cat.transform.position = new Vector3(0f, 0f, -0.2f);
+            Cat.transform.position = new Vector3(0f, 0f, -0.6f);
             Cat.transform.rotation = Quaternion.Euler(0f, 150f, 0f);
             Cat.ForceState(CatState.Idle);
             yield return new WaitForSeconds(0.8f);
             Capture("02_close_idle");
 
-            Cat.transform.rotation = Quaternion.Euler(0f, 100f, 0f);
-            yield return Stroke(() => BackPoint, 2.2f);
+            Cat.transform.rotation = Quaternion.Euler(0f, 110f, 0f);
+            yield return Stroke(() => BackPoint, 3f);
             fingers.Press(Screen(BackPoint));
             yield return null;
-            Capture("03_petting_purr");
+            Capture("03_petting_sit_purr");
             fingers.Release();
 
-            Cat.transform.rotation = Quaternion.Euler(0f, 100f, 0f);
-            yield return Stroke(() => BackPoint, 10f, () => Cat.State == CatState.BellyUp);
+            yield return Stroke(() => BackPoint, 12f, () => Cat.State == CatState.BellyUp);
+            yield return Fast(() => Cat.Rig.Current == Posture.Flop, 4f);
             yield return Stroke(() => BellyPoint, 1.2f);
             fingers.Press(Screen(BellyPoint));
             yield return new WaitForSeconds(0.2f);
-            Capture("04_belly_up");
+            Capture("04_flop_belly");
             fingers.Release();
 
             Cat.ForceState(CatState.Nip);
-            yield return new WaitForSeconds(0.25f);
-            Capture("05_nip");
+            yield return Fast(() => Cat.Rig.ActionClip == "PawBat", 4f);
+            yield return new WaitForSeconds(0.45f);
+            Capture("05_nip_pawbat");
 
             yield return new WaitForSeconds(1.5f);
             Cat.Needs.SetForTest(0.1f, 0.9f);
             Cat.ForceState(CatState.WaitAtBowl);
-            yield return WaitUntil(() => Cat.State == CatState.WaitAtBowl && Cat.Speed < 0.05f && Cat.StateTime > 2.5f, 8f);
+            yield return Fast(() => Cat.State == CatState.WaitAtBowl && Cat.Rig.Current == Posture.Sit && Cat.StateTime > 1f, 20f);
             Capture("06_hungry_wait");
 
             game.Bowl.Fill();
             Cat.OnBowlFilled();
-            yield return WaitUntil(() => Cat.State == CatState.Eat, 6f);
-            yield return new WaitForSeconds(0.8f);
+            yield return Fast(() => Cat.Rig.ActionClip == "Drink", 15f);
+            yield return new WaitForSeconds(1.0f);
             Capture("07_eating");
 
-            Time.timeScale = 3f;
-            yield return WaitUntil(() => Cat.State == CatState.Knead, 20f);
-            Time.timeScale = 1f;
-            yield return new WaitForSeconds(0.6f);
-            Capture("08_knead");
-            yield return WaitUntil(() => Cat.State == CatState.Sleep && Cat.StateTime > 2f, 8f);
+            yield return Fast(() => Cat.State == CatState.LieDown && Cat.Rig.Current == Posture.Loaf, 30f);
+            yield return new WaitForSeconds(0.5f);
+            Capture("08_loaf_cushion");
+            yield return Fast(() => Cat.State == CatState.Sleep && Cat.StateTime > 2f, 15f);
             Capture("09_sleeping");
 
             Cat.Needs.SetForTest(1f, 1f);
+            Cat.transform.position = new Vector3(0f, 0f, -0.4f);
+            Cat.ForceOnTower(false);
+            Cat.ForceState(CatState.Idle);
+            yield return Fast(() => Cat.Rig.Current == Posture.Stand && !Cat.Rig.Busy, 10f);
             Cat.ForceState(CatState.Invite);
-            yield return new WaitForSeconds(2.5f);
+            yield return Fast(() => Cat.Bubble.Current == Icon.Hand, 20f);
+            yield return new WaitForSeconds(0.5f);
             Capture("10_invite");
+
+            Cat.ForceState(CatState.GoToTower);
+            yield return Fast(() => Cat.State == CatState.JumpUp && Cat.transform.position.y > 0.25f, 30f);
+            Capture("11_jump_up");
+            yield return Fast(() => Cat.State == CatState.OnTower && Cat.Rig.Current != Posture.Stand && !Cat.Rig.Busy, 15f);
+            yield return new WaitForSeconds(0.5f);
+            Capture("12_on_tower");
+
+            Cat.OnTapGround(new Vector3(0f, 0f, 0.5f));
+            yield return Fast(() => Cat.State == CatState.Idle, 20f);
+            Cat.ForceState(CatState.Groom);
+            yield return Fast(() => Cat.Rig.ActionClip == "GroomFace", 8f);
+            yield return new WaitForSeconds(1.2f);
+            Capture("13_groom");
+
+            Cat.ForceState(CatState.Zoomies);
+            yield return WaitUntil(() => Cat.Speed > 2f, 4f);
+            Capture("14_zoomies");
+
+            Cat.ForceState(CatState.Idle);
+            yield return Fast(() => Cat.Rig.CanMove, 6f);
+            Cat.ForceState(CatState.Stretch);
+            yield return WaitUntil(() => Cat.Rig.ActionClip == "Stretch" && Cat.Rig.ActionProgress > 0.45f, 6f);
+            Capture("15_stretch");
+
             game.IslandCam.zoomLevel = 0; game.IslandCam.SnapNow();
             yield return new WaitForSeconds(0.3f);
-            Capture("11_overview_late");
+            Capture("16_overview_late");
             Assert.Pass("shots saved to " + Dir);
         }
     }

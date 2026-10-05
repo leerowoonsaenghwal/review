@@ -1,0 +1,22 @@
+{
+ "id": "food_bowl",
+ "ko": "사료 그릇",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "surface": {
+   "y": 0.03,
+   "r": 0.12999999999999998
+  },
+  "rimTop": 0.038,
+  "footprint": 0.16
+ },
+ "rawTris": 76496,
+ "rawCheck": {
+  "open": 0,
+  "nonManifold": 0,
+  "volume": 0.0019870066355169845,
+  "minY": 0
+ },
+ "game_tris": 3000,
+ "texture": 1024
+}

@@ -1,0 +1,38 @@
+{
+ "id": "cat_tower_1",
+ "ko": "캣타워 1단",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "decks": [
+   {
+    "y": 0.2,
+    "z": 0,
+    "size": [
+     0.72,
+     1
+    ]
+   }
+  ],
+  "hops": [
+   {
+    "from": {
+     "y": 0,
+     "z": -0.78
+    },
+    "to": {
+     "y": 0.2,
+     "z": 0
+    }
+   }
+  ]
+ },
+ "rawTris": 424376,
+ "rawCheck": {
+  "open": 0,
+  "nonManifold": 0,
+  "volume": 0.06112846349952416,
+  "minY": 0
+ },
+ "game_tris": 6000,
+ "texture": 2048
+}

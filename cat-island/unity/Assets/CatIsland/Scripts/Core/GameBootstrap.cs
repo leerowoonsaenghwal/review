@@ -14,6 +14,7 @@ namespace CatIsland
         public CatBrain Cat { get; private set; }
         public FoodBowl Bowl { get; private set; }
         public Cushion Cushion { get; private set; }
+        public CatTower Tower { get; private set; }
         public IslandCamera IslandCam { get; private set; }
         public TouchRouter Router { get; private set; }
         public CatAudio Audio { get; private set; }
@@ -32,11 +33,10 @@ namespace CatIsland
             var world = new GameObject("World").transform;
             IslandBuilder.Build(world);
 
-            Vector3 bowlPos = new Vector3(1.05f, 0.004f, 0.75f);
-            Vector3 eatFrom = new Vector3(0.55f, 0f, 0.45f);
-            Vector3 away = bowlPos - eatFrom; away.y = 0f;
-            Bowl = FoodBowl.Create(world, bowlPos, Mathf.Atan2(away.x, away.z) * Mathf.Rad2Deg);
-            Cushion = Cushion.Create(world, new Vector3(-1.0f, 0.004f, 0.85f));
+            // 배치: 그릇은 오른쪽, 방석은 왼쪽 뒤, 캣타워는 오른쪽 뒤 (점프가 옆모습으로 보이게 -X 방향으로 오른다)
+            Bowl = FoodBowl.Create(world, new Vector3(1.9f, 0.004f, 0.6f));
+            Cushion = Cushion.Create(world, new Vector3(-1.9f, 0.004f, 1.3f));
+            Tower = CatTower.Create(world, new Vector3(1.0f, 0.004f, 2.7f), -90f);
 
             var fx = new GameObject("Fx").AddComponent<FxPool>();
             fx.transform.SetParent(world, false);
@@ -47,7 +47,7 @@ namespace CatIsland
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.backgroundColor = Palette.Sky;
             cam.nearClipPlane = 0.5f;
-            cam.farClipPlane = 60f;
+            cam.farClipPlane = 80f;
             camGo.AddComponent<AudioListener>();
             if (IsIOSSimulator())
             {
@@ -60,13 +60,14 @@ namespace CatIsland
 
             // 고양이
             var catGo = new GameObject("Cat");
-            catGo.transform.position = new Vector3(0f, 0f, -0.2f);
+            catGo.transform.position = new Vector3(0f, 0f, -0.6f);
             catGo.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
             catGo.AddComponent<CatRig>();
             Audio = catGo.AddComponent<CatAudio>();
             Cat = catGo.AddComponent<CatBrain>();
             Cat.bowl = Bowl;
             Cat.cushion = Cushion;
+            Cat.tower = Tower;
             Cat.audioOut = Audio;
             Cat.cam = camGo.transform;
             IslandCam.follow = catGo.transform;
@@ -76,6 +77,7 @@ namespace CatIsland
             Router.cat = Cat;
             Router.bowl = Bowl;
             Router.cushion = Cushion;
+            Router.tower = Tower;
             Router.islandCamera = IslandCam;
             Router.audioOut = Audio;
 
@@ -106,11 +108,11 @@ namespace CatIsland
             var sun = sunGo.AddComponent<Light>();
             sun.type = LightType.Directional;
             sun.color = Palette.SunDay;
-            sun.intensity = 1.25f;
+            sun.intensity = 0.95f;
             sun.shadows = LightShadows.Soft;
             sun.shadowStrength = 0.6f;
-            sun.shadowBias = 0.03f;
-            sun.shadowNormalBias = 0.25f;
+            sun.shadowBias = 0.3f;        // docs/ITEMS.md 그림자 설정 (깊이 0.3 / 법선 0.4)
+            sun.shadowNormalBias = 0.4f;
             sunGo.transform.rotation = Quaternion.Euler(52f, -32f, 0f);
             RenderSettings.sun = sun;
 
@@ -119,7 +121,7 @@ namespace CatIsland
             RenderSettings.ambientSkyColor = Palette.Hex("cfe6f4");
             RenderSettings.ambientEquatorColor = Palette.Hex("f6ead2");
             RenderSettings.ambientGroundColor = Palette.Hex("c4dfa0");
-            RenderSettings.ambientIntensity = 1f;
+            RenderSettings.ambientIntensity = 0.8f;
             RenderSettings.fog = false;
         }
     }

@@ -6,6 +6,7 @@
 """
 import json
 import shutil
+import struct
 import sys
 from pathlib import Path
 
@@ -26,12 +27,37 @@ def copy(src: Path, dst: Path) -> bool:
     return True
 
 
+def extract_face_atlas(glb: Path, dst: Path) -> bool:
+    """FBX에는 얼굴 색 아틀라스(눈·코·입 색)가 들어 있지 않아 glb에서 꺼낸다 (FaceGloss/Lid 재질이 쓰는 그림)."""
+    if not glb.exists():
+        print(f"  없음: {glb}")
+        return False
+    data = glb.read_bytes()
+    jlen = struct.unpack("<I", data[12:16])[0]
+    gltf = json.loads(data[20:20 + jlen])
+    bin_start = 20 + jlen + 8
+    mat = next((m for m in gltf["materials"] if m["name"] == "FaceGloss"), None)
+    if mat is None:
+        print(f"  FaceGloss 재질 없음: {glb.name}")
+        return False
+    img = gltf["images"][gltf["textures"][mat["pbrMetallicRoughness"]["baseColorTexture"]["index"]]["source"]]
+    bv = gltf["bufferViews"][img["bufferView"]]
+    png = data[bin_start + bv.get("byteOffset", 0): bin_start + bv.get("byteOffset", 0) + bv["byteLength"]]
+    if dst.exists() and dst.read_bytes() == png:
+        return True
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_bytes(png)
+    print(f"  얼굴 아틀라스: {dst.name}")
+    return True
+
+
 def main() -> int:
     manifest = json.loads((UNITY / "tools" / "art_manifest.json").read_text())
     ok = True
     for cat in manifest["cats"]:
         for ext in (".fbx", ".clips.json"):
             ok &= copy(ASSETS / "cats" / f"{cat}{ext}", ART / "Cats" / f"{cat}{ext}")
+        ok &= extract_face_atlas(ASSETS / "cats" / f"{cat}.glb", ART / "Cats" / f"{cat}_face.png")
     for item in manifest["items"]:
         for name in (f"{item}.fbx", f"{item}_color.jpg", f"{item}_normal.png", f"{item}.json"):
             ok &= copy(ASSETS / "items" / item / name, ART / "Items" / item / name)

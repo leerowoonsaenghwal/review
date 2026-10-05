@@ -10,11 +10,12 @@ namespace CatIsland
     /// </summary>
     public class TouchRouter : MonoBehaviour
     {
-        enum Mode { None, Pet, Bowl, Cushion, Background, CameraDrag, Pinch }
+        enum Mode { None, Pet, Bowl, Cushion, Tower, Background, CameraDrag, Pinch }
 
         public CatBrain cat;
         public FoodBowl bowl;
         public Cushion cushion;
+        public CatTower tower;
         public IslandCamera islandCamera;
         public CatAudio audioOut;
         public IPointerSource source = new InputSystemPointers();
@@ -125,11 +126,8 @@ namespace CatIsland
             {
                 if (cat && cat.Rig.IsCatCollider(hit.collider)) mode = Mode.Pet;
                 else if (bowl && hit.collider.gameObject == bowl.gameObject) mode = Mode.Bowl;
-                else if (cushion && hit.collider.gameObject == cushion.gameObject)
-                {
-                    // 고양이가 방석 위에 있으면 고양이가 우선
-                    mode = Mode.Cushion;
-                }
+                else if (cushion && hit.collider.gameObject == cushion.gameObject) mode = Mode.Cushion;
+                else if (tower && hit.collider.gameObject == tower.gameObject) mode = Mode.Tower;
             }
         }
 
@@ -159,6 +157,9 @@ namespace CatIsland
                         Haptics.Impact(ImpactStyle.Soft, 0.5f);
                         cat?.OnCushionTapped();
                     }
+                    break;
+                case Mode.Tower:
+                    if (!movedFar) cat?.OnTowerTapped();
                     break;
                 case Mode.Background:
                     if (tap)
