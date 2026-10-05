@@ -427,7 +427,19 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
       // closed eye: squashed onto a soft 'U' line (AC sleepy eye), highlights tucked behind
       const shut = (v, back = 0) => { const u = v.x / (er * sx); v.y = -.1 * er + .16 * er * u * u + (v.y + .1 * er) * .07; v.z -= back; return v; };
       // eye: dark glossy top fading to the breed's eye colour underneath (gradient slot in the atlas)
-      if (AC) faceAdd(pinch(ell(er * .82, sx * .92, sy * 1.12, sz, 32)), C('#2a201b'), M, 0, { blink: v => shut(v) });   // one dark glossy shape
+      // style 'ac' eyes: one dark glossy shape. On a dark coat the dark eye disappears into the fur, so there
+      // (opts.darkEye, default 'iris') the eye shows the breed's eye colour with a dark pupil in front, or
+      // ('rim') a thin cream ring round the dark eye
+      const coatL = (() => { const b0 = C(coatSpecIn.base || '#999999'); return .2126 * b0.r + .7152 * b0.g + .0722 * b0.b; })();
+      const darkEye = AC && coatL < .12 ? (opts.darkEye || 'iris') : 'none';
+      if (AC && darkEye === 'iris') {
+        faceAdd(pinch(ell(er * .86, sx * .92, sy * 1.1, sz, 32)), colorAt(x > 0 ? 'eye2' : 'eye'), M, 0, { blink: v => shut(v) });
+        const pg = ell(er * .5, sx * .78, sy * 1.12, sz, 24); pg.translate(0, 0, er * .17);   // (just proud of the iris)
+        faceAdd(pg, C('#2a201b'), M, 0, { blink: v => shut(v) });
+      } else if (AC) {
+        faceAdd(pinch(ell(er * .82, sx * .92, sy * 1.12, sz, 32)), C('#2a201b'), M, 0, { blink: v => shut(v) });   // one dark glossy shape
+        if (darkEye === 'rim') { const rg = new THREE.TorusGeometry(er * .84, er * .07, 8, 40); rg.scale(sx * .92, sy * 1.12, .5); rg.translate(0, 0, er * sz * .2); faceAdd(rg, C('#f3ead8'), M, 0, { blink: v => shut(v) }); }
+      }
       else faceAdd(pinch(ell(er, sx, sy, sz, 32)), C('#ffffff'), M, 0, { blink: v => shut(v) }, { color: colorAt(x > 0 ? 'eye2' : 'eye'), h: er * sy });
       const lidY = 1 - 2 * s.eyeLid;
       if (s.eyeLid > 0) {
