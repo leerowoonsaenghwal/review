@@ -1,0 +1,131 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>html,body{margin:0;background:#000}canvas{display:block}</style>
+<script type="importmap">{ "imports": { "three": "./node_modules/three/build/three.module.js", "three/addons/": "./node_modules/three/examples/jsm/" } }</script>
+</head><body>
+<script type="module">
+// Motion feel test (step B): the same cat, left = the clips as they are, right = the clips with motionfeel.js
+// (springs on tail and ears, squash and stretch, a held anticipation, walk bounce, petting reaction).
+// ?scene=jump|walk|pet&size=540   then window.frame(i) renders frame i (30 fps), window.__frames = frame count
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { BREEDS } from './catgen.js';
+import { buildCatModel } from './catmodel.js';
+import { makeRig, makeClips, solveAt } from './catmotion.js';
+import { SpringBones, Squash, holdRemap, walkBounce, PetReaction, heartSprite, cartoonHand } from './motionfeel.js';
+const q = new URLSearchParams(location.search);
+const N = +(q.get('size') || 540), scene = q.get('scene') || 'jump', FPS = 30;
+const b = BREEDS.find(x => x.id === (q.get('breed') || 'korean_shorthair'));
+const C = h => new THREE.Color(h);
+
+const cat = buildCatModel(b.shape, b.coat, { res: +(q.get('res') || .016) });
+const S = makeRig(buildCatModel(b.shape, b.coat, { res: .03 }));
+const rig = makeRig(cat);
+cat.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.frustumCulled = false; } });
+const grp = new THREE.Group(); grp.add(cat);
+const H = scene === 'jump' ? .4 : .2;
+const clipsNow = makeClips(rig, { solveRig: S, only: ['JumpUp'], noVerify: true });
+const clipsNew = scene === 'jump' ? makeClips(rig, { solveRig: S, only: ['JumpUp'], noVerify: true, jumpH: .4 }) : clipsNow;
+const get = (cs, n) => cs.find(c => c.name === n);
+
+// ---- renderer, light and ground (the confirmed look)
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+r.setPixelRatio(1); r.setSize(2 * N, N); r.setScissorTest(true); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.NeutralToneMapping;
+document.body.append(r.domElement);
+const sc = new THREE.Scene(); sc.background = C('#8fd6f2'); sc.fog = new THREE.Fog('#8fd6f2', 7, 16); sc.add(grp);
+sc.add(new THREE.HemisphereLight('#cdeeff', '#7fb85a', 1.15));
+const sun = new THREE.DirectionalLight('#fff0d0', 3.1); sun.position.set(-2.2, 4.2, 3); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -.0002; sun.shadow.normalBias = .012; sun.shadow.radius = 3;
+Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3, near: .1, far: 20 }); sc.add(sun); sc.add(sun.target);
+let seed = 5; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const cv = document.createElement('canvas'); cv.width = cv.height = 512; { const g = cv.getContext('2d'); g.fillStyle = '#74c254'; g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 220; i++) { g.fillStyle = rnd() < .5 ? '#7cc85b' : '#6dbb4e'; g.beginPath(); g.ellipse(rnd() * 512, rnd() * 512, 5 + rnd() * 12, 4 + rnd() * 8, rnd() * 3, 0, 7); g.fill(); }
+  for (let i = 0; i < 20; i++) { g.fillStyle = rnd() < .6 ? '#fdfbef' : '#ffe27a'; g.beginPath(); g.arc(rnd() * 512, rnd() * 512, 3, 0, 7); g.fill(); } }
+const gt = new THREE.CanvasTexture(cv); gt.colorSpace = THREE.SRGBColorSpace; gt.wrapS = gt.wrapT = THREE.RepeatWrapping; gt.repeat.set(14, 14);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ map: gt, roughness: .95 })); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; sc.add(ground);
+
+// ---- props: a deck for each jump height
+const decks = {};
+const deckFor = (clip, h) => {
+  const g = new THREE.Group(), back = clip.jump.deckBack, L = .8;
+  const wood = new THREE.Mesh(new RoundedBoxGeometry(.8, h, L, 4, .02), new THREE.MeshStandardMaterial({ color: '#c98f58', roughness: .7 })); wood.position.set(0, h / 2, back + L / 2); g.add(wood);
+  const top = new THREE.Mesh(new RoundedBoxGeometry(.74, .012, L - .06, 3, .005), new THREE.MeshStandardMaterial({ color: '#7fcbe8', roughness: 1 })); top.position.set(0, h + .002, back + L / 2); g.add(top);
+  g.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } }); sc.add(g); return g;
+};
+if (scene === 'jump') { decks.now = deckFor(get(clipsNow, 'JumpUp'), .2); decks.new = deckFor(get(clipsNew, 'JumpUp'), .4); }
+const hand = scene === 'pet' ? cartoonHand() : null; if (hand) sc.add(hand);
+const heartMat = heartSprite(), hearts = [];
+for (let i = 0; i < 6; i++) { const s = new THREE.Sprite(heartMat.clone()); s.scale.setScalar(.09); s.visible = false; sc.add(s); hearts.push(s); }
+
+// ---- the feel layer (right panel only)
+const B = rig.B;
+const springs = new SpringBones([Array.from({ length: 10 }, (_, i) => B['Tail' + (i + 1)]), [B.Ear_L], [B.Ear_R]], { stiffness: 80, damping: 10 });
+const squash = new Squash(), pet = new PetReaction(rig);
+const jumpNow = get(clipsNow, 'JumpUp'), jumpNew = get(clipsNew, 'JumpUp'), walk = get(clipsNow, 'Walk'), sit = get(clipsNow, 'Sit');
+const DUR = scene === 'jump' ? Math.max(jumpNow.dur, jumpNew.dur + .2) + .6 : scene === 'walk' ? walk.cycle * 3 : 5.2;
+window.__frames = Math.round(DUR * FPS);
+
+const rootW = new THREE.Vector3(), headW = new THREE.Vector3();
+function pose(side, t) {
+  grp.scale.set(1, 1, 1); grp.position.set(0, 0, 0); cat.rotation.set(0, 0, 0);
+  const nw = side === 'new';
+  if (scene === 'jump') {
+    decks.now.visible = !nw; decks.new.visible = nw;
+    const clip = nw ? jumpNew : jumpNow;
+    const tc = nw ? holdRemap(t, .95, .18, 1.12) : t;          // hold at the bottom of the crouch, then go
+    solveAt(rig, clip, Math.min(tc, clip.dur));
+  } else if (scene === 'walk') {
+    solveAt(rig, walk, t);
+  } else {
+    cat.rotation.y = .5; solveAt(rig, sit, t % sit.dur);
+  }
+  cat.updateMatrixWorld(true);
+  if (nw) {
+    if (scene === 'pet') pet.apply(t, ss(.6, 1.4, t));
+    springs.update(1 / FPS);
+    B.Root.getWorldPosition(rootW);
+    let sy = 1, yoff = 0;
+    if (scene === 'jump') { const s2 = squash.update(1 / FPS, rootW.y); sy = s2.sy; }
+    if (scene === 'walk') { const wb = walkBounce(t, walk.cycle); sy = wb.sy; yoff = wb.y; }
+    const sxz = 1 / Math.sqrt(sy);
+    grp.scale.set(sxz, sy, sxz); grp.position.set(rootW.x * (1 - sxz), rootW.y * (1 - sy) + yoff, rootW.z * (1 - sxz));
+  }
+  grp.updateMatrixWorld(true);
+}
+function ss(a, b2, x) { const u = Math.min(1, Math.max(0, (x - a) / (b2 - a))); return u * u * (3 - 2 * u); }
+
+const cam = new THREE.PerspectiveCamera(28, 1, .05, 60);
+function place(t) {
+  B.Root.getWorldPosition(rootW); B.Head.getWorldPosition(headW);
+  if (scene === 'jump') { const zc = .55; cam.position.set(3.1, 1.25, zc + .6); cam.lookAt(0, .42, zc); }
+  else if (scene === 'walk') { cam.position.set(2.4, .9, rootW.z + .5); cam.lookAt(0, .38, rootW.z + .05); }
+  else { cam.position.set(headW.x + 1.5, headW.y + .8, headW.z + 2.2); cam.lookAt(headW.x, headW.y - .02, headW.z); }
+  sun.position.set(rootW.x - 2.2, 4.2, rootW.z + 3); sun.target.position.copy(rootW);
+}
+function props(side, t) {
+  const nw = side === 'new';
+  if (hand) {   // strokes from the forehead back over the head, lifting between strokes
+    B.Head.getWorldPosition(headW);
+    const ph = ((t - .3) / 1.3) % 1, stroke = t < .3 ? 0 : ph;
+    const along = stroke < .7 ? stroke / .7 : 1 - (stroke - .7) / .3, lift = stroke < .7 ? 0 : Math.sin(Math.PI * (stroke - .7) / .3) * .07;
+    const yaw = cat.rotation.y, fwd = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+    hand.position.copy(headW).addScaledVector(fwd, .16 - .34 * along).add(new THREE.Vector3(0, .26 + lift + (nw ? .02 * Math.sin(t * 9) : 0), 0));
+    hand.rotation.set(-.15, yaw + Math.PI, 0);
+  }
+  for (const [i, s] of hearts.entries()) {
+    const t0 = 1.2 + i * .65, u = (t - t0) / 1.5;
+    s.visible = nw && scene === 'pet' && u > 0 && u < 1;
+    if (s.visible) { B.Head.getWorldPosition(headW); s.position.set(headW.x + .18 * Math.sin(i * 2.1), headW.y + .3 + .35 * u, headW.z + .05); s.material.opacity = 1 - u * u; s.scale.setScalar(.07 + .04 * Math.sin(Math.PI * Math.min(1, u * 3))); }
+  }
+}
+window.frame = (i) => {
+  const t = i / FPS;
+  for (const [k, side] of [[0, 'now'], [1, 'new']]) {
+    pose(side, t); props(side, t); place(t);
+    r.setViewport(k * N, 0, N, N); r.setScissor(k * N, 0, N, N); r.render(sc, cam);
+  }
+  return true;
+};
+window.__done = true;
+</script></body></html>

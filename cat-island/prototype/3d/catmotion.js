@@ -750,7 +750,7 @@ export function makeClips(rig, opts = {}) {
   {
     // the jump carries the cat its own length forward: at take-off the head must be clear of the deck the hind
     // paws then land on (a long cat cannot stand right in front of a deck it can reach in one hop)
-    const d0 = rig.d, Hup = .2, tLift = 1.0, tPush = 1.1;
+    const d0 = rig.d, Hup = opts.jumpH || .2, tLift = 1.0, tPush = 1.1;   // (opts.jumpH: deck height; .4 for the new towers, step B)
     const headFront = (() => { const C = contactOf(S); applyPose(S, P0); C.update({ face: false }); let z = -Infinity; const p = C.M.body.pos; for (const i of C.sets.head.ids) z = Math.max(z, p[3 * i + 2]); return z; })();
     const D = Math.max(.78, headFront + .12 - rig.restFoot.HL.z), deckBack = D + rig.restFoot.HL.z - .15;   // (room for the raised heel behind the toes)
     const apex = Hup + .1, vy = Math.sqrt(2 * G * apex), Tf = vy / G + Math.sqrt(2 * (apex - Hup) / G);
