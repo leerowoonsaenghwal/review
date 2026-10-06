@@ -90,3 +90,8 @@
 - 2026-10-06 자율 개발 시작. 이 목록을 만듦.
 - 2026-10-06 사진 고양이: 눈 모양·수염을 고양이 파일 하나에 모두 넣고 고른 것만 보이게(CatFace, 그리기 횟수 그대로). 털 색은 털 마스크로 셰이더에서 바꾸기(CatCoat), 턱시도·젖소·삼색·카오스·흰 바탕 태비는 코리안 숏헤어 몸 + 미리 구운 털. 사진 분석이 흰 털 색·두 번째 색·무늬 털을 함께 넘김. 만들기 화면 3D 미리보기. 앱 아이콘 연결, 버전 1.0.0. 성능 측정 테스트 추가.
 - 2026-10-06 날씨(맑음·흐림·비·눈, 날짜·계절로) + 비·눈 파티클. 고양이끼리: 장난꾸러기는 쫓기 놀이(둘 다 놀이 +), 다른 고양이는 친구 옆에 가서 같이 앉고 세수. 앱스토어 스크린샷 도구. 테스트 EditMode 41, PlayMode 30(+건너뜀 2).
+- 2026-10-07 33품종 다시 만들기 중간: 새 그림체로 끝난 품종의 빠진 동작 (예전 → 지금)
+  - 코리안 숏헤어 없음 → 없음 / 스코티시 Gallop·GroomFace·ScratchEar → Gallop·GroomFace / 브리티시 GroomFace·ScratchEar·NibbleClaws → ScratchEar·NibbleClaws
+  - 먼치킨 5개 → GroomFace·ScratchEar·NibbleClaws·PawBat / 오리엔탈 Gallop·ScratchEar → GroomFace·ScratchEar / 스핑크스 Gallop·ScratchEar → GroomFace·ScratchEar
+  - 그 밖: 샴 GroomFace·ScratchEar·NibbleClaws, 러시안 블루·아메리칸·버먼·사바나 GroomFace, 이집션 마우·아비시니안 Gallop·GroomFace, 벵갈 없음
+  - 빠진 그루밍은 게임에서 있는 그루밍 동작 중에서 골라 대신한다. 털 긴 품종(페르시안·히말라얀·랙돌·친칠라·노르웨이 숲·메인쿤)은 내보내기 시간 한도로 실패 → 한도 24시간으로 다시
