@@ -75,7 +75,7 @@ namespace CatIsland
     /// <summary>하트, 음표, 반짝이가 떠오르는 효과.</summary>
     public class FxPool : MonoBehaviour
     {
-        class P { public Transform t; public Material m; public Vector3 v; public float life, age, size, spin; public bool active; }
+        class P { public Transform t; public Material m; public Vector3 v; public float life, age, size, spin; public bool active, dust; }
         readonly List<P> pool = new List<P>();
         public static FxPool Instance { get; private set; }
         public int ActiveCount { get; private set; }
@@ -89,7 +89,7 @@ namespace CatIsland
                 var p = Get();
                 p.m.SetTexture("_MainTex", IconPainter.Get(icon));
                 p.t.position = pos + new Vector3(Random.Range(-spread, spread), Random.Range(0f, spread * 0.5f), Random.Range(-spread, spread));
-                p.v = new Vector3(Random.Range(-0.15f, 0.15f), Random.Range(0.45f, 0.7f), Random.Range(-0.1f, 0.1f));
+                p.v = new Vector3(Random.Range(-0.15f, 0.15f), Random.Range(0.45f, 0.7f), Random.Range(-0.1f, 0.1f)); p.dust = false;
                 p.life = Random.Range(0.9f, 1.3f);
                 p.age = -i * 0.07f;
                 p.size = size * Random.Range(0.8f, 1.15f);
@@ -97,6 +97,21 @@ namespace CatIsland
                 p.t.localScale = Vector3.zero;
                 p.active = true;
                 p.t.gameObject.SetActive(true);
+            }
+        }
+
+        /// <summary>착지 먼지: 발밑에서 옆으로 퍼지며 커지고 옅어지는 작은 구름 몇 개.</summary>
+        public void Dust(Vector3 pos, int count = 4, float size = .09f)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                var p = Get(); float a = (i + Random.value * .6f) / count * Mathf.PI * 2f;
+                p.m.SetTexture("_MainTex", IconPainter.Get(Icon.Dust));
+                var dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                p.t.position = pos + dir * .1f + Vector3.up * .03f;
+                p.v = dir * Random.Range(.35f, .55f) + Vector3.up * .08f;
+                p.life = Random.Range(.45f, .6f); p.age = 0f; p.size = size * Random.Range(.8f, 1.2f); p.spin = 0f;
+                p.dust = true; p.active = true; p.t.localScale = Vector3.zero; p.t.gameObject.SetActive(true);
             }
         }
 
@@ -131,6 +146,14 @@ namespace CatIsland
                 float k = p.age / p.life;
                 p.t.position += p.v * dt;
                 p.v *= 1f - dt * 1.2f;
+                if (p.dust)
+                {
+                    p.v *= 1f - dt * 3f;
+                    p.t.localScale = Vector3.one * p.size * (0.6f + 0.9f * k);
+                    if (cam) p.t.rotation = cam.transform.rotation;
+                    p.m.SetColor("_BaseColor", new Color(1f, 1f, 1f, .75f * (1f - k)));
+                    continue;
+                }
                 float pop = k < 0.15f ? Mathf.SmoothStep(0f, 1.2f, k / 0.15f) : Mathf.Lerp(1.2f, 1f, Mathf.Clamp01((k - 0.15f) * 4f));
                 p.t.localScale = Vector3.one * p.size * pop;
                 if (cam) p.t.rotation = cam.transform.rotation * Quaternion.Euler(0f, 0f, p.spin * Mathf.Sin(p.age * 4f));

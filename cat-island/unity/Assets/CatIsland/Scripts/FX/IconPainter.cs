@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace CatIsland
 {
-    public enum Icon { Bubble, Heart, Fish, Sleep, Hand, Exclaim, Note, Sparkle }
+    public enum Icon { Bubble, Heart, Fish, Sleep, Hand, Exclaim, Note, Sparkle, Dust }
 
     /// <summary>
     /// 말풍선 아이콘을 거리장(SDF)으로 그린다. 그림 파일이 없어도 번역할 글자 없이 상태를 보여 준다.
@@ -116,6 +116,9 @@ namespace CatIsland
                     break;
                 case Icon.Sparkle:
                     layers.Add(new Layer { sdf = p => Union(Ellipse(p, Vector2.zero, new Vector2(0.14f, 0.7f)), Ellipse(p, Vector2.zero, new Vector2(0.7f, 0.14f))), color = Palette.Butter });
+                    break;
+                case Icon.Dust:   // (착지 먼지: 작은 구름 뭉치)
+                    layers.Add(new Layer { sdf = p => Union(Circle(p, new Vector2(-0.3f, -0.1f), 0.38f), Circle(p, new Vector2(0.28f, -0.12f), 0.34f), Circle(p, new Vector2(0f, 0.22f), 0.42f)), color = Palette.Cream });
                     break;
             }
 

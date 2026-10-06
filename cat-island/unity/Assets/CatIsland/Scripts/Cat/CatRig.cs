@@ -454,7 +454,7 @@ namespace CatIsland
         {
             dt = Mathf.Min(dt, 1f / 20f);
             float y = transform.position.y, vy = float.IsNaN(prevY) ? 0f : (y - prevY) / dt;
-            if (prevVy < -.8f && vy > -.2f) sqV -= 1.3f * Mathf.Min(2f, -prevVy / 2.5f);   // 착지: 눌림
+            if (prevVy < -.8f && vy > -.2f) { sqV -= 1.3f * Mathf.Min(2f, -prevVy / 2.5f); if (prevVy < -1.2f) FxPool.Instance?.Dust(transform.position); }   // 착지: 눌림 + 작은 먼지
             if (prevVy > -.05f && vy > 1f) sqV += .6f;                                      // 뛰어오름: 늘어남
             float target = Mathf.Clamp(.05f * Mathf.Abs(vy), 0f, .1f);
             sqV += (260f * (target - sqS) - 16f * sqV) * dt; sqS += sqV * dt;
