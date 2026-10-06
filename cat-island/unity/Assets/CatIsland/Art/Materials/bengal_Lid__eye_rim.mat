@@ -1,0 +1,60 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: bengal_Lid__eye_rim
+  m_Shader: {fileID: 4800000, guid: b651a4307c3c745d08a3704233dcbd53, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 1
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _BaseMap:
+        m_Texture: {fileID: 2800000, guid: c8c1588c39aed4443a583947a98da86d, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _BumpMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _CoatMask:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _BumpScale: 1
+    - _Emission: 0
+    - _Gloss: 0
+    - _GroundAO: 0
+    - _RimStrength: 0.05
+    - _UseCoatMask: 0
+    - _WorldUV: 0
+    - _Wrap: 0.45
+    m_Colors:
+    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _NewBase: {r: 1, g: 1, b: 1, a: 1}
+    - _NewDark: {r: 0, g: 0, b: 0, a: 1}
+    - _NewSecond: {r: 1, g: 0.5, b: 0, a: 1}
+    - _NewWhite: {r: 1, g: 1, b: 1, a: 1}
+    - _OldBase: {r: 1, g: 1, b: 1, a: 1}
+    - _OldDark: {r: 0, g: 0, b: 0, a: 1}
+    - _OldSecond: {r: 1, g: 0.5, b: 0, a: 1}
+    - _OldWhite: {r: 1, g: 1, b: 1, a: 1}
+    - _ShadowTint: {r: 0.86, g: 0.8, b: 0.92, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1

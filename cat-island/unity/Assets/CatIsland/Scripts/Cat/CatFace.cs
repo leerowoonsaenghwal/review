@@ -10,6 +10,9 @@ namespace CatIsland
     /// 고른 조각만 원래 재질 조각에 합쳐 새 메시를 만들고 나머지는 뺀다: 화면에 그리는 횟수는 그대로.
     /// 같은 품종·같은 선택은 메시를 함께 쓴다.
     /// </summary>
+    /// <summary>고르기 전 얼굴 (CatFace).</summary>
+    public class FaceSource : MonoBehaviour { public Mesh mesh; public Material[] mats; }
+
     public static class CatFace
     {
         public static readonly string[] Eyes = { "dark", "iris", "rim" };
@@ -34,6 +37,10 @@ namespace CatIsland
         public static void Apply(SkinnedMeshRenderer face, string key, string eye, string whisker, string fallbackEye, string fallbackWhisker)
         {
             if (face == null) return;
+            // 원래 얼굴(모든 조각)을 붙여 두고 언제나 거기서 고른다: 한 번 고른 뒤에는 고를 조각이 이미 빠져 있다
+            var src = face.GetComponent<FaceSource>() ?? face.gameObject.AddComponent<FaceSource>();
+            if (src.mesh == null) { src.mesh = face.sharedMesh; src.mats = face.sharedMaterials; }
+            face.sharedMesh = src.mesh; face.sharedMaterials = src.mats;
             var vars = Variants(face).ToList();
             if (vars.Count == 0) return;   // (예전 에셋: 하나만 들어 있음)
             string Pick(string prefix, string want, string fb)

@@ -62,8 +62,14 @@ namespace CatIsland
         {
             t += Time.deltaTime;
             float k = 220f, d = 16f;
-            scaleVel += (-(scale - shown) * k - scaleVel * d) * Time.deltaTime;
-            scale += scaleVel * Time.deltaTime;
+            // (작은 단계로 나눠 푼다: 한 프레임이 길면(빨리 감기·멈칫) 한 번에 풀던 스프링이 튀어 말풍선이 수천 배로 커졌다)
+            for (float left = Mathf.Min(Time.deltaTime, .25f); left > 0f; left -= 1f / 120f)
+            {
+                float h = Mathf.Min(left, 1f / 120f);
+                scaleVel += (-(scale - shown) * k - scaleVel * d) * h;
+                scale += scaleVel * h;
+            }
+            if (float.IsNaN(scale)) { scale = shown; scaleVel = 0f; }
             float s = Mathf.Max(0f, scale);
             root.localScale = Vector3.one * s;
             root.localPosition = new Vector3(0f, Mathf.Sin(t * 2.4f) * 0.02f, 0f);

@@ -140,6 +140,7 @@ namespace CatIsland.EditorTools
             imp.animationCompression = ModelImporterAnimationCompression.KeyframeReduction;
             imp.animationRotationError = .2f; imp.animationPositionError = .2f; imp.animationScaleError = .5f;
             imp.meshCompression = ModelImporterMeshCompression.Low;
+            imp.isReadable = true;   // (CatFace: 고른 눈·수염 조각만 합친 메시를 만들려면 얼굴 삼각형을 읽어야 한다)
             imp.SaveAndReimport();
 
             // 2. 내장 텍스처 꺼내기

@@ -110,10 +110,39 @@ namespace CatIsland.Tests
         }
 
         [UnityTest]
+        public IEnumerator NoBrokenBounds_WhileBootingAndPlaying()
+        {
+            LogAssert.ignoreFailingMessages = true;   // (엔진 경고 대신 어떤 물체인지 직접 찾는다)
+            var g = game.Logic; g.S.catSlots = 4; g.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Playful); g.AddCat("persian", "보리", CatIsland.Game.Personality.Easygoing);
+            game.SyncCats();
+            string bad = null;
+            for (int f = 0; f < 240 && bad == null; f++)
+            {
+                yield return null;
+                foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+                {
+                    if (!r.enabled || !r.gameObject.activeInHierarchy) continue;
+                    var b = r.bounds; var c = b.center; var e = b.extents;
+                    if (float.IsNaN(c.x + c.y + c.z + e.x + e.y + e.z) || e.magnitude > 1000f || c.magnitude > 10000f)
+                    { bad = $"{r.name} ({r.GetType().Name}) frame {f} center {c} ext {e} parent {(r.transform.parent ? r.transform.parent.name : "-")}"; break; }
+                }
+                foreach (var t in Object.FindObjectsByType<Transform>(FindObjectsSortMode.None))
+                {
+                    var p = t.position; var sc = t.lossyScale;
+                    if (float.IsNaN(p.x + p.y + p.z + sc.x + sc.y + sc.z)) { bad = $"transform {t.name} parent {(t.parent ? t.parent.name : "-")} frame {f} pos {p} scale {sc}"; break; }
+                }
+            }
+            LogAssert.ignoreFailingMessages = false;
+            Assert.IsNull(bad, bad);
+        }
+
+        [UnityTest]
         public IEnumerator FaceVariants_AndPhotoCoat()
         {
             var face = Cat.Rig.GetComponentsInChildren<SkinnedMeshRenderer>(true).First(r => r.sharedMesh.blendShapeCount > 0);
-            if (!CatFace.Variants(face).Any() && !face.sharedMaterials.Any(m => m.name.Contains("__")))
+            var prefab = Resources.Load<GameObject>("Art/Cats/" + Cat.Rig.breed);
+            var srcFace = prefab.GetComponentsInChildren<SkinnedMeshRenderer>(true).First(r => r.sharedMesh.blendShapeCount > 0);
+            if (!CatFace.Variants(srcFace).Any())   // (게임 고양이는 이미 고른 조각만 합쳐 둔 상태: 원본 프리팹으로 본다)
             {
                 // (예전 에셋: 얼굴에 고를 조각이 없다. 33품종을 다시 만든 뒤부터 검사)
                 Assert.Ignore("face variants not in this asset yet");

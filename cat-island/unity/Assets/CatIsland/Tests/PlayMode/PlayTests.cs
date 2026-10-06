@@ -28,6 +28,7 @@ namespace CatIsland.Tests
             Time.timeScale = 1f;
             var go = new GameObject("Bootstrap");
             game = go.AddComponent<GameBootstrap>();
+            go.AddComponent<BoundsWatch>();
             fingers = new ScriptedPointers();
             game.Router.source = fingers;
             yield return null;
