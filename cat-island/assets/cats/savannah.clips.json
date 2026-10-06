@@ -11,27 +11,41 @@
    "speed": null,
    "stride": null,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
   },
   {
    "name": "Walk",
-   "dur": 1.867,
+   "dur": 1.533,
    "loop": true,
    "rootMotion": true,
-   "speed": 0.494,
-   "stride": 0.458,
+   "speed": 0.403,
+   "stride": 0.307,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
   },
   {
    "name": "Trot",
-   "dur": 0.967,
+   "dur": 0.8,
    "loop": true,
    "rootMotion": true,
-   "speed": 1.275,
-   "stride": 0.629,
+   "speed": 1.048,
+   "stride": 0.422,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
+  },
+  {
+   "name": "Gallop",
+   "dur": 0.867,
+   "loop": true,
+   "rootMotion": true,
+   "speed": 2.271,
+   "stride": 0.646,
+   "jump": null,
+   "drink": null,
+   "lickUp": null
   },
   {
    "name": "JumpUp",
@@ -41,11 +55,90 @@
    "speed": null,
    "stride": null,
    "jump": {
-    "D": 0.96,
+    "D": 0.829,
     "H": 0.2,
-    "deckBack": 0.625
+    "deckBack": 0.534
    },
-   "drink": null
+   "drink": null,
+   "lickUp": null
+  },
+  {
+   "name": "JumpDown",
+   "dur": 1.933,
+   "loop": false,
+   "rootMotion": true,
+   "speed": null,
+   "stride": null,
+   "jump": {
+    "D": 0.611,
+    "H": -0.2,
+    "edge": 0.346,
+    "turnIn": 0.05
+   },
+   "drink": null,
+   "lickUp": null
+  },
+  {
+   "name": "JumpUp40",
+   "dur": 2.467,
+   "loop": false,
+   "rootMotion": true,
+   "speed": null,
+   "stride": null,
+   "jump": {
+    "D": 0.829,
+    "H": 0.4,
+    "deckBack": 0.534
+   },
+   "drink": null,
+   "lickUp": null
+  },
+  {
+   "name": "JumpDown40",
+   "dur": 2,
+   "loop": false,
+   "rootMotion": true,
+   "speed": null,
+   "stride": null,
+   "jump": {
+    "D": 0.611,
+    "H": -0.4,
+    "edge": 0.346,
+    "turnIn": 0.05
+   },
+   "drink": null,
+   "lickUp": null
+  },
+  {
+   "name": "JumpUp80",
+   "dur": 2.567,
+   "loop": false,
+   "rootMotion": true,
+   "speed": null,
+   "stride": null,
+   "jump": {
+    "D": 0.829,
+    "H": 0.8,
+    "deckBack": 0.534
+   },
+   "drink": null,
+   "lickUp": null
+  },
+  {
+   "name": "JumpDown80",
+   "dur": 2.1,
+   "loop": false,
+   "rootMotion": true,
+   "speed": null,
+   "stride": null,
+   "jump": {
+    "D": 0.611,
+    "H": -0.8,
+    "edge": 0.346,
+    "turnIn": 0.05
+   },
+   "drink": null,
+   "lickUp": null
   },
   {
    "name": "SitDown",
@@ -55,7 +148,8 @@
    "speed": null,
    "stride": null,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
   },
   {
    "name": "Sit",
@@ -65,7 +159,8 @@
    "speed": null,
    "stride": null,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
   },
   {
    "name": "StandUp",
@@ -75,7 +170,8 @@
    "speed": null,
    "stride": null,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
   },
   {
    "name": "LieDown",
@@ -85,7 +181,8 @@
    "speed": null,
    "stride": null,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
   },
   {
    "name": "Loaf",
@@ -95,7 +192,8 @@
    "speed": null,
    "stride": null,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
   },
   {
    "name": "Sleep",
@@ -105,7 +203,8 @@
    "speed": null,
    "stride": null,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
   },
   {
    "name": "FallAsleep",
@@ -115,17 +214,19 @@
    "speed": null,
    "stride": null,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
   },
   {
-   "name": "GroomFace",
-   "dur": 6.6,
+   "name": "ScratchEar",
+   "dur": 3,
    "loop": true,
    "rootMotion": false,
    "speed": null,
    "stride": null,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
   },
   {
    "name": "NibbleClaws",
@@ -135,7 +236,8 @@
    "speed": null,
    "stride": null,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
   },
   {
    "name": "Stretch",
@@ -145,7 +247,36 @@
    "speed": null,
    "stride": null,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
+  },
+  {
+   "name": "Dig",
+   "dur": 2.4,
+   "loop": false,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null,
+   "lickUp": null
+  },
+  {
+   "name": "LickUp",
+   "dur": 2.467,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null,
+   "lickUp": {
+    "tip": [
+     0,
+     0.456,
+     0.464
+    ]
+   }
   },
   {
    "name": "Drink",
@@ -160,12 +291,13 @@
     "rate": 3.5,
     "surf": 0.03,
     "bowl": {
-     "x": 0.0147,
-     "z": 0.6618
+     "x": 0.0138,
+     "z": 0.5791
     },
-    "crouch": 1.597,
-    "tongue": 0.049
-   }
+    "crouch": 1.242,
+    "tongue": 0.253
+   },
+   "lickUp": null
   },
   {
    "name": "LickLips",
@@ -175,7 +307,8 @@
    "speed": null,
    "stride": null,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
   },
   {
    "name": "Flop",
@@ -185,7 +318,8 @@
    "speed": null,
    "stride": null,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
   },
   {
    "name": "FlopIdle",
@@ -195,7 +329,8 @@
    "speed": null,
    "stride": null,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
   },
   {
    "name": "PawBat",
@@ -205,14 +340,15 @@
    "speed": null,
    "stride": null,
    "jump": null,
-   "drink": null
+   "drink": null,
+   "lickUp": null
   }
  ],
  "groomRoutine": [
   {
-   "clip": "GroomFace",
-   "region": "front paw (lick) and face (paw wash: cheek, whisker pad, muzzle)",
-   "share": 0.31,
+   "clip": "ScratchEar",
+   "region": "neck behind the jaw (hind-foot scratch)",
+   "share": 0,
    "from": "Sit"
   },
   {
@@ -224,25 +360,20 @@
  ],
  "skippedClips": [
   {
-   "clip": "Gallop",
-   "playInstead": "Trot",
-   "reason": "failed the contact check on this body (FL into HLu 12 mm at 0.00 s)"
-  },
-  {
-   "clip": "ScratchEar",
-   "reason": "failed the contact check on this body (HR into torso 12 mm at 0.30 s)"
+   "clip": "GroomFace",
+   "reason": "contact out of reach for this body (25 mm short)"
   }
  ],
  "itemSpots": {
   "mouse_toy": {
-   "x": 0.062,
-   "z": 0.456,
+   "x": 0.059,
+   "z": 0.349,
    "yaw": 1.571,
    "clip": "PawBat"
   },
   "cushion": {
    "x": 0,
-   "z": -0.028,
+   "z": -0.022,
    "catLift": 0.134,
    "clips": [
     "Loaf",
@@ -251,14 +382,18 @@
   },
   "hideout": {
    "x": 0,
-   "z": -0.228,
+   "z": -0.222,
    "catLift": 0.08,
    "clips": [
     "Loaf"
    ]
   }
  },
- "sculpt_tris": 111060,
+ "face": {
+  "eye": "dark",
+  "whisker": "dots"
+ },
+ "sculpt_tris": 130428,
  "game_tris": {
   "Body": 14000,
   "Face": "~10500 (eyes, nose, mouth, tongue, whiskers, toe beans)"
