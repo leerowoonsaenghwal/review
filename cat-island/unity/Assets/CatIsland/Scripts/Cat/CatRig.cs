@@ -27,6 +27,7 @@ namespace CatIsland
         [HideInInspector] public float headTilt;         // 고개 갸웃 (도)
         [HideInInspector] public float tailWag;
         [HideInInspector] public float lookWeight = 1f;
+        [HideInInspector] public float petLean;          // 쓰다듬는 중 (0~1): 골골 떨림, 귀 편하게 뒤로
         public Vector3? lookTarget;
 
         public Animator Anim { get; private set; }
@@ -113,6 +114,11 @@ namespace CatIsland
             }
 
             FitZones(bones);
+            // 움직임 층 (ART_DIRECTION 10-1, motionfeel.js): 꼬리·귀 스프링
+            for (int i = 0; i < tail.Length; i++) springs.Add(new Spring { b = tail[i], k = 90f * (1f - .5f * i / Mathf.Max(1, tail.Length - 1)), c = 11f });
+            foreach (var e in new[] { "Ear_L", "Ear_R" }) if (bones.TryGetValue(e, out var eb)) { springs.Add(new Spring { b = eb, k = 150f, c = 13f }); ears.Add(eb); }
+            bones.TryGetValue("Chest", out chest);
+            modelScale = Model.localScale;
             if (!string.IsNullOrEmpty(coatJson)) CatCoat.Apply(Model.GetComponentsInChildren<SkinnedMeshRenderer>(true).FirstOrDefault(r => r.sharedMesh.blendShapeCount == 0), breed, coatJson);
             BubbleAnchor = new GameObject("BubbleAnchor").transform;
             BubbleAnchor.SetParent(transform, false);
@@ -351,6 +357,7 @@ namespace CatIsland
             if (dt <= 0f || Model == null) return;
 
             PinRoot();
+            HeadSteady(dt);
 
             // 눈: 무작위 깜빡임 + 기분 좋게 감기
             blinkTimer -= dt;
@@ -401,7 +408,70 @@ namespace CatIsland
                 }
             }
 
+            // 쓰다듬기: 골골 떨림(24 Hz, 아주 작게), 귀를 편하게 뒤로
+            sPet = Mathf.Lerp(sPet, petLean, 1f - Mathf.Exp(-4f * dt));
+            if (sPet > .01f)
+            {
+                float pur = Mathf.Sin(Time.time * 2f * Mathf.PI * 24f) * .25f * sPet;
+                if (chest) chest.rotation = Quaternion.AngleAxis(pur, right) * chest.rotation;
+                Head.rotation = Quaternion.AngleAxis(pur, right) * Head.rotation;
+                foreach (var e in ears) e.rotation = Quaternion.AngleAxis(-22f * sPet, right) * e.rotation;
+            }
+            UpdateSprings(dt);
+            UpdateSquash(dt);
+
             BubbleAnchor.position = Head.position + up * (HeadRadius + 0.32f);
+        }
+
+        // ---------------- 움직임 층 (motionfeel.js 를 옮김)
+        class Spring { public Transform b; public float k, c; public Vector3 w; public Quaternion q; public bool init; }
+        readonly List<Spring> springs = new List<Spring>();
+        readonly List<Transform> ears = new List<Transform>();
+        Transform chest; float sPet; Vector3 modelScale = Vector3.one;
+
+        /// <summary>꼬리·귀가 몸을 한 박자 늦게 따라오고 살짝 넘쳤다 돌아온다 (세계 공간 각 스프링). 부모부터 차례로.</summary>
+        void UpdateSprings(float dt)
+        {
+            dt = Mathf.Min(dt, 1f / 20f);
+            foreach (var s in springs)
+            {
+                var target = s.b.rotation;   // (부모는 이미 스프링이 적용된 회전)
+                if (!s.init) { s.q = target; s.w = Vector3.zero; s.init = true; }
+                var err = target * Quaternion.Inverse(s.q);
+                err.ToAngleAxis(out float ang, out Vector3 axis);
+                if (ang > 180f) ang -= 360f;
+                if (Mathf.Abs(ang) > 70f || float.IsNaN(axis.x)) { s.q = target; s.w = Vector3.zero; continue; }   // (순간이동·큰 전환: 따라잡기)
+                s.w += axis * (ang * Mathf.Deg2Rad * s.k * dt); s.w *= Mathf.Max(0f, 1f - s.c * dt);
+                float wl = s.w.magnitude;
+                if (wl > 1e-6f) s.q = Quaternion.AngleAxis(wl * dt * Mathf.Rad2Deg, s.w / wl) * s.q;
+                s.b.rotation = s.q;
+            }
+        }
+
+        /// <summary>점프·착지에만 눌림과 늘어남 (발 기준, 부피 유지). 걷기에는 없다.</summary>
+        float sqS, sqV, prevY = float.NaN, prevVy;
+        void UpdateSquash(float dt)
+        {
+            dt = Mathf.Min(dt, 1f / 20f);
+            float y = transform.position.y, vy = float.IsNaN(prevY) ? 0f : (y - prevY) / dt;
+            if (prevVy < -.8f && vy > -.2f) sqV -= 1.3f * Mathf.Min(2f, -prevVy / 2.5f);   // 착지: 눌림
+            if (prevVy > -.05f && vy > 1f) sqV += .6f;                                      // 뛰어오름: 늘어남
+            float target = Mathf.Clamp(.05f * Mathf.Abs(vy), 0f, .1f);
+            sqV += (260f * (target - sqS) - 16f * sqV) * dt; sqS += sqV * dt;
+            prevY = y; prevVy = vy;
+            float sy = 1f + Mathf.Clamp(sqS, -.16f, .14f), sxz = 1f / Mathf.Sqrt(sy);
+            Model.localScale = new Vector3(modelScale.x * sxz, modelScale.y * sy, modelScale.z * sxz);
+        }
+
+        /// <summary>걸을 때 머리는 수평으로 차분히: 머리의 세계 회전을 천천히 따라가는 평균 쪽으로 붙잡는다.</summary>
+        Quaternion headAvg; bool headAvgInit;
+        void HeadSteady(float dt)
+        {
+            float w = Mathf.Clamp01(moveSpeed / .3f) * (Current == Posture.Stand && ActionClip == null ? 1f : 0f);
+            var qw = Head.rotation;
+            if (!headAvgInit) { headAvg = qw; headAvgInit = true; }
+            headAvg = Quaternion.Slerp(headAvg, qw, 1f - Mathf.Exp(-7.5f * dt));
+            if (w > .01f) Head.rotation = Quaternion.Slerp(qw, headAvg, .75f * w);
         }
 
         /// <summary>

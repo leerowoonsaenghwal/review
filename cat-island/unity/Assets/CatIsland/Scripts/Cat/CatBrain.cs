@@ -1124,6 +1124,8 @@ namespace CatIsland
             r.tailWag = State == CatState.Nip ? 1f : p * 0.5f;
 
             bool petting = touchingCat && (State == CatState.Petted || State == CatState.BellyUp);
+            r.petLean = petting ? 1f : 0f;
+            if (touchingCat) FingerGlow.Show(pointerWorld);
             if (petting && (petZone == PetZone.Forehead || petZone == PetZone.Cheek))
             {
                 Vector3 local = transform.InverseTransformPoint(pointerWorld);
@@ -1136,6 +1138,7 @@ namespace CatIsland
             else if (touchingCat) r.lookTarget = pointerWorld;
             else if (State == CatState.WaitAtBowl && cam && bowl) r.lookTarget = Mathf.Repeat(StateTime, 5f) < 2.5f ? bowl.transform.position : cam.position;
             else if (State == CatState.GoToBowl && bowl) r.lookTarget = bowl.transform.position;
+            else if (State == CatState.Visit && friend && actionStarted) r.lookTarget = friend.Rig.Head.position;
             else if (State == CatState.Idle || State == CatState.Invite || State == CatState.Petted || State == CatState.SitIdle || State == CatState.OnTower) r.lookTarget = cam ? cam.position : (Vector3?)null;
             else r.lookTarget = null;
         }
