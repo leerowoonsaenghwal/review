@@ -109,7 +109,7 @@ namespace CatIsland
             UI = CatIsland.UI.GameUI.Create(Logic, WorldLink);
             WorldLink.Refresh();
             if (Logic.S.zonesUnlocked.Contains(1)) IslandBuilder.OpenYardGate(world.Find("Island"));
-            CatIsland.UI.Press.OnPress = () => { if (Logic.S.hapticsOn) Haptics.Impact(ImpactStyle.Soft, .5f); };
+            CatIsland.UI.Press.OnPress = () => { if (Logic.S.hapticsOn) Haptics.Impact(ImpactStyle.Soft, .5f); GameFeel.SoundOn = Logic.S.soundOn; GameFeel.Tap(); };
             if (Logic.S.cats.Count == 0 && OpenCatMakerIfEmpty) CatIsland.UI.CatMaker.Open(UI);
             SyncCats(); SyncGuest();
             Router.BeforeBowlFill = () =>

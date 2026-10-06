@@ -51,7 +51,7 @@ namespace CatIsland
                 var go = ItemLoader.Spawn(d.model, root, pos + new Vector3(0, .004f, 0), yaw) ?? Placeholder(d, pos, yaw);
                 spawned[p] = go;
                 var tag = go.GetComponent<ItemTag>() ?? go.AddComponent<ItemTag>(); tag.id = d.id; tag.placement = p;
-                if (g.Now - p.placedAt < 30) boot.OnNewItem(tag);   // (방금 놓은 용품: 고양이가 바로 써 본다)
+                if (g.Now - p.placedAt < 30) { GameFeel.PopIn(go); boot.OnNewItem(tag); }   // (방금 놓은 용품: 고양이가 바로 써 본다)
                 if (d.category == ItemCategory.Tower && ItemLoader.InfoText(d.model) != null) CatTower.Attach(go, d.model);   // (고양이가 오르는 캣타워)
                 int w = d.w, h = d.h; if (p.rot % 2 == 1) (w, h) = (h, w);
                 var ob = boot.Nav.Add(new Obstacle { name = d.id, item = go.transform, center = pos, half = new Vector2(w * Cell * .45f, h * Cell * .45f), yaw = 0 });

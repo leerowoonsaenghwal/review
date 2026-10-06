@@ -164,11 +164,11 @@ namespace CatIsland.UI
             Kit.VList(body, 14);
             var name = G.S.cats.FirstOrDefault(c => c.status == "home")?.name ?? "고양이";
             Kit.Size(Kit.Label(body, Str.Welcome + " " + Str.IdleReady(name, (int)G.S.idleBank), Theme.Body), -1, 60);
-            Kit.Size(Kit.Btn(body, Str.IdleTake, () => { int c = G.CollectIdle(); CloseAll(); Toast($"코인 {c}개를 받았어요"); }, Kit.Style.Primary, UIIcon.Coin), -1, 54);
+            Kit.Size(Kit.Btn(body, Str.IdleTake, () => { int c = G.CollectIdle(); CloseAll(); GameFeel.Coins(); Toast($"코인 {c}개를 받았어요"); }, Kit.Style.Primary, UIIcon.Coin), -1, 54);
             if (G.AdAvailable(Catalog.AdSpot.IdleDouble))
             {
                 Kit.Size(Kit.Label(body, Str.AdHonest, Theme.Caption, Theme.Latte), -1, 30);
-                Kit.Size(Kit.Btn(body, Str.IdleDouble, () => G.CollectIdleDoubled((ok, c) => { CloseAll(); Toast(ok ? $"코인 {c}개를 받았어요 (두 배)" : $"코인 {c}개를 받았어요"); }), Kit.Style.Secondary, UIIcon.AdPlay), -1, 50);
+                Kit.Size(Kit.Btn(body, Str.IdleDouble, () => G.CollectIdleDoubled((ok, c) => { CloseAll(); GameFeel.Coins(); Toast(ok ? $"코인 {c}개를 받았어요 (두 배)" : $"코인 {c}개를 받았어요"); }), Kit.Style.Secondary, UIIcon.AdPlay), -1, 50);
             }
             return Str.IdleTitle;
         }

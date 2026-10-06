@@ -17,6 +17,7 @@ namespace CatIsland
         public float pitch = 40f;
         public float fov = 28f;
         public float[] distances = { 17f, 8.5f };   // 0 = 멀리, 1 = 가까이
+        public bool Petting;
         public int zoomLevel = 1;
         public float yawLimit = 45f;
 
@@ -89,7 +90,7 @@ namespace CatIsland
             // 회전 한계 밖이면 살짝 되돌아옴
             float clamped = Mathf.Clamp(yaw, -yawLimit, yawLimit);
             yaw = Mathf.SmoothDamp(yaw, clamped, ref yawVel, 0.15f);
-            dist = Mathf.Lerp(dist, distances[zoomLevel], 1f - Mathf.Exp(-6f * dt));
+            dist = Mathf.Lerp(dist, distances[zoomLevel] * (Petting ? .82f : 1f), 1f - Mathf.Exp((Petting ? -1.2f : -6f) * dt));   // (쓰다듬을 때 천천히 가까이)
             if (follow) focus = Vector3.Lerp(focus, FocusFor(follow.position), 1f - Mathf.Exp(-2.5f * dt));
             Apply();
         }

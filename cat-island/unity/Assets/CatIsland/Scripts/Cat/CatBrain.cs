@@ -193,6 +193,7 @@ namespace CatIsland
         {
             if (dt <= 0f) return;
             StateTime += dt;
+            if (cushion) { bool on = (State == CatState.LieDown || State == CatState.Sleep) && Flat(transform.position - cushion.transform.position).magnitude < cushion.Radius; if (on) cushion.Pressed = 1f; else if (Flat(transform.position - cushion.transform.position).magnitude < cushion.Radius * 1.5f) cushion.Pressed = 0f; }
             inviteCooldown -= dt;
 
             Needs.Tick(dt, State == CatState.Eat && Rig.ActionClip == "Drink", State == CatState.Sleep);

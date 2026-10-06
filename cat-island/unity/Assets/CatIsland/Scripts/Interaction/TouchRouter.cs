@@ -40,7 +40,7 @@ namespace CatIsland
 
         void Start() { cam = islandCamera ? islandCamera.GetComponent<Camera>() : Camera.main; }
 
-        void Update() { Tick(Time.deltaTime); }
+        void Update() { Tick(Time.deltaTime); if (islandCamera) islandCamera.Petting = mode == Mode.Pet && movedFar; }
 
         public void Tick(float dt)
         {

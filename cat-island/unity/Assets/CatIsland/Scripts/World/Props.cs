@@ -119,12 +119,18 @@ namespace CatIsland
         }
 
         public void Poke() { squishVel -= 4f; }
+        /// <summary>고양이가 누우면 몸에 맞춰 눌린다 (방석 모델의 'Press' 모양, ART_DIRECTION 5-1·11장). 0~1.</summary>
+        public float Pressed;
+        float pressNow; SkinnedMeshRenderer smr; int pressIdx = -2;
 
         void Update()
         {
             squishVel += (-squish * 200f - squishVel * 9f) * Time.deltaTime;
             squish += squishVel * Time.deltaTime;
             if (visual) visual.localScale = new Vector3(1f - squish * 0.05f, 1f + squish * 0.25f, 1f - squish * 0.05f);
+            if (pressIdx == -2) { smr = GetComponentInChildren<SkinnedMeshRenderer>(); pressIdx = smr && smr.sharedMesh ? smr.sharedMesh.GetBlendShapeIndex("Press") : -1; }
+            pressNow = Mathf.MoveTowards(pressNow, Pressed, Time.deltaTime * 1.5f);
+            if (pressIdx >= 0) smr.SetBlendShapeWeight(pressIdx, pressNow * 100f);
         }
     }
 
