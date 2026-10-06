@@ -24,6 +24,7 @@ namespace CatIsland.Tests
             GameBootstrap.NewFiles = () => new CatIsland.Game.MemoryFiles();   // (사용자 저장을 건드리지 않는다)
             GameBootstrap.OpenCatMakerIfEmpty = false;
             DayCycle.HourOverride = 13f;   // (테스트는 낮: 밤이면 고양이들이 잔다)
+            WeatherFx.Override = CatIsland.Game.WeatherKind.Clear;   // (스크린샷이 날짜마다 달라지지 않게)
             Time.timeScale = 1f;
             var go = new GameObject("Bootstrap");
             game = go.AddComponent<GameBootstrap>();

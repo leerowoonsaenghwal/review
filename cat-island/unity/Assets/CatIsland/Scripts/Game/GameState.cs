@@ -14,6 +14,26 @@ namespace CatIsland.Game
         public void Advance(TimeSpan d) => UtcNow += d;
     }
 
+    public enum WeatherKind { Clear, Cloudy, Rain, Snow }
+
+    /// <summary>
+    /// 섬 날씨 (기획서: 실제 시간과 계절, 겨울엔 눈). 서버·위치 없이 날짜와 오전/오후로 정해진다: 같은 때면 누구나 같은 날씨,
+    /// 다시 켜도 바뀌지 않는다. 겨울(12~2월)만 눈, 6~7월은 장마로 비가 잦다. 맑은 날이 가장 많다 (ART_DIRECTION: 맑음 유지).
+    /// 날씨는 보기만 다르다: 벌주거나 할 수 있는 일을 막지 않는다.
+    /// </summary>
+    public static class Weather
+    {
+        public static WeatherKind At(DateTime local)
+        {
+            uint h = (uint)(local.Year * 1000 + local.DayOfYear) * 2u + (local.Hour >= 12 ? 1u : 0u);
+            h ^= h >> 16; h *= 0x7feb352d; h ^= h >> 15; h *= 0x846ca68b; h ^= h >> 16;   // (섞기: 이웃한 날이 비슷하지 않게)
+            float r = (h & 0xffff) / 65536f; int m = local.Month;
+            if (m == 12 || m <= 2) return r < .3f ? WeatherKind.Snow : r < .45f ? WeatherKind.Cloudy : WeatherKind.Clear;
+            if (m == 6 || m == 7) return r < .3f ? WeatherKind.Rain : r < .5f ? WeatherKind.Cloudy : WeatherKind.Clear;
+            return r < .12f ? WeatherKind.Rain : r < .3f ? WeatherKind.Cloudy : WeatherKind.Clear;
+        }
+    }
+
     public static class TimeUtil
     {
         public static long ToUnix(DateTime utc) => (long)(utc - DateTime.UnixEpoch).TotalSeconds;

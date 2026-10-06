@@ -8,6 +8,26 @@ namespace CatIsland.Tests
     /// <summary>게임 규칙 하나하나 (Scripts/Game). 가상 시계로 시간을 넘기며 확인한다.</summary>
     public class GameSystemsTests
     {
+        [Test]
+        public void Weather_ByDateAndSeason_SameForEveryone()
+        {
+            var d0 = new DateTime(2027, 1, 1, 9, 0, 0);
+            int snow = 0, rainSummer = 0, rainOther = 0, clear = 0, n = 0, snowOutOfWinter = 0;
+            for (int day = 0; day < 365 * 2; day++) for (int half = 0; half < 2; half++)
+                {
+                    var t = d0.AddDays(day).AddHours(half * 6); var w = Weather.At(t);
+                    Assert.AreEqual(w, Weather.At(t.AddMinutes(90)), "같은 오전·오후 안에서는 바뀌지 않는다");
+                    bool winter = t.Month == 12 || t.Month <= 2; n++;
+                    if (w == WeatherKind.Snow) { if (winter) snow++; else snowOutOfWinter++; }
+                    if (w == WeatherKind.Rain) { if (t.Month == 6 || t.Month == 7) rainSummer++; else rainOther++; }
+                    if (w == WeatherKind.Clear) clear++;
+                }
+            Assert.AreEqual(0, snowOutOfWinter, "눈은 겨울에만");
+            Assert.Greater(snow, 40, "겨울엔 눈 오는 때가 있다");
+            Assert.Greater(rainSummer / 244f, rainOther / (n - 244f - 360f), "장마철에 비가 더 잦다");
+            Assert.Greater(clear, n / 2, "맑은 때가 가장 많다");
+        }
+
         static readonly DateTime Start = new DateTime(2026, 10, 6, 0, 0, 0, DateTimeKind.Utc);   // 한국 아침 9시
         FakeClock clock; MemoryFiles files; MemoryCloud cloud; FakeAds ads; FakeStore store; FakeNotifier notes; FakeGameCenter gc; CatIsland.Game.Game g;
 

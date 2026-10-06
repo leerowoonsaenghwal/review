@@ -8,7 +8,7 @@ namespace CatIsland
     /// </summary>
     public class DayCycle : MonoBehaviour
     {
-        public Light sun; public Camera cam;
+        public Light sun; public Camera cam; public WeatherFx weather;
         /// <summary>테스트·스크린샷: 시각을 고정 (0~24). 음수면 기기 시계.</summary>
         public static float HourOverride = -1f;
         public float Hour { get; private set; }
@@ -44,7 +44,7 @@ namespace CatIsland
             var A = a.look; var B = b.look;
             if (sun)
             {
-                sun.color = Color.Lerp(A.sun, B.sun, u); sun.intensity = Mathf.Lerp(A.intensity, B.intensity, u);
+                sun.color = Color.Lerp(A.sun, B.sun, u); sun.intensity = Mathf.Lerp(A.intensity, B.intensity, u) * (weather ? weather.SunScale : 1f);
                 sun.transform.rotation = Quaternion.Euler(Mathf.Lerp(A.elevation, B.elevation, u), 36f, 0f);
             }
             var sky = Color.Lerp(A.sky, B.sky, u); var ground = Color.Lerp(A.ground, B.ground, u);

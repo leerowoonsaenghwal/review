@@ -28,6 +28,7 @@ namespace CatIsland
         public CatIsland.UI.GameUI UI { get; private set; }
         public WorldSync WorldLink { get; private set; }
         public DayCycle Day { get; private set; }
+        public WeatherFx Weather { get; private set; }
         /// <summary>테스트: 저장소를 바꿔 끼운다 (기본은 기기 저장소). OpenCatMakerIfEmpty: 고양이가 없으면 만들기 창을 연다.</summary>
         public static Func<CatIsland.Game.IFileStore> NewFiles;
         public static bool OpenCatMakerIfEmpty = true;
@@ -79,7 +80,8 @@ namespace CatIsland
                     urp.msaaSampleCount = 1;
             }
             IslandCam = camGo.AddComponent<IslandCamera>();
-            Day = gameObject.AddComponent<DayCycle>(); Day.sun = RenderSettings.sun; Day.cam = cam; Day.Apply(DayCycle.HourOverride >= 0 ? DayCycle.HourOverride : (float)DateTime.Now.TimeOfDay.TotalHours);
+            Weather = new GameObject("Weather").AddComponent<WeatherFx>(); Weather.transform.position = new Vector3(4f, 0f, 0f);   // (집 안 + 마당 위)
+            Day = gameObject.AddComponent<DayCycle>(); Day.sun = RenderSettings.sun; Day.cam = cam; Day.weather = Weather; Day.Apply(DayCycle.HourOverride >= 0 ? DayCycle.HourOverride : (float)DateTime.Now.TimeOfDay.TotalHours);
 
             // 고양이 (저장에 고양이가 있으면 SyncCats 가 저장대로 다시 세운다)
             Cat = SpawnCat("korean_shorthair", new Vector3(0f, 0f, -0.6f), 180f, null, camGo.transform);

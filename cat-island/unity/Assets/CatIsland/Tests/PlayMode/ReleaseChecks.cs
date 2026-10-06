@@ -44,6 +44,25 @@ namespace CatIsland.Tests
         }
 
         [UnityTest]
+        public IEnumerator Weather_RainAndSnow_Show()
+        {
+            game.Logic.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Playful); game.SyncCats();
+            game.IslandCam.zoomLevel = 0; game.IslandCam.SnapNow();
+            var dir = Path.GetFullPath(Path.Combine(Application.dataPath, "../Shots/day")); Directory.CreateDirectory(dir);
+            foreach (var w in new[] { CatIsland.Game.WeatherKind.Rain, CatIsland.Game.WeatherKind.Snow })
+            {
+                WeatherFx.Override = w; game.Weather.Set(w); game.Day.Apply(13f);
+                yield return new WaitForSeconds(w == CatIsland.Game.WeatherKind.Snow ? 5f : 1.5f);
+                var ps = game.Weather.GetComponentInChildren<ParticleSystem>();
+                Assert.Greater(ps.particleCount, 20, w + " particles fall");
+                var cam = Cam; var rt = new RenderTexture(590, 1278, 24) { antiAliasing = 4 }; cam.targetTexture = rt; cam.Render(); cam.Render();
+                RenderTexture.active = rt; var tex = new Texture2D(590, 1278, TextureFormat.RGB24, false); tex.ReadPixels(new Rect(0, 0, 590, 1278), 0, 0); tex.Apply(); RenderTexture.active = null;
+                File.WriteAllBytes(Path.Combine(dir, w.ToString().ToLower() + ".png"), tex.EncodeToPNG()); cam.targetTexture = null; rt.Release();
+            }
+            WeatherFx.Override = CatIsland.Game.WeatherKind.Clear; game.Weather.Set(CatIsland.Game.WeatherKind.Clear);
+        }
+
+        [UnityTest]
         public IEnumerator FaceVariants_AndPhotoCoat()
         {
             var face = Cat.Rig.GetComponentsInChildren<SkinnedMeshRenderer>(true).First(r => r.sharedMesh.blendShapeCount > 0);
