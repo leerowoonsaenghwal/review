@@ -289,6 +289,14 @@ namespace CatIsland.Game
             if (d.category == ItemCategory.Tower) { S.totalJumps++; if (!c.firsts.Contains("first_jump")) { c.firsts.Add("first_jump"); Events.Enqueue("first:" + uid + ":jump"); } }
             return true;
         }
+        /// <summary>고양이 둘이 쫓기 놀이를 했다: 둘 다 놀이 상태가 조금 오르고 놀이 할 일에 센다.</summary>
+        public bool PlayTogether(string uidA, string uidB)
+        {
+            var a = Cat(uidA); var b = Cat(uidB);
+            if (a == null || b == null || a == b || a.status != "home" || b.status != "home") return false;
+            a.play = Mathf.Clamp01(a.play + .3f); b.play = Mathf.Clamp01(b.play + .3f); Count("play");
+            return true;
+        }
         public bool CleanLitter()
         {
             if (!S.placed.Any(p => p.item == "litter_box" || p.item == "sandbox")) return false;

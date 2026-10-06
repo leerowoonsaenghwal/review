@@ -63,6 +63,35 @@ namespace CatIsland.Tests
         }
 
         [UnityTest]
+        public IEnumerator Friends_ChaseAndVisit()
+        {
+            var g = game.Logic; g.S.catSlots = 4;
+            var a = g.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Playful);
+            var b = g.AddCat("persian", "보리", CatIsland.Game.Personality.Easygoing);
+            game.SyncCats(); yield return new WaitForSeconds(.5f);
+            var cats = Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).Where(c => c.Data != null).ToList();
+            var A = cats.First(c => c.Data == a); var B = cats.First(c => c.Data == b);
+            foreach (var c in cats) { c.Needs.SetForTest(1f, 1f); c.ForceState(CatState.Idle); }
+            A.transform.position = new Vector3(-.8f, 0, -.8f); B.transform.position = new Vector3(.8f, 0, -.8f);
+            yield return new WaitForSeconds(1.5f);   // (서기 자세로)
+            for (int k = 0; k < 20 && !A.TryFriend(); k++) yield return new WaitForSeconds(.3f);
+            Assert.AreEqual(CatState.Chase, A.State, "장난꾸러기는 쫓기 놀이를 건다");
+            Assert.AreEqual(CatState.Flee, B.State);
+            Time.timeScale = 2f; float closest = 9f;
+            for (float t = 0; t < 7f && (A.State == CatState.Chase || B.State == CatState.Flee); t += Time.deltaTime) { yield return null; closest = Mathf.Min(closest, Vector3.Distance(A.Rig.BodyZone.position, B.Rig.BodyZone.position)); }
+            Time.timeScale = 1f;
+            Assert.AreNotEqual(CatState.Chase, A.State, "쫓기 놀이는 짧게 끝난다");
+            Assert.Greater(closest, .25f, "쫓아도 몸이 겹치지 않는다");
+            // 느긋한 고양이는 옆에 가서 같이 앉는다
+            yield return new WaitForSeconds(1f);
+            B.ForceState(CatState.Idle); A.ForceState(CatState.Idle); yield return new WaitForSeconds(1.2f);
+            for (int k = 0; k < 20 && !B.TryFriend(); k++) yield return new WaitForSeconds(.3f);
+            Assert.AreEqual(CatState.Visit, B.State);
+            Time.timeScale = 2f; yield return new WaitForSeconds(5f); Time.timeScale = 1f;
+            Assert.Less(Vector3.Distance(A.transform.position, B.transform.position), 1.1f, "친구 옆에 앉는다");
+        }
+
+        [UnityTest]
         public IEnumerator FaceVariants_AndPhotoCoat()
         {
             var face = Cat.Rig.GetComponentsInChildren<SkinnedMeshRenderer>(true).First(r => r.sharedMesh.blendShapeCount > 0);

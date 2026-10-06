@@ -170,6 +170,7 @@ namespace CatIsland
                     view = SpawnCat(HasArt(c.breed) ? c.breed : "korean_shorthair", spot, 180f, c, cam);
                     view.OnPetted = p => Logic.Pet(c.uid, p);
                     view.OnUsedItem = id => { Logic.PlayWith(c.uid, id); UI?.Refresh(); };
+                    view.OnFriendPlay = other => { if (other && other.Data != null) Logic.PlayTogether(c.uid, other.Data.uid); };
                     catViews[c.uid] = view; Router.cats.Add(view);
                 }
                 // 산책: 걸어 나가서 사라지고, 돌아오면 선물을 물고 걸어 들어온다

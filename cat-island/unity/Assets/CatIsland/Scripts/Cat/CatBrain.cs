@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace CatIsland
@@ -12,7 +13,8 @@ namespace CatIsland
         GoToTower, JumpUp, OnTower, JumpDown,
         Petted, BellyUp, Nip,
         GoToItem, UseItem,
-        Treat, LeaveForWalk, ReturnFromWalk, GoToSleepNear
+        Treat, LeaveForWalk, ReturnFromWalk, GoToSleepNear,
+        Chase, Flee, Visit
     }
 
     /// <summary>섬에 놓인 용품 표시 (고양이가 골라 쓴다).</summary>
@@ -234,6 +236,9 @@ namespace CatIsland
                 case CatState.LeaveForWalk: TickLeave(dt); break;
                 case CatState.ReturnFromWalk: TickReturn(dt); break;
                 case CatState.GoToSleepNear: TickMoveTo(dt, GameConfig.WalkSpeed, CatState.Sleep); break;
+                case CatState.Chase: TickChase(dt); break;
+                case CatState.Flee: TickFlee(dt); break;
+                case CatState.Visit: TickVisit(dt); break;
                 case CatState.Petted: TickPetted(dt); break;
                 case CatState.BellyUp: TickBellyUp(dt); break;
                 case CatState.Nip: TickNip(dt); break;
@@ -375,6 +380,8 @@ namespace CatIsland
                 Enter(CatState.Sleep); return;
             }
             float r = UnityEngine.Random.value;
+            if (r < 0.1f && TryFriend()) return;
+            r = UnityEngine.Random.value;
             if (r < 0.22f) { var it = PickItemUse(); if (it != null) { BeginUse(it); return; } }
             r = UnityEngine.Random.value;
             if (r < 0.12f && PickTower()) { curTower = PickTower(); Enter(CatState.GoToTower); }
@@ -382,6 +389,82 @@ namespace CatIsland
             else if (r < 0.35f) Enter(CatState.Groom);
             else if (r < 0.5f) Enter(CatState.SitIdle);
             else Enter(CatState.Wander);
+        }
+
+        // ---------------- 고양이끼리 (기획서: 고양이끼리 쫓기·같이 있기). 벌·싸움 없음, 짧게 놀고 앉는다
+        CatBrain friend;
+        bool Available => isActiveAndEnabled && !OnTower && (State == CatState.Idle || State == CatState.SitIdle || State == CatState.Wander) && Rig.CanMove;
+
+        /// <summary>근처의 한가한 고양이에게: 장난꾸러기는 쫓기 놀이, 아니면 옆에 가서 같이 앉기.</summary>
+        public bool TryFriend()
+        {
+            var other = All.Where(o => o && o != this && o.Available && o.Data != null && Flat(o.transform.position - transform.position).magnitude < 4f)
+                           .OrderBy(o => Flat(o.transform.position - transform.position).magnitude).FirstOrDefault();
+            if (!other || Data == null) return false;
+            friend = other;
+            bool playful = Data.personality == CatIsland.Game.Personality.Playful;
+            if ((Data.personality == CatIsland.Game.Personality.Aloof || Data.personality == CatIsland.Game.Personality.Shy) && UnityEngine.Random.value > .4f) { friend = null; return false; }   // (새침·수줍은 고양이는 가끔만)
+            if (playful && Needs.Energy > .5f && other.Needs.Energy > .4f) { Enter(CatState.Chase); other.BeChased(this); audioOut?.Chirp(); }
+            else { other.Enter(CatState.SitIdle); other.stateTimer = 14f; Enter(CatState.Visit); moveTarget = VisitSpot(other); }   // (친구는 앉아서 기다린다)
+            return true;
+        }
+
+        public void BeChased(CatBrain by)
+        {
+            friend = by; Enter(CatState.Flee);
+            var away = Flat(transform.position - by.transform.position).normalized; if (away.sqrMagnitude < .01f) away = transform.forward;
+            moveTarget = nav != null ? nav.NearestFree(transform.position + Quaternion.Euler(0, UnityEngine.Random.Range(-50f, 50f), 0) * away * 2.2f) : transform.position + away * 2.2f;
+            FxPool.Instance?.Burst(Icon.Exclaim, Rig.BubbleAnchor.position, 1, 0.1f, 0.3f);
+        }
+
+        Vector3 VisitSpot(CatBrain o)
+        {
+            var side = o.transform.right * (Vector3.Dot(transform.position - o.transform.position, o.transform.right) >= 0 ? .55f : -.55f);
+            return nav != null ? nav.NearestFree(o.transform.position + side) : o.transform.position + side;
+        }
+
+        void TickChase(float dt)
+        {
+            if (!friend || friend.State != CatState.Flee) { Enter(CatState.SitIdle); return; }
+            moveTarget = friend.transform.position;
+            bool caught = MoveTowards(moveTarget, GameConfig.TrotSpeed * 1.05f, dt, .6f) || Flat(friend.transform.position - transform.position).magnitude < .62f;
+            if (caught || StateTime > 5f)
+            {
+                friend.Enter(CatState.SitIdle); friend.faceDir = Flat(transform.position - friend.transform.position).normalized;
+                Enter(CatState.SitIdle); faceDir = Flat(friend.transform.position - transform.position).normalized;
+                if (caught) FxPool.Instance?.Burst(Icon.Note, (Rig.BubbleAnchor.position + friend.Rig.BubbleAnchor.position) * .5f, 2, 0.2f, 0.25f);
+                if (caught) OnFriendPlay?.Invoke(friend);
+            }
+        }
+
+        void TickFlee(float dt)
+        {
+            if (MoveTowards(moveTarget, GameConfig.TrotSpeed, dt, .25f))
+            {
+                var away = Flat(transform.position - (friend ? friend.transform.position : transform.position - transform.forward)).normalized;
+                moveTarget = nav != null ? nav.NearestFree(transform.position + Quaternion.Euler(0, UnityEngine.Random.Range(-70f, 70f), 0) * away * 1.8f) : transform.position + away * 1.8f;
+            }
+            if (StateTime > 7f) Enter(CatState.SitIdle);
+        }
+
+        void TickVisit(float dt)
+        {
+            if (!friend || !friend.isActiveAndEnabled || friend.OnTower) { Enter(CatState.Idle); return; }
+            if (!actionStarted)
+            {
+                if (MoveTowards(moveTarget, GameConfig.WalkSpeed, dt, .12f) || StateTime > 10f)
+                {
+                    actionStarted = true; StateTime = 0f;
+                    faceDir = Flat(friend.transform.position - transform.position).normalized;
+                    Rig.Request(Posture.Sit);
+                    if (friend.Available) { friend.Enter(CatState.SitIdle); friend.faceDir = -faceDir; }
+                    FxPool.Instance?.Burst(Icon.Heart, (Rig.BubbleAnchor.position + friend.Rig.BubbleAnchor.position) * .5f, 2, 0.2f, 0.22f);
+                }
+                return;
+            }
+            Rig.lookTarget = friend.Rig.Head.position;
+            if (StateTime > 3f && StateTime - dt <= 3f && Rig.HasClip("GroomFace")) Rig.PlayAction("GroomFace");   // (친구 옆에서 세수)
+            if (StateTime > 9f) { Rig.lookTarget = null; Enter(CatState.SitIdle); }
         }
 
         /// <summary>지금 쓰러 가는 물건 (길찾기에서 그 물건에만 좁게 다가간다).</summary>
@@ -915,6 +998,8 @@ namespace CatIsland
         }
         /// <summary>용품을 다 썼다 (게임 규칙 쪽: 놀이·할 일).</summary>
         public Action<string> OnUsedItem;
+        /// <summary>다른 고양이와 쫓기 놀이를 마쳤을 때 (놀이 상태가 둘 다 오른다: Game.PlayTogether).</summary>
+        public Action<CatBrain> OnFriendPlay;
 
         static bool IsNight => GameBootstrap.Instance && GameBootstrap.Instance.Day && GameBootstrap.Instance.Day.Night;
 

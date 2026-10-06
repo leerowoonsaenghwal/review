@@ -9,6 +9,17 @@ namespace CatIsland.Tests
     public class GameSystemsTests
     {
         [Test]
+        public void PlayTogether_RaisesBothCats()
+        {
+            g.S.catSlots = 3;
+            var a = g.AddCat("korean_shorthair", "나비", Personality.Playful); var b = g.AddCat("persian", "보리", Personality.Easygoing);
+            a.play = b.play = .2f;
+            Assert.IsTrue(g.PlayTogether(a.uid, b.uid));
+            Assert.Greater(a.play, .4f); Assert.Greater(b.play, .4f);
+            Assert.IsFalse(g.PlayTogether(a.uid, a.uid), "혼자서는 안 된다");
+        }
+
+        [Test]
         public void Weather_ByDateAndSeason_SameForEveryone()
         {
             var d0 = new DateTime(2027, 1, 1, 9, 0, 0);
