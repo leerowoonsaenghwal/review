@@ -199,7 +199,13 @@ namespace CatIsland
             var spot = Nav.NearestFree(new Vector3(2.9f, 0f, -2.1f)); go.transform.position = spot; go.transform.rotation = Quaternion.Euler(0, 200f, 0);
             guestView = go.AddComponent<CatRig>(); guestView.breed = Logic.S.guestBreed; go.SetActive(true); guestView.Request(Posture.Sit);
             guestBreedShown = Logic.S.guestBreed;
-            Router.TapOther = c => { if (guestView && guestView.IsCatCollider(c)) { UI.OpenGuest(); return true; } return false; };
+            Router.TapOther = c =>
+            {
+                if (guestView && guestView.IsCatCollider(c)) { UI.OpenGuest(); return true; }
+                var tag = c ? c.GetComponentInParent<ItemTag>() : null;   // (용품을 톡: 말랑하게 튄다)
+                if (tag) { ItemJiggle.Poke(tag.transform, .55f); GameFeel.Tap(); if (Logic.S.hapticsOn) Haptics.Impact(ImpactStyle.Light, .4f); return true; }
+                return false;
+            };
         }
 
         /// <summary>츄르 주기: 사료처럼 저장의 츄르를 쓰고, 고양이가 앞으로 와서 핥는다 (츄르만 입 앞에 떠 있다).</summary>

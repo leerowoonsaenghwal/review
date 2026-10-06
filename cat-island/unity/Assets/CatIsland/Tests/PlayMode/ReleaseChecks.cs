@@ -92,6 +92,24 @@ namespace CatIsland.Tests
         }
 
         [UnityTest]
+        public IEnumerator Items_JiggleAndRoll_ThenSettleBack()
+        {
+            var g = game.Logic; g.AddCoins(5000);
+            Assert.IsTrue(g.Buy("mouse_toy")); Assert.IsTrue(g.Place("mouse_toy", CatIsland.Game.Zone.Indoor, 3, 8, 2));
+            game.WorldLink.Refresh(); yield return null;
+            var tag = Object.FindObjectsByType<ItemTag>(FindObjectsSortMode.None).First(t => t.id == "mouse_toy");
+            var model = tag.transform.Find("Model"); var s0 = model.localScale; var p0 = model.localPosition;
+            ItemJiggle.Poke(tag.transform, .6f); yield return null; yield return null;
+            Assert.AreNotEqual(s0, model.localScale, "톡 치면 눌린다");
+            ItemJiggle.Kick(tag.transform, Vector3.right, .2f);
+            yield return new WaitForSeconds(.8f);
+            Assert.Greater(Vector3.Distance(model.localPosition, p0), .1f, "굴러간다");
+            yield return new WaitForSeconds(2.5f);
+            Assert.Less(Vector3.Distance(model.localPosition, p0), .002f, "제자리로 돌아온다");
+            Assert.Less(Vector3.Distance(model.localScale, s0), .002f);
+        }
+
+        [UnityTest]
         public IEnumerator FaceVariants_AndPhotoCoat()
         {
             var face = Cat.Rig.GetComponentsInChildren<SkinnedMeshRenderer>(true).First(r => r.sharedMesh.blendShapeCount > 0);

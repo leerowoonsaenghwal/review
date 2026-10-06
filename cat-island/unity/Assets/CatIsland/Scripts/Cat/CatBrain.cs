@@ -979,14 +979,17 @@ namespace CatIsland
                 switch (useKind)
                 {
                     case "bat": Rig.Request(Posture.Stand); Rig.PlayAction("PawBat", true, .2f); useTimer = 3.2f; break;
-                    case "stretch": Rig.Request(Posture.Stand); Rig.PlayAction("Stretch", false, .2f); useTimer = 4.3f; break;
+                    case "stretch": Rig.Request(Posture.Stand); Rig.PlayAction("Stretch", false, .2f); useTimer = 4.3f; ItemJiggle.Poke(useTarget.transform, .35f); break;
                     case "litter": Rig.Request(Posture.Stand); if (Rig.HasClip("Dig")) Rig.PlayAction("Dig", false, .2f); useTimer = 2.5f; break;
-                    case "hide": Rig.Request(Posture.Loaf); useTimer = UnityEngine.Random.Range(8f, 16f); break;
-                    case "bed": Rig.Request(IsNight ? Posture.Sleep : Posture.Loaf); useTimer = IsNight ? 60f : UnityEngine.Random.Range(10f, 20f); break;
+                    case "hide": Rig.Request(Posture.Loaf); useTimer = UnityEngine.Random.Range(8f, 16f); ItemJiggle.Poke(useTarget.transform, .7f); break;
+                    case "bed": Rig.Request(IsNight ? Posture.Sleep : Posture.Loaf); useTimer = IsNight ? 60f : UnityEngine.Random.Range(10f, 20f); ItemJiggle.Poke(useTarget.transform, .6f); break;
                     default: Rig.Request(Posture.Sit); useTimer = UnityEngine.Random.Range(3f, 6f); break;
                 }
                 return;
             }
+            // 장난감: 앞발로 칠 때마다 조금 굴러갔다 돌아온다 (3.2 초 동안 두 번)
+            if (useKind == "bat" && ((useTimer < 2.6f && useTimer + dt >= 2.6f) || (useTimer < 1.0f && useTimer + dt >= 1.0f)))
+                ItemJiggle.Kick(useTarget.transform, Flat(useTarget.transform.position - transform.position), .18f);
             if (useKind == "litter" && useStep == 1 && useTimer <= 0f) { useStep = 2; Rig.Request(Posture.Sit); useTimer = 3f; return; }
             if (useKind == "litter" && useStep == 2 && useTimer <= 0f) { useStep = 3; Rig.Request(Posture.Stand); if (Rig.HasClip("Dig")) Rig.PlayAction("Dig", false, .2f); useTimer = 2.5f; return; }
             if (useTimer > 0f) return;
