@@ -70,6 +70,8 @@ namespace CatIsland
         public void PhotoOrbit(float dYaw, float dPitch) { photoYaw += dYaw; if (!eyeLevel) photoPitch = Mathf.Clamp(photoPitch + dPitch, 5f, 70f); }
         public void PhotoZoom(float k) { photoDist = Mathf.Clamp(photoDist * k, 1.6f, 14f); }
         public void SetEyeLevel(bool on) { eyeLevel = on; }
+        /// <summary>사진 시점을 정해 두기 (앱스토어 스크린샷 StoreShots).</summary>
+        public void FramePhoto(float yawDeg, float pitchDeg, float distance) { photoYaw = yawDeg; photoPitch = Mathf.Clamp(pitchDeg, 5f, 70f); photoDist = Mathf.Clamp(distance, 1.6f, 14f); }
         public bool EyeLevel => eyeLevel;
 
         void LateUpdate()
