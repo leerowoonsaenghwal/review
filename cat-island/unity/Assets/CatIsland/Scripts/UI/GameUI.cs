@@ -420,6 +420,7 @@ namespace CatIsland.UI
         // ---------------------------------------------------------------- 사진 · 구역
         void OpenPhoto()
         {
+            if (GameBootstrap.Instance && GameBootstrap.Instance.UI == this) { PhotoModeUI.Open(this, GameBootstrap.Instance); return; }
             if (World == null) { Toast(Str.PhotoPrivacy); return; }
             World.Capture(file => { if (file != null) { G.TakePhoto(file, G.S.cats.FirstOrDefault()?.uid ?? ""); Toast("사진을 남겼어요 (휴대폰 안에만 저장)"); } });
         }

@@ -903,3 +903,35 @@ namespace CatIsland.Tests
         }
     }
 }
+
+namespace CatIsland.Tests
+{
+    using System.Collections;
+    using System.IO;
+    using NUnit.Framework;
+    using UnityEngine;
+    using UnityEngine.TestTools;
+    using CatIsland.UI;
+
+    /// <summary>사진 모드: 자유 시점으로 돌리고 눈높이로 바꿔 찍으면 앱 안에 저장되고, 닫으면 원래 화면으로.</summary>
+    public class PhotoModeTests : SceneFixture
+    {
+        [UnityTest]
+        public IEnumerator OrbitEyeLevelShootAndClose()
+        {
+            var g = game.Logic; g.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Playful); game.SyncCats(); yield return null;
+            PhotoModeUI.Open(game.UI, game); yield return null;
+            var m = PhotoModeUI.Active; Assert.NotNull(m); Assert.IsTrue(game.IslandCam.PhotoMode);
+            Assert.IsFalse(game.UI.Root.Find("Bottom").gameObject.activeSelf, "the bars hide in photo mode");
+            game.IslandCam.PhotoOrbit(120f, 0f); game.IslandCam.SetEyeLevel(true);
+            yield return new WaitForSeconds(.6f);
+            Assert.Less(game.IslandCam.transform.position.y, 1.2f, "eye level is low");
+            int before = g.S.photos.Count; var name = m.Shoot();
+            Assert.AreEqual(before + 1, g.S.photos.Count);
+            Assert.IsTrue(File.Exists(Path.Combine(PhotoModeUI.PhotoDir, name)));
+            File.Delete(Path.Combine(PhotoModeUI.PhotoDir, name));
+            m.Close(); yield return null;
+            Assert.IsFalse(game.IslandCam.PhotoMode); Assert.IsTrue(game.UI.Root.Find("Bottom").gameObject.activeSelf); Assert.IsTrue(game.Router.enabled);
+        }
+    }
+}

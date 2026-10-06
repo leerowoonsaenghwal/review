@@ -61,8 +61,30 @@ namespace CatIsland
             return f;
         }
 
+        // ---- 사진 모드: 자유 시점 (360도 돌리기, 연속 확대, 고양이 눈높이). 끝나면 원래 시점으로
+        public bool PhotoMode { get; private set; }
+        float photoYaw, photoPitch = 25f, photoDist = 4f; bool eyeLevel;
+        public void BeginPhoto() { PhotoMode = true; photoYaw = yaw; photoPitch = 25f; photoDist = Mathf.Clamp(dist * .6f, 2.2f, 9f); eyeLevel = false; }
+        public void EndPhoto() { PhotoMode = false; yaw = Mathf.Clamp(photoYaw, -yawLimit, yawLimit); }
+        public void PhotoOrbit(float dYaw, float dPitch) { photoYaw += dYaw; if (!eyeLevel) photoPitch = Mathf.Clamp(photoPitch + dPitch, 5f, 70f); }
+        public void PhotoZoom(float k) { photoDist = Mathf.Clamp(photoDist * k, 1.6f, 14f); }
+        public void SetEyeLevel(bool on) { eyeLevel = on; }
+        public bool EyeLevel => eyeLevel;
+
         void LateUpdate()
         {
+            if (PhotoMode)
+            {
+                Vector3 target = follow ? follow.position + Vector3.up * (eyeLevel ? .45f : .4f) : focus;
+                float pitchNow = eyeLevel ? 4f : photoPitch;
+                focus = Vector3.Lerp(focus, target, 1f - Mathf.Exp(-5f * Time.deltaTime));
+                var rot = Quaternion.Euler(pitchNow, photoYaw, 0f);
+                transform.rotation = Quaternion.Slerp(transform.rotation, rot, 1f - Mathf.Exp(-10f * Time.deltaTime));
+                transform.position = focus - transform.rotation * Vector3.forward * photoDist;
+                if (transform.position.y < .25f) transform.position = new Vector3(transform.position.x, .25f, transform.position.z);
+                WorldStyle.Apply(focus, transform.forward, photoDist * 1.6f);
+                return;
+            }
             float dt = Time.deltaTime;
             // 회전 한계 밖이면 살짝 되돌아옴
             float clamped = Mathf.Clamp(yaw, -yawLimit, yawLimit);

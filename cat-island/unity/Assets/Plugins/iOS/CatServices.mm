@@ -98,3 +98,14 @@ extern "C" void CatStore_Finish(const char *tid) {
     SKPaymentTransaction *t = catStore.open[S(tid)]; if (t) { [[SKPaymentQueue defaultQueue] finishTransaction:t]; [catStore.open removeObjectForKey:S(tid)]; }
 }
 extern "C" void CatStore_Restore() { [[SKPaymentQueue defaultQueue] restoreCompletedTransactions]; }
+
+// ---------------------------------------------------------------- 공유 (아이폰 공유 화면: 이용자가 고를 때만)
+extern "C" void CatShare_Image(const char *path, const char *text) {
+    UIImage *img = [UIImage imageWithContentsOfFile:S(path)]; if (!img) return;
+    NSMutableArray *items = [NSMutableArray arrayWithObject:img]; if (text && strlen(text)) [items addObject:S(text)];
+    UIActivityViewController *vc = [[UIActivityViewController alloc] initWithActivityItems:items applicationActivities:nil];
+    UIViewController *root = UnityGetGLViewController();
+    vc.popoverPresentationController.sourceView = root.view;
+    vc.popoverPresentationController.sourceRect = CGRectMake(root.view.bounds.size.width / 2, root.view.bounds.size.height, 1, 1);
+    [root presentViewController:vc animated:YES completion:nil];
+}
