@@ -1,0 +1,18 @@
+{
+ "id": "bird_feeder",
+ "ko": "새 모이통",
+ "units": "metres, Y up, +Z front",
+ "anchors": null,
+ "variants": [
+  "bird_feeder_color.jpg",
+  "bird_feeder_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 6,
+  "detail": 12,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

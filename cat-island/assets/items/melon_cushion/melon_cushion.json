@@ -1,0 +1,17 @@
+{
+ "id": "melon_cushion",
+ "ko": "수박 방석",
+ "units": "metres, Y up, +Z front",
+ "anchors": null,
+ "variants": [
+  "melon_cushion_color.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 9,
+  "detail": 66,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

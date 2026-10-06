@@ -1,0 +1,20 @@
+{
+ "id": "basket_bed",
+ "ko": "바구니 침대",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "top": 0.11
+ },
+ "variants": [
+  "basket_bed_color.jpg",
+  "basket_bed_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 3,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

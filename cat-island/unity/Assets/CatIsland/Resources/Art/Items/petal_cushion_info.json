@@ -1,0 +1,17 @@
+{
+ "id": "petal_cushion",
+ "ko": "꽃잎 방석",
+ "units": "metres, Y up, +Z front",
+ "anchors": null,
+ "variants": [
+  "petal_cushion_color.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 15,
+  "detail": 66,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

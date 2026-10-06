@@ -1,0 +1,17 @@
+{
+ "id": "pumpkin_house",
+ "ko": "호박 숨숨집",
+ "units": "metres, Y up, +Z front",
+ "anchors": null,
+ "variants": [
+  "pumpkin_house_color.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 6,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 12000,
+ "texture": 1024
+}

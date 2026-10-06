@@ -1,0 +1,18 @@
+{
+ "id": "bookshelf_low",
+ "ko": "낮은 책장",
+ "units": "metres, Y up, +Z front",
+ "anchors": null,
+ "variants": [
+  "bookshelf_low_color.jpg",
+  "bookshelf_low_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 18,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

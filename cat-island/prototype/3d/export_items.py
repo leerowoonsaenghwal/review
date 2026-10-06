@@ -20,6 +20,8 @@ SPEC = {   # id: (tris, texture, bake reach m)
     'cat_tower_1': (8000, 2048, .004),
     'tower_stool': (9000, 2048, .004), 'tower_stairs': (14000, 2048, .004), 'tower_house': (18000, 2048, .004),
     'tower_tree': (14000, 2048, .004), 'tower_tall': (24000, 2048, .004),
+    'petal_cushion': (12000, 1024, .006), 'melon_cushion': (12000, 1024, .006), 'pumpkin_house': (12000, 1024, .004), 'hanok_hideout': (12000, 1024, .004),
+    'sakura_tower': (14000, 2048, .004), 'snow_tree': (14000, 2048, .004),
 }
 DEFAULT = (4000, 1024, .004)   # (new items: a few thousand triangles, a 1024 atlas)
 if not ids: ids = json.loads(subprocess.run(['node', '-e', "import('./itemkit.js').then(m => console.log(JSON.stringify(m.KIT_IDS)))"], cwd=HERE, capture_output=True, text=True, check=True).stdout)

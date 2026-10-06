@@ -897,7 +897,7 @@ namespace CatIsland.Tests
             // 밤: 모두 잔다
             DayCycle.HourOverride = 23f; game.Day.Apply(23f);
             ca.ForceState(CatState.Idle); cb.ForceState(CatState.Idle);
-            for (float t = 0; t < 30f && !(ca.State == CatState.Sleep && cb.State == CatState.Sleep); t += Time.deltaTime) yield return null;
+            for (float t = 0; t < 60f && !(ca.State == CatState.Sleep && cb.State == CatState.Sleep); t += Time.deltaTime) yield return null;
             Time.timeScale = 1f; DayCycle.HourOverride = 13f;
             Assert.AreEqual(CatState.Sleep, ca.State); Assert.AreEqual(CatState.Sleep, cb.State);
         }

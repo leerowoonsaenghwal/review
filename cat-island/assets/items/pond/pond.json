@@ -1,0 +1,18 @@
+{
+ "id": "pond",
+ "ko": "작은 연못",
+ "units": "metres, Y up, +Z front",
+ "anchors": null,
+ "variants": [
+  "pond_color.jpg",
+  "pond_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 19,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

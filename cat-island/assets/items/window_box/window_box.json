@@ -1,0 +1,20 @@
+{
+ "id": "window_box",
+ "ko": "창가 상자",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "top": 0.4
+ },
+ "variants": [
+  "window_box_color.jpg",
+  "window_box_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 5,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

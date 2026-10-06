@@ -1,0 +1,18 @@
+{
+ "id": "parasol",
+ "ko": "파라솔",
+ "units": "metres, Y up, +Z front",
+ "anchors": null,
+ "variants": [
+  "parasol_color.jpg",
+  "parasol_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 3,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

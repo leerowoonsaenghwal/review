@@ -1,0 +1,20 @@
+{
+ "id": "swing_basket",
+ "ko": "그네 바구니",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "top": 0.42
+ },
+ "variants": [
+  "swing_basket_color.jpg",
+  "swing_basket_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 9,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

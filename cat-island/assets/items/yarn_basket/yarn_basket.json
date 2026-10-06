@@ -1,0 +1,18 @@
+{
+ "id": "yarn_basket",
+ "ko": "털실 바구니",
+ "units": "metres, Y up, +Z front",
+ "anchors": null,
+ "variants": [
+  "yarn_basket_color.jpg",
+  "yarn_basket_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 7,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

@@ -1,0 +1,18 @@
+{
+ "id": "rug_wave",
+ "ko": "물결 러그",
+ "units": "metres, Y up, +Z front",
+ "anchors": null,
+ "variants": [
+  "rug_wave_color.jpg",
+  "rug_wave_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 1,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

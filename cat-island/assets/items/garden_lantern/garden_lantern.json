@@ -1,0 +1,18 @@
+{
+ "id": "garden_lantern",
+ "ko": "정원 등불",
+ "units": "metres, Y up, +Z front",
+ "anchors": null,
+ "variants": [
+  "garden_lantern_color.jpg",
+  "garden_lantern_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 5,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

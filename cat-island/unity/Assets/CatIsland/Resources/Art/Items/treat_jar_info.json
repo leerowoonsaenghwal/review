@@ -1,0 +1,18 @@
+{
+ "id": "treat_jar",
+ "ko": "생선 쿠키 병",
+ "units": "metres, Y up, +Z front",
+ "anchors": null,
+ "variants": [
+  "treat_jar_color.jpg",
+  "treat_jar_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 3,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

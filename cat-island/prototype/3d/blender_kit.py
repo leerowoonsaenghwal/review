@@ -90,12 +90,21 @@ bad = 0
 for o in lo_parts:
     only(o); bpy.ops.object.mode_set(mode='EDIT'); bpy.ops.mesh.select_all(action='SELECT')
     bpy.ops.mesh.remove_doubles(threshold=1e-5); bpy.ops.mesh.dissolve_degenerate(threshold=1e-6)
+    bpy.ops.mesh.fill_holes(sides=0)                       # (surface-net solids can leave a few open edges where thin walls meet)
     bpy.ops.mesh.quads_convert_to_tris(); bpy.ops.mesh.normals_make_consistent(inside=False)
     bpy.ops.object.mode_set(mode='OBJECT')
+    if open_edges(o):                                      # (still not a clean shell, e.g. surface nets where thin walls meet: re-skin it
+        rm = o.modifiers.new('rm', 'REMESH'); rm.mode = 'VOXEL'      #  with a voxel remesh - one closed manifold; the look is baked from the original)
+        rm.voxel_size = max(o.dimensions) / 260; rm.use_smooth_shade = True
+        bpy.ops.object.modifier_apply(modifier='rm')
     if ratio < .98 and tris(o) > 150 and not o.data.shape_keys:
-        keep = o.data.copy()
-        d = o.modifiers.new('dec', 'DECIMATE'); d.ratio = max(ratio, 300 / tris(o)) if tris(o) * ratio < 300 else ratio; d.use_collapse_triangulate = True
-        bpy.ops.object.modifier_apply(modifier='dec')
+        keep = o.data.copy(); base = max(ratio, 300 / tris(o)) if tris(o) * ratio < 300 else ratio
+        for k in (1, 1.6, 2.5, 4, 6):                        # (a reduction that opens the part is undone and tried gentler)
+            r = min(1, base * k)
+            d = o.modifiers.new('dec', 'DECIMATE'); d.ratio = r; d.use_collapse_triangulate = True
+            bpy.ops.object.modifier_apply(modifier='dec')
+            if not open_edges(o) or r >= 1: break
+            o.data = keep.copy()
         if open_edges(o): o.data = keep                       # (would open up: keep the full part)
     e = open_edges(o)
     if e: bad += 1; print(name, 'part not closed:', o.name, e)

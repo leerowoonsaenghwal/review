@@ -1,0 +1,18 @@
+{
+ "id": "catnip_fish",
+ "ko": "캣닢 생선 인형",
+ "units": "metres, Y up, +Z front",
+ "anchors": null,
+ "variants": [
+  "catnip_fish_color.jpg",
+  "catnip_fish_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 6,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

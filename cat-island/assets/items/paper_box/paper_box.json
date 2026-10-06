@@ -1,0 +1,18 @@
+{
+ "id": "paper_box",
+ "ko": "종이 상자",
+ "units": "metres, Y up, +Z front",
+ "anchors": null,
+ "variants": [
+  "paper_box_color.jpg",
+  "paper_box_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 7,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

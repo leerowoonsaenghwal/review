@@ -1,0 +1,17 @@
+{
+ "id": "snow_tree",
+ "ko": "눈 트리",
+ "units": "metres, Y up, +Z front",
+ "anchors": null,
+ "variants": [
+  "snow_tree_color.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 34,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

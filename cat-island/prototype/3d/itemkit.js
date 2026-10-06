@@ -520,7 +520,7 @@ const SEASON_ITEMS = {
     for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; const p = sph(g, M('petal', () => std({ color: '#ffb3c4', roughness: .8 })), .05, Math.cos(a) * .3, .12, Math.sin(a) * .3, 1, .15, .6, 10); p.rotation.y = -a; } return g; } },
   melon_cushion: { ko: '수박 방석', variants: 1, build: () => { const g = cushion({ name: '수박', check: ['#ff8d8d', '#ff6b6b', '#e9585a'], roll: '#58a043', pipe: '#fffaf0', button: '#3b2a22' }); return g; } },
   pumpkin_house: { ko: '호박 숨숨집', variants: 1, build: () => { const g = hideout({ name: '호박', c: '#ff9f4a', d: '#e9785f', pad: ['#fff4d6', '#ffd85a', '#f0b93a'] });
-    cyl(g, M('stem', () => std({ color: '#58a043', roughness: .9 })), .04, .06, .12, 0, .85, 0, 10); return g; } },
+    sph(g, M('stem', () => std({ color: '#58a043', roughness: .9 })), .05, 0, .84, 0, .8, 1.4, .8, 12); return g; } },
   hanok_hideout: { ko: '한옥 숨숨집', variants: 1, build: () => { const g = hideout({ name: '한옥', c: '#e2b483', d: '#8b5e3c', pad: ['#f6f1e3', '#a6e3c4', '#5bb98c'] });
     const roof = lathe(g, [new THREE.Vector2(0, .95), new THREE.Vector2(.82, .62), new THREE.Vector2(.86, .66), new THREE.Vector2(0, 1.0)], 8, M('giwa', () => std({ map: tex('giwa', 256, 64, (gg, w, h) => { gg.fillStyle = '#8a96a0'; gg.fillRect(0, 0, w, h); gg.fillStyle = '#a3aeb6'; for (let x = 0; x < w; x += 16) gg.fillRect(x, 0, 8, h); }), roughness: .8 }))); roof.rotation.y = Math.PI / 8; return g; } },
   sakura_tower: { ko: '벚꽃 캣타워', variants: 1, tower: true, anchors: KIT_ITEMS.tower_tree.anchors, build: () => recolourLeaves(buildTower('tree', 0), '#ffc2d1', '#ffffff') },

@@ -1,0 +1,20 @@
+{
+ "id": "picnic_mat",
+ "ko": "소풍 돗자리",
+ "units": "metres, Y up, +Z front",
+ "anchors": {
+  "top": 0.012
+ },
+ "variants": [
+  "picnic_mat_color.jpg",
+  "picnic_mat_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 3,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}

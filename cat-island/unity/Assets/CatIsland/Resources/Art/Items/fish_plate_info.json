@@ -1,0 +1,18 @@
+{
+ "id": "fish_plate",
+ "ko": "생선 접시",
+ "units": "metres, Y up, +Z front",
+ "anchors": null,
+ "variants": [
+  "fish_plate_color.jpg",
+  "fish_plate_color_v1.jpg"
+ ],
+ "gloss": 0,
+ "parts": {
+  "both": 4,
+  "detail": 0,
+  "proxy": 0
+ },
+ "game_tris": 4000,
+ "texture": 1024
+}
