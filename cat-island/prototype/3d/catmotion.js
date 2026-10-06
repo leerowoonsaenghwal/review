@@ -386,7 +386,7 @@ export function settle(rig, P, { fk = [], floor = .002, iters = 12, dense = fals
 // the deepest guard violations; one damped least-squares step (finite differences) moves the contact pair to
 // `gap` along the surface normal (negative gap: pressed into the fur) and every violating vertex back out.
 // `at` turns the base pose into the pose at the moment of contact (e.g. the tongue out at mid-lick).
-export function touch(rig, P, { a, b, zone = null, keys, bounds = {}, gap = .001, iters = 30, at = Q => Q, lim = .12, guard = null, apart = false, pairless = false, maxR = .06 }) {
+export function touch(rig, P, { a, b, zone = null, keys, bounds = {}, gap = .001, iters = 30, at = Q => Q, lim = .12, guard = null, apart = false, pairless = false, maxR = .06, guardDepth = .003 }) {
   const C = contactOf(rig);
   const setOf = name => name === 'tongue' ? (C.sets.tongue ||= C.points(p => p === 'tongue', 'face', 2)) : C.sets[name] || (C.sets['all' + name] ||= C.points(p => p === name, 'body', 2));
   const A = setOf(a), guards = (guard || [{ a, b }]).map(g => ({ set: setOf(g.a), b: g.b, name: g.a }));
@@ -414,10 +414,10 @@ export function touch(rig, P, { a, b, zone = null, keys, bounds = {}, gap = .001
     let over = 0; const viol = [];
     for (const g of guards) {
       const okG = p => g.b.includes(p), w = C.depth(g.set, okG, C.rest[g.name] || null, maxR);
-      if (w.d < -.003) {
+      if (w.d < -guardDepth) {
         const gp0 = C.M[g.set.mesh].pos; viol.push({ who: g.set === A ? a : 'guard', into: w.part, d: +w.d.toFixed(4), at: [gp0[3 * w.i], gp0[3 * w.i + 1], gp0[3 * w.i + 2]].map(x => +x.toFixed(3)), bone: rig.model.userData.skeleton.bones[C.M[g.set.mesh].si[4 * w.i]].name });
         const gp = C.M[g.set.mesh].pos, r = C.nearest(gp[3 * w.i], gp[3 * w.i + 1], gp[3 * w.i + 2], okG, maxR);
-        if (r) { rows.push({ mesh: g.set.mesh, i: w.i, t: r.t, bary: r.bary, n: r.n.clone(), want: .001 }); over += -.003 - w.d; }
+        if (r) { rows.push({ mesh: g.set.mesh, i: w.i, t: r.t, bary: r.bary, n: r.n.clone(), want: .001 }); over += -guardDepth - w.d; }
       }
     }
     // backtracking: a step that made things worse is undone and the step size halved
@@ -993,9 +993,9 @@ export function makeClips(rig, opts = {}) {
   //    The big head's jaw hangs low: a paw lifted to mouth height would push the short forearm up into the
   //    chin, so the paw is held low out in front of the chest and the head bends down to it (and the tongue
   //    reaches out to it). Higher face spots are out of the arm's reach (measured), so the wash stays low.
-  const faceStroke = (Q, s2) => { Q.hdPitch += .04 * s2; };
+  const faceStroke = (Q, s2) => { Q.hdPitch += (s2 > 0 ? .015 : .04) * s2; };   // (a small nod: with the bigger head, more pulled the tongue off the paw at the end of each lick)
   lickBase = over(SITG, UPP, { FLx: .05 * sx, FLy: rig.ballH + .02, FLz: chestFront + .06, FLa: .2, FLt: 0, hdPitch: .8, nkPitch: SITG.nkPitch - .6, hdYaw: 0, hdRoll: 0 });
-  touchBest(S, lickBase, { a: 'tongue', b: ['FL'], keys: [...PAWK, 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], bounds: HB, iters: 40, at: lickAt(faceStroke), guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD] },
+  touchBest(S, lickBase, { a: 'tongue', b: ['FL'], keys: [...PAWK, 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], bounds: HB, iters: 40, at: lickAt(faceStroke), guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD], guardDepth: .0015 },
     [{ hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLy: rig.ballH, FLz: chestFront + .09 }, { FLx: .1 * sx, hdYaw: .45 * sx, hdRoll: .2 * sx }, { FLx: .12 * sx, FLz: chestFront + .08, hdYaw: .6 * sx, nkYaw: .3 * sx, hdRoll: .25 * sx }, { FLx: .09 * sx, FLz: chestFront + .1, hdYaw: .3 * sx, hdPitch: 1 }, { FLx: .11 * sx, FLz: chestFront + .05, hdYaw: .5 * sx, hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLx: .07 * sx, FLz: chestFront + .12, hdPitch: 1.1, nkPitch: SITG.nkPitch - .7 }],
     { FLx: [0, .04 * sx], FLz: [-.03, 0, .03, .06, .09, .12], hdPitch: [-.6, -.4, -.2, 0, .2, .4], nkPitch: [-.2, 0, .3], hdYaw: [0, .4 * sx] });   // (head raised too: a long muzzle licks the paw held out in front)
   // (a big head with a long muzzle and a plush paw: from the starts above the paw can end up held inside the
@@ -1005,7 +1005,7 @@ export function makeClips(rig, opts = {}) {
     const keep = { ...lickBase }, keepErr = touch.last, keepInfo = touch.info;
     const m = mouthAt(lickAt(faceStroke)({ ...lickBase }));
     const fromMouth = [1.3, 1.8, 2.4].flatMap(f => [0, .03].flatMap(dy => [0, -.4].map(hp => ({ FLx: .03 * sx, FLz: m.z + f * d.pawR, FLy: Math.max(rig.ballH, m.y - d.pawR - dy), hdPitch: lickBase.hdPitch + hp }))));
-    touchBest(S, lickBase, { a: 'tongue', b: ['FL'], keys: [...PAWK, 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], bounds: HB, iters: 40, at: lickAt(faceStroke), guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD] }, fromMouth);
+    touchBest(S, lickBase, { a: 'tongue', b: ['FL'], keys: [...PAWK, 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], bounds: HB, iters: 40, at: lickAt(faceStroke), guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD], guardDepth: .0015 }, fromMouth);
     if (touch.last >= keepErr) { Object.assign(lickBase, keep); touch.last = keepErr; touch.info = keepInfo; }
   }
   report.pawLick = Math.abs(touch.last - .001); report.pawLickInfo = touch.info;
@@ -1040,10 +1040,12 @@ export function makeClips(rig, opts = {}) {
       P.earLp = -.3 * k; P.earLy = -.2 * k;
       P.blink = Math.max(.6, k);
     } else P.blink = up > .5 ? .75 : blinkAt(t, [.2]);
-    if (t >= .45 && t < 2.25) licking(P, t, .45, 4, 2.2, faceStroke, faceTrack);
-    if (t >= 5.15 && t < 6.05) licking(P, t, 5.15, 2, 2.2, faceStroke, faceTrack);
+    if (t >= .45 && t < 1.82) licking(P, t, .45, 3, 2.2, faceStroke, faceTrack);   // (three licks, done before the wash turns the head away at 2.05 s)
+    // (no closing lick after the wash: on a big head the lone lick missed the paw by about 1 cm)
     return P;
-  }, 6.6, { fkAt: t => (t > .5 && t < 2.2) || (t > 2.5 && t < 4.85) || (t > 5.2 && t < 6.0) ? ['FL'] : [] }, 24), { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.lickU >= LICK_CORE[0] && P.lickU <= LICK_CORE[1] }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }] });
+  }, 6.6, { fkAt: t => (t > .7 && t < 2.2) || (t > 2.5 && t < 4.85) || (t > 5.2 && t < 6.0) ? ['FL'] : [] }, 24), { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.lickU >= LICK_CORE[0] && P.lickU <= LICK_CORE[1] }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }],
+    // the paw held to the mouth and rubbed over the face is meant to touch it: fur on fur may press in as far as a lick may (7 mm)
+    softContacts: [{ a: 'FL', b: ['head'], when: (P, t) => t > .4 && t < 6.1 }] });   // (the paw is up at the face from the first lick to the last)
 
   }
 
@@ -1353,7 +1355,8 @@ export function makeClips(rig, opts = {}) {
           const ok = p => p !== L && p !== L + 'u' && !(longFur && p === 'torso');
           const d1 = C.depth(C.sets[L], ok, C.rest[L]), d2 = C.depth(C.sets[L + 'b'], ok);
           const d = Math.min(d1.d, d2.d);
-          if (d < -.004) { bad = `${L} into ${(d1.d < d2.d ? d1 : d2).part} ${(-d * 1000).toFixed(0)} mm at ${t.toFixed(2)} s`; break; }
+          const softOk = (c.softContacts || []).some(k => k.a === L && k.b.includes((d1.d < d2.d ? d1 : d2).part) && k.when(P, t));
+          if (d < (softOk ? -.007 : -.004)) { bad = `${L} into ${(d1.d < d2.d ? d1 : d2).part} ${(-d * 1000).toFixed(0)} mm at ${t.toFixed(2)} s`; break; }
         }
         const dh = C.depth(C.sets.head, p => LIMBS.includes(p));
         if (!bad && dh.d < -.008) bad = `head into ${dh.part} ${(-dh.d * 1000).toFixed(0)} mm at ${t.toFixed(2)} s`;

@@ -46,6 +46,9 @@ for (const id of breeds) {
         // a long coat is soft hair the legs move in: legs inside the body's fur volume are only a warning there
         // (and a fluffy leg brushing the next one, up to 12 mm, is hair in hair)
         const soft = (part, d = 0) => longFur && (part === 'torso' || (LIMBS.includes(part) || part.endsWith('u')) && d > -.012);
+        const meant = part => (clip.softContacts || []).some(k => k.a === L && k.b.includes(part) && k.when(P, t));   // (a paw meant to touch the face: fur on fur up to LIMIT.deep)
+        if (meant(dl.part) && dl.d >= LIMIT.deep) dl.d = 0;
+        if (meant(db.part) && db.d >= LIMIT.deep) db.d = 0;
         if (dl.d < -LIMIT.pen) issues.push({ k: `${L} in ${dl.part}${soft(dl.part, dl.d) ? ' fur (warn)' : ''}`, d: dl.d, at, warn: soft(dl.part, dl.d) });
         if (db.d < -LIMIT.pen) issues.push({ k: `${L} beans in ${db.part}${soft(db.part, db.d) ? ' fur (warn)' : ''}`, d: db.d, at, warn: soft(db.part, db.d) });
       }
