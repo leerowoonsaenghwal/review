@@ -13,7 +13,7 @@ namespace CatIsland.Game
     /// <summary>보상형·전면 광고. 결과는 콜백으로 (광고를 다 봐야 Rewarded).</summary>
     public interface IAds { bool RewardedReady { get; } void ShowRewarded(string spot, Action<AdResult> done); void ShowInterstitial(Action done); }
     /// <summary>결제 (StoreKit 2: 기기 안 검증). 지급 확인(Finish)은 게임이 지급을 저장한 뒤에.</summary>
-    public interface IStore { void Purchase(string productId, Action<PurchaseResult, string> done); void Finish(string transactionId); IEnumerable<(string product, string tx)> Unfinished(); }
+    public interface IStore { void Purchase(string productId, Action<PurchaseResult, string> done); void Finish(string transactionId); IEnumerable<(string product, string tx)> Unfinished(); void Restore(); }
     public interface IGameCenter { void Report(string achievementId); void Score(string board, long value); }
     /// <summary>기기 안 알림 (서버 없음). 다시 예약할 때마다 전부 지우고 새로 넣는다.</summary>
     public interface INotifier { void ClearAll(); void Schedule(string id, DateTime utc, string title, string body); }
@@ -42,6 +42,7 @@ namespace CatIsland.Game
         }
         public void Finish(string tx) => unfinished.RemoveAll(u => u.tx == tx);
         public IEnumerable<(string product, string tx)> Unfinished() => unfinished.ToArray();
+        public void Restore() { }
     }
     public class FakeGameCenter : IGameCenter
     {

@@ -552,6 +552,8 @@ namespace CatIsland.Game
             S.payer = true; S.pendingTransactions.Add(tx);
             Save(); Store.Finish(tx);
         }
+        /// <summary>구매 복원 (설정): 앱스토어에 지난 결제를 다시 묻고, 끝나지 않은 결제를 지급한다.</summary>
+        public void RestorePurchases() { Store.Restore(); RestorePending(); }
         public void RestorePending() { foreach (var (product, tx) in Store.Unfinished()) Grant(product, tx); }
 
         // ================================================================ 사진 · 별나라 · 업적

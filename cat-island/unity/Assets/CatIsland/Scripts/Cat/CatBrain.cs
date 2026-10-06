@@ -830,10 +830,22 @@ namespace CatIsland
             var d = CatIsland.Game.Catalog.Item(id); if (d == null || d.consumable) return null;
             if (id == "litter_box" || id == "sandbox") return "litter";
             if (id == "scratcher") return "stretch";
-            if (id == "hideout") return "hide";
+            if (id == "hideout" || id == "pumpkin_house" || id == "hanok_hideout") return "hide";
+            if (BedTop(id) > 0f) return "bed";
             if (d.category == CatIsland.Game.ItemCategory.Toy && id != "paper_box" && id != "tunnel") return "bat";
             if (d.category == CatIsland.Game.ItemCategory.Food || d.category == CatIsland.Game.ItemCategory.Tower) return null;
             return "near";
+        }
+        [Serializable] class TopInfo { public TopAnchors anchors; } [Serializable] class TopAnchors { public float top; }
+        static readonly Dictionary<string, float> bedTops = new Dictionary<string, float>();
+        /// <summary>고양이가 올라가 눕는 면의 높이 (용품 JSON anchors.top, 방석 계열은 0.134). 없으면 0.</summary>
+        static float BedTop(string id)
+        {
+            if (bedTops.TryGetValue(id, out var v)) return v;
+            var d = CatIsland.Game.Catalog.Item(id); var txt = d != null ? ItemLoader.InfoText(d.model) : null;
+            v = 0f; if (txt != null) { try { v = JsonUtility.FromJson<TopInfo>(txt)?.anchors?.top ?? 0f; } catch { } }
+            if (id == "petal_cushion" || id == "melon_cushion") v = .134f;
+            return bedTops[id] = v;
         }
         bool BeginUse(ItemTag t)
         {
@@ -850,6 +862,8 @@ namespace CatIsland
                     useYaw = yawTo; useSpot = tp - toItem * .38f; break;
                 case "litter":    // 통 가운데, 긴 쪽을 따라
                     useYaw = Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg; useSpot = tp; useLift = .15f; if (t.id == "sandbox") useLift = .05f; break;
+                case "bed":       // 침대·벤치·해먹 위에서 식빵 (밤에는 잠)
+                    useYaw = Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg + 90f; useSpot = tp; useLift = BedTop(t.id); break;
                 case "hide":      // 몸은 안에, 머리는 문 밖 (qa_items 숨숨집 장면과 같은 자리)
                     useYaw = Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg; useSpot = tp - Quaternion.Euler(0, useYaw, 0) * new Vector3(0, 0, Rig.Info.hideZ); useLift = Rig.Info.hideLift; break;
                 default:          // 옆에 앉아 바라보기
@@ -861,7 +875,7 @@ namespace CatIsland
         void TickGoToItem(float dt)
         {
             if (!useTarget || OtherCatNear(useSpot, .5f)) { Enter(CatState.Idle); return; }   // (다른 고양이가 그 자리에 있으면 다음에)
-            bool inside = useKind == "litter" || useKind == "hide";
+            bool inside = useKind == "litter" || useKind == "hide" || useKind == "bed";
             if (MoveTowards(useSpot, GameConfig.WalkSpeed, dt, inside ? .06f : .1f) || (inside && Flat(useSpot - transform.position).magnitude < .45f))
             {
                 // (통·숨숨집 안으로는 마지막 몇 걸음을 곧게: 길찾기는 물건 안을 막아 둔다)
@@ -884,6 +898,7 @@ namespace CatIsland
                     case "stretch": Rig.Request(Posture.Stand); Rig.PlayAction("Stretch", false, .2f); useTimer = 4.3f; break;
                     case "litter": Rig.Request(Posture.Stand); if (Rig.HasClip("Dig")) Rig.PlayAction("Dig", false, .2f); useTimer = 2.5f; break;
                     case "hide": Rig.Request(Posture.Loaf); useTimer = UnityEngine.Random.Range(8f, 16f); break;
+                    case "bed": Rig.Request(IsNight ? Posture.Sleep : Posture.Loaf); useTimer = IsNight ? 60f : UnityEngine.Random.Range(10f, 20f); break;
                     default: Rig.Request(Posture.Sit); useTimer = UnityEngine.Random.Range(3f, 6f); break;
                 }
                 return;

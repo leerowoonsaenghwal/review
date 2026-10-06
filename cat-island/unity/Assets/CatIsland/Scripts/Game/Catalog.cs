@@ -136,12 +136,12 @@ namespace CatIsland.Game
             I("swing_basket", "그네 바구니", ItemCategory.Outdoor, Zone.Yard, 780, NeedKind.Rest, "숲", 2, 2);
             I("watering_can", "물뿌리개", ItemCategory.Outdoor, Zone.Yard, 120, theme: "기본");
             // 계절 한정 (젤리, 계절 행사 기간에만 상점에)
-            I("sakura_tower", "벚꽃 캣타워", ItemCategory.Tower, Zone.Indoor, 300, NeedKind.Play, "벚꽃", 2, 2, cur: Currency.Jelly, idle: .2f, limited: true, season: "sakura", model: "tower_tree");
-            I("petal_cushion", "꽃잎 방석", ItemCategory.Furniture, Zone.Indoor, 150, NeedKind.Rest, "벚꽃", 2, 2, cur: Currency.Jelly, limited: true, season: "sakura", model: "cushion");
-            I("melon_cushion", "수박 방석", ItemCategory.Furniture, Zone.Indoor, 150, NeedKind.Rest, "여름", 2, 2, cur: Currency.Jelly, limited: true, season: "summer", model: "cushion");
-            I("pumpkin_house", "호박 숨숨집", ItemCategory.Furniture, Zone.Indoor, 250, NeedKind.Rest, "할로윈", 2, 2, cur: Currency.Jelly, limited: true, season: "halloween", model: "hideout");
-            I("snow_tree", "눈 트리", ItemCategory.Deco, Zone.Yard, 250, theme: "겨울", w: 2, h: 2, cur: Currency.Jelly, limited: true, season: "winter", model: "tower_tree");
-            I("hanok_hideout", "한옥 숨숨집", ItemCategory.Furniture, Zone.Indoor, 250, NeedKind.Rest, "가을", 2, 2, cur: Currency.Jelly, limited: true, season: "catday_kr", model: "hideout");
+            I("sakura_tower", "벚꽃 캣타워", ItemCategory.Tower, Zone.Indoor, 300, NeedKind.Play, "벚꽃", 2, 2, cur: Currency.Jelly, idle: .2f, limited: true, season: "sakura");
+            I("petal_cushion", "꽃잎 방석", ItemCategory.Furniture, Zone.Indoor, 150, NeedKind.Rest, "벚꽃", 2, 2, cur: Currency.Jelly, limited: true, season: "sakura");
+            I("melon_cushion", "수박 방석", ItemCategory.Furniture, Zone.Indoor, 150, NeedKind.Rest, "여름", 2, 2, cur: Currency.Jelly, limited: true, season: "summer");
+            I("pumpkin_house", "호박 숨숨집", ItemCategory.Furniture, Zone.Indoor, 250, NeedKind.Rest, "할로윈", 2, 2, cur: Currency.Jelly, limited: true, season: "halloween");
+            I("snow_tree", "눈 트리", ItemCategory.Deco, Zone.Yard, 250, theme: "겨울", w: 2, h: 2, cur: Currency.Jelly, limited: true, season: "winter");
+            I("hanok_hideout", "한옥 숨숨집", ItemCategory.Furniture, Zone.Indoor, 250, NeedKind.Rest, "가을", 2, 2, cur: Currency.Jelly, limited: true, season: "catday_kr");
             return L.ToArray();
         }
 

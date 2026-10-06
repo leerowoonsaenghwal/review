@@ -486,6 +486,10 @@ function litterBox(v) {
 
 // ---------------------------------------------------------------- the catalogue
 // anchors: the places a cat uses, kept exactly as items.js (the clips were fitted to them)
+// helpers for the second catalogue file (itemkit2.js)
+export { part, box, cyl, sph, torus, lathe, capsule, chain, M, sdfPart, boxUV, pompom, screwM, fishShape, sdRoundBox, sdCapsule };
+import { EXTRA_ITEMS } from './itemkit2.js';
+
 export const KIT_ITEMS = {
   food_bowl: { ko: '사료 그릇', variants: BOWL_VARIANTS.food_bowl.length, build: v => dish('food_bowl', BOWL_VARIANTS.food_bowl[v]) },
   water_bowl: { ko: '물그릇', variants: BOWL_VARIANTS.water_bowl.length, gloss: .35, build: v => dish('water_bowl', BOWL_VARIANTS.water_bowl[v]) },
@@ -500,9 +504,29 @@ export const KIT_ITEMS = {
   hideout: { ko: '숨숨집', variants: HIDE_VARIANTS.length, build: v => hideout(HIDE_VARIANTS[v]) },
   litter_box: { ko: '화장실', variants: LITTER_VARIANTS.length, build: v => litterBox(LITTER_VARIANTS[v]) },
   cat_tower_1: { ko: '캣타워 1단', variants: 2, build: v => tower1(v) },
+  ...EXTRA_ITEMS,
   ...Object.fromEntries(Object.entries(TOWERS).map(([k, t]) => ['tower_' + k, { ko: '캣타워 ' + t.ko, variants: TOWER_VARIANTS.length, tower: true, build: v => buildTower(k, v),
     anchors: { step: STEP, top: t.top, decks: t.decks.map(d => ({ y: d.y, x: d.at[0], z: d.at[1], size: d.size, ...(d.round ? { round: true } : {}), ...(d.leaf ? { leaf: true } : {}) })) } }])),
 };
+// ---------------------------------------------------------------- season items (limited): the same builders in season colours + a small mark
+function recolourLeaves(g, colour, dots = null) {
+  const m = std({ map: felt(colour, 'rgba(0,0,0,.08)'), roughness: .95 });
+  g.traverse(o => { if (o.isMesh && o.material && o.material.map && o.material.map.name && o.material.map.name.startsWith('felt#66b84a')) o.material = m; });
+  if (dots) g.traverse(o => { if (o.name === 'LeafPad') for (let k = 0; k < 5; k++) { const d = sph(o.parent, M('dot' + dots, () => std({ color: dots, roughness: .9 })), .04, Math.cos(k * 1.3) * .2, .005, Math.sin(k * 1.3) * .2, 1, .4, 1, 10); } });
+  return g;
+}
+const SEASON_ITEMS = {
+  petal_cushion: { ko: '꽃잎 방석', variants: 1, build: () => { const g = cushion({ name: '벚꽃', check: ['#ffeef3', '#ffc2d1', '#ff9fbd'], roll: '#ffc2d1', pipe: '#fffaf0', button: '#ff7f9f' });
+    for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; const p = sph(g, M('petal', () => std({ color: '#ffb3c4', roughness: .8 })), .05, Math.cos(a) * .3, .12, Math.sin(a) * .3, 1, .15, .6, 10); p.rotation.y = -a; } return g; } },
+  melon_cushion: { ko: '수박 방석', variants: 1, build: () => { const g = cushion({ name: '수박', check: ['#ff8d8d', '#ff6b6b', '#e9585a'], roll: '#58a043', pipe: '#fffaf0', button: '#3b2a22' }); return g; } },
+  pumpkin_house: { ko: '호박 숨숨집', variants: 1, build: () => { const g = hideout({ name: '호박', c: '#ff9f4a', d: '#e9785f', pad: ['#fff4d6', '#ffd85a', '#f0b93a'] });
+    cyl(g, M('stem', () => std({ color: '#58a043', roughness: .9 })), .04, .06, .12, 0, .85, 0, 10); return g; } },
+  hanok_hideout: { ko: '한옥 숨숨집', variants: 1, build: () => { const g = hideout({ name: '한옥', c: '#e2b483', d: '#8b5e3c', pad: ['#f6f1e3', '#a6e3c4', '#5bb98c'] });
+    const roof = lathe(g, [new THREE.Vector2(0, .95), new THREE.Vector2(.82, .62), new THREE.Vector2(.86, .66), new THREE.Vector2(0, 1.0)], 8, M('giwa', () => std({ map: tex('giwa', 256, 64, (gg, w, h) => { gg.fillStyle = '#8a96a0'; gg.fillRect(0, 0, w, h); gg.fillStyle = '#a3aeb6'; for (let x = 0; x < w; x += 16) gg.fillRect(x, 0, 8, h); }), roughness: .8 }))); roof.rotation.y = Math.PI / 8; return g; } },
+  sakura_tower: { ko: '벚꽃 캣타워', variants: 1, tower: true, anchors: KIT_ITEMS.tower_tree.anchors, build: () => recolourLeaves(buildTower('tree', 0), '#ffc2d1', '#ffffff') },
+  snow_tree: { ko: '눈 트리', variants: 1, build: () => recolourLeaves(buildTower('tree', 0), '#3f9a3e', '#fffaf0') },
+};
+Object.assign(KIT_ITEMS, SEASON_ITEMS);
 export const KIT_IDS = Object.keys(KIT_ITEMS);
 export function buildKitItem(id, { variant = 0, press = null } = {}) {
   const d = KIT_ITEMS[id], g = d.build(Math.min(variant, d.variants - 1), { press });

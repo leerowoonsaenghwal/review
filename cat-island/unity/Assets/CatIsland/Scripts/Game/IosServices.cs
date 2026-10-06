@@ -67,7 +67,7 @@ namespace CatIsland.Game
         public void Purchase(string productId, Action<PurchaseResult, string> done) { waiting[productId] = done; CatStore_Buy(productId); }
         public void Finish(string tx) { unfinished.RemoveAll(u => u.tx == tx); CatStore_Finish(tx); }
         public IEnumerable<(string product, string tx)> Unfinished() => unfinished.ToArray();
-        public void RestorePurchases() => CatStore_Restore();
+        public void Restore() => CatStore_Restore();   // (복원된 결제는 OnPurchase 로 와서 RestorePending 으로 지급: 세트·별나라는 한 번만)
         void OnProducts(string list)
         {
             foreach (var line in list.Split('\n')) { var p = line.Split('\t'); if (p.Length == 2) LocalPrices[p[0]] = p[1]; }

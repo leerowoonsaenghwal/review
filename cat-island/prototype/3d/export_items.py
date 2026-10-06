@@ -21,7 +21,8 @@ SPEC = {   # id: (tris, texture, bake reach m)
     'tower_stool': (9000, 2048, .004), 'tower_stairs': (14000, 2048, .004), 'tower_house': (18000, 2048, .004),
     'tower_tree': (14000, 2048, .004), 'tower_tall': (24000, 2048, .004),
 }
-ids = ids or list(SPEC)
+DEFAULT = (4000, 1024, .004)   # (new items: a few thousand triangles, a 1024 atlas)
+if not ids: ids = json.loads(subprocess.run(['node', '-e', "import('./itemkit.js').then(m => console.log(JSON.stringify(m.KIT_IDS)))"], cwd=HERE, capture_output=True, text=True, check=True).stdout)
 raw = os.path.join(out, '_raw'); os.makedirs(raw, exist_ok=True)
 
 # ---- raw parts from the browser (three.js + canvas textures), every colour variant
@@ -51,7 +52,7 @@ import('./items.js').then(m => { const o = {}; for (const id of process.argv[1].
 
 
 def finish(i):
-    tris, tex, ext = SPEC[i]
+    tris, tex, ext = SPEC.get(i, DEFAULT)
     d = os.path.join(out, i); n = infos[i]['variants']
     r = subprocess.run([sys.executable, os.path.join(HERE, 'blender_kit.py'), d, i] + [os.path.join(raw, f'{i}_v{v}.glb') for v in range(n)] +
                        ['--tris', str(tris), '--tex', str(tex), '--ext', str(ext)], capture_output=True, text=True)

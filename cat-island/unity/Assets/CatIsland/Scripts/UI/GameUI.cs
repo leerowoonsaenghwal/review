@@ -235,7 +235,7 @@ namespace CatIsland.UI
                 Kit.Size(Kit.Btn(r, owned ? "가졌어요" : Str.Krw(p.priceKrw), () => { if (!owned) G.Purchase(prod.id, res => { Toast(res == PurchaseResult.Success ? "고마워요! 받았어요" : res == PurchaseResult.Cancelled ? "괜찮아요, 다음에 봐요" : Str.Oops); Open(BuildJellyShop); }); }, owned ? Kit.Style.Secondary : Kit.Style.Primary), 120, 46);
             }
             var rr = Row(list, 56); RowText(rr, "이전에 산 것 다시 받기");
-            Kit.Size(Kit.Btn(rr, Str.Restore, () => { G.RestorePending(); Toast("다시 확인했어요"); }, Kit.Style.Secondary), 110, 44);
+            Kit.Size(Kit.Btn(rr, Str.Restore, () => { G.RestorePurchases(); Toast("다시 확인했어요"); }, Kit.Style.Secondary), 110, 44);
             return Str.JellyShop;
         }
 
@@ -405,7 +405,7 @@ namespace CatIsland.UI
             Toggle(list, Str.Haptics, () => G.S.hapticsOn, v => G.S.hapticsOn = v);
             Toggle(list, "알림: 선물이 가득 찼을 때", () => G.S.notifyIdleFull, v => { G.S.notifyIdleFull = v; G.ScheduleNotifications(); });
             Toggle(list, "알림: 산책에서 돌아올 때", () => G.S.notifyWalkHome, v => { G.S.notifyWalkHome = v; G.ScheduleNotifications(); });
-            var r = Row(list, 56); RowText(r, Str.Restore); Kit.Size(Kit.Btn(r, "확인", () => { G.RestorePending(); Toast("다시 확인했어요"); }, Kit.Style.Secondary), 80, 44);
+            var r = Row(list, 56); RowText(r, Str.Restore); Kit.Size(Kit.Btn(r, "확인", () => { G.RestorePurchases(); Toast("다시 확인했어요"); }, Kit.Style.Secondary), 80, 44);
             Kit.Size(Kit.Label(list, Str.PhotoPrivacy, Theme.Caption, Theme.Latte), -1, 50);
             Kit.Size(Kit.Label(list, "광고는 집사님이 고를 때만 봐요. 배너 광고는 없어요.", Theme.Caption, Theme.Latte), -1, 40);
             Kit.Size(Kit.Label(list, "글꼴: 주아 (SIL Open Font License)", Theme.Tiny, Theme.Latte), -1, 24);
