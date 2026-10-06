@@ -1,0 +1,74 @@
+namespace CatIsland.Tests
+{
+    using System.Collections;
+    using System.IO;
+    using System.Linq;
+    using NUnit.Framework;
+    using UnityEngine;
+    using UnityEngine.Profiling;
+    using UnityEngine.TestTools;
+
+    /// <summary>
+    /// 출시 점검: 고양이 5마리 + 용품을 놓은 섬에서 프레임 시간·그리기 횟수·삼각형·메모리를 재서 docs/PERF.md 표에 쓸 값을 남긴다
+    /// (에디터 수치: 아이폰 실기 값은 RELEASE_TODO). 눈 모양·수염 고르기(CatFace)와 사진 고양이 털 색(CatCoat)이 실제로 바뀌는지.
+    /// </summary>
+    public class ReleaseChecks : SceneFixture
+    {
+        [UnityTest]
+        public IEnumerator Perf_FiveCatsAndItems()
+        {
+            var g = game.Logic; g.S.catSlots = 5; g.S.coins = 999999;
+            foreach (var (b, n) in new[] { ("korean_shorthair", "나비"), ("persian", "보리"), ("munchkin", "콩"), ("maine_coon", "호두"), ("siamese", "달이") })
+                g.AddCat(b, n, CatIsland.Game.Personality.Playful);
+            foreach (var id in new[] { "cushion", "hideout", "mouse_toy", "scratcher", "tower2", "plant_pot", "rug_round" })
+            {
+                if (CatIsland.Game.Catalog.Item(id) == null) continue;
+                g.Buy(id);
+                for (int x = -3; x <= 3; x++) for (int z = -3; z <= 3; z++) if (g.CanPlace(id, 0, x, z, 0)) { g.Place(id, 0, x, z, 0); x = 99; break; }
+            }
+            game.SyncCats(); game.WorldLink.Refresh();
+            for (int i = 0; i < 60; i++) yield return null;   // (자리 잡기)
+            int frames = 0; float total = 0f, worst = 0f;
+            while (total < 6f) { yield return null; frames++; total += Time.unscaledDeltaTime; worst = Mathf.Max(worst, Time.unscaledDeltaTime); }
+            int draws = 0, tris = 0, batches = 0;
+#if UNITY_EDITOR
+            draws = UnityEditor.UnityStats.drawCalls; tris = UnityEditor.UnityStats.triangles; batches = UnityEditor.UnityStats.batches;
+#endif
+            long mono = Profiler.GetMonoUsedSizeLong() / (1024 * 1024), alloc = Profiler.GetTotalAllocatedMemoryLong() / (1024 * 1024);
+            int cats = Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).Count(c => c.isActiveAndEnabled);
+            string line = $"cats={cats} avgMs={total / frames * 1000:F1} worstMs={worst * 1000:F1} drawCalls={draws} batches={batches} tris={tris} monoMB={mono} allocMB={alloc}";
+            Debug.Log("[Perf] " + line);
+            Directory.CreateDirectory("Builds"); File.WriteAllText("Builds/perf.txt", line + "\n");
+            Assert.AreEqual(5, cats);
+            if (draws > 0) Assert.Less(draws, 400, "그리기 횟수가 휴대폰에 너무 많다");
+        }
+
+        [UnityTest]
+        public IEnumerator FaceVariants_AndPhotoCoat()
+        {
+            var face = Cat.Rig.GetComponentsInChildren<SkinnedMeshRenderer>(true).First(r => r.sharedMesh.blendShapeCount > 0);
+            if (!CatFace.Variants(face).Any() && !face.sharedMaterials.Any(m => m.name.Contains("__")))
+            {
+                // (예전 에셋: 얼굴에 고를 조각이 없다. 33품종을 다시 만든 뒤부터 검사)
+                Assert.Ignore("face variants not in this asset yet");
+            }
+            yield return null;
+            int Tris(SkinnedMeshRenderer r) => Enumerable.Range(0, r.sharedMesh.subMeshCount).Sum(i => (int)r.sharedMesh.GetIndexCount(i)) / 3;
+            Cat.Rig.SetFace("dark", "short"); int dark = Tris(face); int mats = face.sharedMaterials.Length;
+            Cat.Rig.SetFace("rim", "long"); int rim = Tris(face);
+            Assert.AreNotEqual(dark, rim, "눈 모양을 바꾸면 얼굴 조각이 바뀐다");
+            Assert.AreEqual(mats, face.sharedMaterials.Length, "고른 조각은 원래 재질에 합쳐진다 (그리기 횟수 그대로)");
+            Assert.IsFalse(face.sharedMaterials.Any(m => m.name.Contains("__")), "고르지 않은 조각은 남지 않는다");
+
+            // 사진 고양이 털: 마스크가 있으면 셰이더 색 바꾸기가 켜진다
+            var body = Cat.Rig.GetComponentsInChildren<SkinnedMeshRenderer>(true).First(r => r.sharedMesh.blendShapeCount == 0);
+            bool ok = CatCoat.Apply(body, Cat.Rig.breed, "{\"pattern\":\"tuxedo\",\"variant\":\"tuxedo\",\"base\":\"#303034\",\"dark\":\"#26262a\",\"white\":\"#f6f2ea\",\"second\":\"#d98a3a\",\"whiteLevel\":0.4}");
+            if (Resources.Load<Texture2D>("Art/Cats/" + Cat.Rig.breed + "_coatmask") != null)
+            {
+                Assert.IsTrue(ok);
+                Assert.IsTrue(body.material.IsKeywordEnabled("_COATMASK"));
+            }
+            Assert.IsFalse(CatCoat.Apply(body, Cat.Rig.breed, "not json"), "잘못된 값은 아무것도 바꾸지 않는다");
+        }
+    }
+}

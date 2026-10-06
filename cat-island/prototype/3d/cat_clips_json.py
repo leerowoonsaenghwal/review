@@ -12,7 +12,7 @@ info = json.load(open(src))
 doc = {
     "id": info["id"], "ko": info["ko"], "bones": info["bones"],
     "clips": info["clips"], "groomRoutine": info["groomRoutine"], "skippedClips": info["skippedClips"],
-    "itemSpots": info["itemSpots"],
+    "itemSpots": info["itemSpots"], "face": info.get("face"),
     "sculpt_tris": info.get("tris"),
     "game_tris": {"Body": 14000, "Face": "~10500 (eyes, nose, mouth, tongue, whiskers, toe beans)"},
     "units": "metres, +Z forward, Y up (glTF); clips sampled at 30 fps",

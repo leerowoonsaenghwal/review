@@ -175,7 +175,7 @@ export function makeCoat(spec) {
       }
     }
     c.lerp(dark, Math.min(1, s));
-    return spec.bold ? c.lerp(C('#fff8ec'), .1) : c;   // (bold / style 'ac': a cleaner, slightly lighter coat)
+    return spec.bold && !spec.noLighten ? c.lerp(C('#fff8ec'), .1) : c;   // (noLighten: the coat mask, coat_texels.mjs)   // (bold / style 'ac': a cleaner, slightly lighter coat)
   };
 }
 

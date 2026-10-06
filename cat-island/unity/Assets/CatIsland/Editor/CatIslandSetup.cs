@@ -40,7 +40,14 @@ namespace CatIsland.EditorTools
             PlayerSettings.companyName = "rowoon";
             PlayerSettings.productName = "놀고섬";   // 홈 화면 이름 (정식 이름은 스토어에: 놀러와요 고양이섬, docs/BRAND.md)
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, "com.rowoon.CatIsland");
-            PlayerSettings.bundleVersion = "0.1.0";
+            PlayerSettings.bundleVersion = "1.0.0";
+            // 앱 아이콘: assets/app_icon/AppIcon-1024.png (식빵섬, docs/BRAND.md 13장) → 모든 크기는 Unity 가 만든다
+            const string iconPath = "Assets/CatIsland/Art/AppIcon/AppIcon-1024.png";
+            var iconSrc = Path.GetFullPath(Path.Combine(Application.dataPath, "../../assets/app_icon/AppIcon-1024.png"));
+            if (File.Exists(iconSrc) && (!File.Exists(iconPath) || new FileInfo(iconSrc).Length != new FileInfo(iconPath).Length))
+            { Directory.CreateDirectory(Path.GetDirectoryName(iconPath)); File.Copy(iconSrc, iconPath, true); AssetDatabase.ImportAsset(iconPath); }
+            var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(iconPath);
+            if (icon != null) PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
             PlayerSettings.iOS.buildNumber = "1";
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
             PlayerSettings.allowedAutorotateToPortrait = true;

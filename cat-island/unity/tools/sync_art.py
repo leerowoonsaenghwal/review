@@ -58,6 +58,10 @@ def main() -> int:
         for ext in (".fbx", ".clips.json"):
             ok &= copy(ASSETS / "cats" / f"{cat}{ext}", ART / "Cats" / f"{cat}{ext}")
         ok &= extract_face_atlas(ASSETS / "cats" / f"{cat}.glb", ART / "Cats" / f"{cat}_face.png")
+        # 사진 고양이 털 색 (CatCoat): 털 마스크·색 칸, 같은 몸에 입히는 다른 털 (korean_shorthair__tuxedo 등). 없으면 건너뜀 (예전 에셋)
+        res_cats = UNITY / "Assets" / "CatIsland" / "Resources" / "Art" / "Cats"
+        for f in sorted((ASSETS / "cats").glob(f"{cat}_coatmask.png")) + sorted((ASSETS / "cats").glob(f"{cat}__*")) + sorted((ASSETS / "cats").glob(f"{cat}.coat.json")):
+            copy(f, res_cats / f.name.replace(".coat.json", "_slots.json"))
     for item in manifest["items"]:
         for name in (f"{item}.fbx", f"{item}_color.jpg", f"{item}_normal.png", f"{item}.json"):
             ok &= copy(ASSETS / "items" / item / name, ART / "Items" / item / name)

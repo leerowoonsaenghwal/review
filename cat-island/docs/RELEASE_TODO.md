@@ -5,7 +5,7 @@
 | # | 무엇을 | 어디서 | 어떻게 |
 |---|---|---|---|
 | 1 | 애플 개발자 계정 (유료 멤버십) 확인 | developer.apple.com | 팀 ID `53JSX9F7FL`가 쓰이고 있음. 연회비 갱신 상태 확인 |
-| 2 | 앱 등록 (번들 ID, 앱 이름 "놀러와요 고양이섬") | App Store Connect → 나의 앱 → + | 번들 ID는 `unity/ProjectSettings` 값과 같게. 연령 등급 12+ |
+| 2 | 앱 등록 (번들 ID, 앱 이름 "놀러와요 고양이섬") | App Store Connect → 나의 앱 → + | 번들 ID는 `com.rowoon.CatIsland` (unity `CatIslandSetup.cs` 에서 바꿀 수 있음), 버전 1.0.0. 연령 등급 12+ |
 | 3 | 인앱 결제 상품 등록 | App Store Connect → 앱 → 인앱 구입 | 상품 ID 목록은 개발 중 `docs/RELEASE_TODO.md` 아래 '상품 ID'에 채워 둔다 |
 | 4 | 광고 회사 앱 ID (AdMob 또는 AppLovin MAX) | admob.google.com | 앱 추가 → 보상형·전면 광고 단위 만들기 → ID를 알려 주면 넣는다 |
 | 5 | Game Center 업적·순위표 등록 | App Store Connect → 앱 → Game Center | ID 목록은 개발 중 아래에 채워 둔다 |

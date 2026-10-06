@@ -279,7 +279,7 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
       const c = colorAt(meta.part, p, { dir: dir() });
       if (meta.part === 'head') for (const b of blush) {               // painted blush on the cheeks
         const q = p.clone().sub(b), m = (AC ? .4 : .55) * sstep(1, .45, Math.hypot(q.x / (HS * (AC ? .14 : .2)), q.y / (HS * (AC ? .07 : .09)), q.z / (HS * .12)));
-        if (m > 0) c.lerp(C('#f7a3b6'), m);
+        if (m > 0) c.lerp(C(opts.coatMask ? '#000000' : '#f7a3b6'), m);   // (coat mask: the blush stays the game's own colour)
       }
       if (s.wrinkles && meta.part === 'head') {
         const q = p.clone().sub(Hc), ny = q.y / (HS * .9), nz = q.z / (HS * .92);
@@ -310,8 +310,8 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
     }
     const c = cw ? out.setRGB(cr / cw, cg / cw, cb / cw) : out.setRGB(.5, .5, .5);
     // a little fur variation: soft streaks along the coat (long), fine mottling (short), waves (rex)
-    const fn = long ? .92 + .1 * vnoise(q.x * 9, q.y * 26, q.z * 9) : hairless ? 1 : .95 + .07 * vnoise(q.x * 40, q.y * 40, q.z * 40);
-    return c.multiplyScalar(s.fur === 'rex' ? fn * (.95 + .06 * Math.sin(q.z * 60 + q.y * 30 + 4 * vnoise(q.x * 6, q.y * 6, q.z * 6))) : fn);
+    const fn = opts.coatMask ? 1 : long ? .92 + .1 * vnoise(q.x * 9, q.y * 26, q.z * 9) : hairless ? 1 : .95 + .07 * vnoise(q.x * 40, q.y * 40, q.z * 40);
+    return c.multiplyScalar(s.fur === 'rex' && !opts.coatMask ? fn * (.95 + .06 * Math.sin(q.z * 60 + q.y * 30 + 4 * vnoise(q.x * 6, q.y * 6, q.z * 6))) : fn);
   };
   const cOut = new THREE.Color();
   for (let i = 0; i < n; i++) {
@@ -402,7 +402,11 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
   }
 
   // ------------------------------------------------------------------ 6. face mesh (Head bone) with blendshapes
-  const face = { pos: [], col: [], uv: [], idx: [[], [], []], blink: [], mouth: [], si: [], sw: [] };
+  const face = { pos: [], col: [], uv: [], idx: [[], [], []], vidx: {}, blink: [], mouth: [], si: [], sw: [] };
+  // face variants (opts.faceVariants, for the game file): every eye style and whisker style is built, each in its own
+  // material group '<material>__eye_<style>' / '<material>__wh_<style>', so the game shows the one the player picked
+  // (photo cats: GAME_PLAN 3부 사진 고양이 - 눈 모양 3종, 수염 3종). faceDefaults: this cat's own choice.
+  let curVar = null; const faceDefaults = {};
   // face texture atlas: an 8x8 grid of colour slots (flat colours, or a vertical gradient for the eyes), so every
   // face part has clean texture space - an automatic unwrap shreds thin whiskers into thousands of islands
   const atlas = { slots: [], keys: new Map() };
@@ -424,7 +428,8 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
       const sk = skin ? skin(wv) : [['Head', 1]];
       for (let j = 0; j < 4; j++) { face.si.push(sk[j] ? BI[sk[j][0]] : 0); face.sw.push(sk[j] ? sk[j][1] : 0); }
     }
-    for (const k of lst) face.idx[group].push(base + k);
+    const dst = curVar ? (face.vidx[group + '__' + curVar] ||= []) : face.idx[group];
+    for (const k of lst) dst.push(base + k);
   };
   const clampV = v => Math.min(1, Math.max(0, v)), TAU_ = Math.PI * 2;
   const ell = (r, sx, sy, sz, seg = 40) => { const g = new THREE.SphereGeometry(r, seg, Math.round(seg * .7)); g.scale(sx, sy, sz); return g; };
@@ -449,23 +454,29 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
       const eyeStyle = !AC ? 'classic' : opts.eyeStyle || opts.darkEye || coatSpecIn.eyeStyle || s.eyeStyle || (coatL < .12 ? 'iris' : 'dark');
       // the outline of the eye actually drawn (the 'ac' eyes are smaller than the classic one): eyelids and liners
       // are fitted to it - sized to the classic eye they stood off the new one like a pair of glasses
-      const [eR, eSX, eSY] = !AC ? [er, sx, sy] : eyeStyle === 'rim' ? [er * .97, sx * .92, sy * 1.1] : eyeStyle === 'iris' ? [er * .86, sx * .92, sy * 1.1] : [er * .82, sx * .92, sy * 1.12];
-      if (eyeStyle === 'iris') {
-        faceAdd(pinch(ell(er * .86, sx * .92, sy * 1.1, sz, 32)), colorAt(x > 0 ? 'eye2' : 'eye'), M, 0, { blink: v => shut(v) });
-        const pg = ell(er * .56, sx * .86, sy * 1.0, sz, 24); pg.translate(0, -er * .02, er * .17);   // (just proud of the iris)
-        faceAdd(pg, C('#2a201b'), M, 0, { blink: v => shut(v) });
-      } else if (AC) {
-        faceAdd(pinch(ell(er * .82, sx * .92, sy * 1.12, sz, 32)), C('#2a201b'), M, 0, { blink: v => shut(v) });   // one dark glossy shape
-        if (eyeStyle === 'rim') { const rg = pinch(ell(er * .97, sx * .92, sy * 1.1, sz * .72, 32)); rg.translate(0, 0, -er * .03); faceAdd(rg, C('#f3ead8'), M, 0, { blink: v => shut(v, .01 * er) }); }   // (flatter, so it stays behind the dark eye)
-      }
-      else faceAdd(pinch(ell(er, sx, sy, sz, 32)), C('#ffffff'), M, 0, { blink: v => shut(v) }, { color: colorAt(x > 0 ? 'eye2' : 'eye'), h: er * sy });
+      faceDefaults.eye = eyeStyle;
+      const eyeStyles = AC && opts.faceVariants ? ['dark', 'iris', 'rim'] : [eyeStyle];
       const lidY = 1 - 2 * s.eyeLid;
-      if (s.eyeLid > 0) {
-        const lg = new THREE.SphereGeometry(eR * 1.06, 28, 10, 0, Math.PI * 2, 0, Math.acos(lidY)); lg.scale(eSX, eSY, sz * 1.3); pinch(lg); lg.rotateZ(-x * s.eyeTilt);   // lid line stays level on a slanted eye
-        const lidC = V(0, er * .9, 0).applyMatrix4(M);
-        faceAdd(lg, colorAt('head', lidC, { dir: lidC.clone().sub(Hc).normalize() }), M, 2, { blink: v => shut(v, .03 * er) });
+      for (const eyeStyle of eyeStyles) {
+        curVar = eyeStyles.length > 1 ? 'eye_' + eyeStyle : null;
+        const [eR, eSX, eSY] = !AC ? [er, sx, sy] : eyeStyle === 'rim' ? [er * .97, sx * .92, sy * 1.1] : eyeStyle === 'iris' ? [er * .86, sx * .92, sy * 1.1] : [er * .82, sx * .92, sy * 1.12];
+        if (eyeStyle === 'iris') {
+          faceAdd(pinch(ell(er * .86, sx * .92, sy * 1.1, sz, 32)), colorAt(x > 0 ? 'eye2' : 'eye'), M, 0, { blink: v => shut(v) });
+          const pg = ell(er * .56, sx * .86, sy * 1.0, sz, 24); pg.translate(0, -er * .02, er * .17);   // (just proud of the iris)
+          faceAdd(pg, C('#2a201b'), M, 0, { blink: v => shut(v) });
+        } else if (AC) {
+          faceAdd(pinch(ell(er * .82, sx * .92, sy * 1.12, sz, 32)), C('#2a201b'), M, 0, { blink: v => shut(v) });   // one dark glossy shape
+          if (eyeStyle === 'rim') { const rg = pinch(ell(er * .97, sx * .92, sy * 1.1, sz * .72, 32)); rg.translate(0, 0, -er * .03); faceAdd(rg, C('#f3ead8'), M, 0, { blink: v => shut(v, .01 * er) }); }   // (flatter, so it stays behind the dark eye)
+        }
+        else faceAdd(pinch(ell(er, sx, sy, sz, 32)), C('#ffffff'), M, 0, { blink: v => shut(v) }, { color: colorAt(x > 0 ? 'eye2' : 'eye'), h: er * sy });
+        if (s.eyeLid > 0) {
+          const lg = new THREE.SphereGeometry(eR * 1.06, 28, 10, 0, Math.PI * 2, 0, Math.acos(lidY)); lg.scale(eSX, eSY, sz * 1.3); pinch(lg); lg.rotateZ(-x * s.eyeTilt);   // lid line stays level on a slanted eye
+          const lidC = V(0, er * .9, 0).applyMatrix4(M);
+          faceAdd(lg, colorAt('head', lidC, { dir: lidC.clone().sub(Hc).normalize() }), M, 2, { blink: v => shut(v, .03 * er) });
+        }
+        if (s.eyeLiner) { const lr = new THREE.TorusGeometry(eR, er * (AC ? .07 : .085), 6, 40); lr.scale(eSX * (AC ? 1 : 1.03), eSY * (AC ? 1 : 1.03), .6); faceAdd(pinch(lr), C('#2b2220'), M, 0, { blink: v => shut(v) }); }
       }
-      if (s.eyeLiner) { const lr = new THREE.TorusGeometry(eR, er * (AC ? .07 : .085), 6, 40); lr.scale(eSX * (AC ? 1 : 1.03), eSY * (AC ? 1 : 1.03), .6); faceAdd(pinch(lr), C('#2b2220'), M, 0, { blink: v => shut(v) }); }
+      curVar = null;
       const cs = Math.cos(-x * s.eyeTilt), sn = Math.sin(-x * s.eyeTilt), hsz = Math.min(1, sy + .1);
       for (const [dx, dy, rr] of AC ? [[-.28, .38, .2]] : [[-.3, .34, .3], [.3, -.34, .12]]) {
         let hx = (dx * cs - dy * sn) * er * sx, hy = (dx * sn + dy * cs) * er * sy;
@@ -561,27 +572,33 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
       g.computeVertexNormals(); return g;
     };
     const surfAt = (px, py) => { let lo = 0, hi = 2 * HS; for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (F.eval(Hc.x + px, Hc.y + py, Hc.z + m) > 0) hi = m; else lo = m; } return lo; };
-    if (AC && s.whisker !== 'none' && WS === 'marks') for (const [, x] of SIDES) for (let w = 0; w < 3; w++) {
-      // short whisker marks lying on the cheek, in a darker shade of the coat (drawn on, not sticking out)
-      const pts = [], wy = -HS * (.1 + w * .075), dir = .12 - w * .12;
-      for (let k = 0; k <= 8; k++) { const t = k / 8, px = x * (HS * (.5 + t * .2)), py = wy + dir * t * HS * .2; let lo = 0, hi = 2 * HS; for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (F.eval(Hc.x + px, Hc.y + py, Hc.z + m) > 0) hi = m; else lo = m; } pts.push(V(px, py, lo + HS * .006)); }   // on the sculpted cheek
-      const wc = C(coatSpec.base || '#999999').multiplyScalar(.38);
-      faceAdd(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 8, HS * .02, 6, false), wc, HM, 0);
-    }
-    if (AC && s.whisker !== 'none' && WS !== 'marks') for (const [, x] of SIDES) {
-      const Lw = HS * (WS === 'long' ? .72 : .5) * (s.whisker === 'curly' ? .8 : 1);
-      for (let w = 0; w < 3; w++) {
-        const ox = x * HS * .3, oy = -HS * (.17 + w * .045), oz = surfAt(ox, oy) - HS * .01, fan = (1 - w) * .32, pts = [];
-        for (let k = 0; k <= 10; k++) { const t = k / 10, cw = s.whisker === 'curly' ? Math.sin(t * 8) * HS * .03 * t : 0;
-          pts.push(V(ox + x * t * Lw, oy + Math.sin(fan) * t * Lw * .55 - t * t * HS * .06 + cw, oz + t * HS * .05 - t * t * HS * .12)); }
-        faceAdd(taper(new THREE.CatmullRomCurve3(pts), 10, HS * .016), wCol, HM, 0);
+    faceDefaults.whisker = WS;
+    const WSs = AC && opts.faceVariants ? ['short', 'long', 'dots', 'marks'] : [WS];
+    for (const WS of WSs) {
+      curVar = WSs.length > 1 ? 'wh_' + WS : null;
+      if (AC && s.whisker !== 'none' && WS === 'marks') for (const [, x] of SIDES) for (let w = 0; w < 3; w++) {
+        // short whisker marks lying on the cheek, in a darker shade of the coat (drawn on, not sticking out)
+        const pts = [], wy = -HS * (.1 + w * .075), dir = .12 - w * .12;
+        for (let k = 0; k <= 8; k++) { const t = k / 8, px = x * (HS * (.5 + t * .2)), py = wy + dir * t * HS * .2; let lo = 0, hi = 2 * HS; for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (F.eval(Hc.x + px, Hc.y + py, Hc.z + m) > 0) hi = m; else lo = m; } pts.push(V(px, py, lo + HS * .006)); }   // on the sculpted cheek
+        const wc = C(coatSpec.base || '#999999').multiplyScalar(.38);
+        faceAdd(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 8, HS * .02, 6, false), wc, HM, 0);
       }
-      if (WS === 'dots') for (let d = 0; d < 3; d++) {   // whisker-pad dots
-        const dx = x * HS * (.17 + (d % 2) * .06), dy = -HS * (.12 + d * .04);
-        const dg = ell(HS * .014, 1, 1, .5, 8); dg.translate(dx, dy, surfAt(dx, dy) + HS * .002);
-        faceAdd(dg, C(coatSpec.base || '#999999').multiplyScalar(.45), HM, 0);
+      if (AC && s.whisker !== 'none' && WS !== 'marks') for (const [, x] of SIDES) {
+        const Lw = HS * (WS === 'long' ? .72 : .5) * (s.whisker === 'curly' ? .8 : 1);
+        for (let w = 0; w < 3; w++) {
+          const ox = x * HS * .3, oy = -HS * (.17 + w * .045), oz = surfAt(ox, oy) - HS * .01, fan = (1 - w) * .32, pts = [];
+          for (let k = 0; k <= 10; k++) { const t = k / 10, cw = s.whisker === 'curly' ? Math.sin(t * 8) * HS * .03 * t : 0;
+            pts.push(V(ox + x * t * Lw, oy + Math.sin(fan) * t * Lw * .55 - t * t * HS * .06 + cw, oz + t * HS * .05 - t * t * HS * .12)); }
+          faceAdd(taper(new THREE.CatmullRomCurve3(pts), 10, HS * .016), wCol, HM, 0);
+        }
+        if (WS === 'dots') for (let d = 0; d < 3; d++) {   // whisker-pad dots
+          const dx = x * HS * (.17 + (d % 2) * .06), dy = -HS * (.12 + d * .04);
+          const dg = ell(HS * .014, 1, 1, .5, 8); dg.translate(dx, dy, surfAt(dx, dy) + HS * .002);
+          faceAdd(dg, C(coatSpec.base || '#999999').multiplyScalar(.45), HM, 0);
+        }
       }
     }
+    curVar = null;
     if (!AC && s.whisker !== 'none') for (const [, x] of SIDES) for (let w = 0; w < 3; w++) {
       const pts = [], a = (w - 1) * .22, cw = s.whisker === 'curly', Lw = HS * (cw ? .6 : .85);
       for (let k = 0; k <= 16; k++) {
@@ -641,7 +658,8 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
   };
   const bodyGeo = mkGeo(bodyPos, bodyCol, bodyIdx, bodySI, bodySW);
   const nf = face.pos.length / 3;
-  const faceIdx = face.idx[0].concat(face.idx[1], face.idx[2]);
+  const varKeys = Object.keys(face.vidx).sort();
+  const faceIdx = face.idx[0].concat(face.idx[1], face.idx[2], ...varKeys.map(k => face.vidx[k]));
   const faceGeo = mkGeo(face.pos, face.col, faceIdx, face.si, face.sw);
   faceGeo.setAttribute('uv', new THREE.Float32BufferAttribute(face.uv, 2));
   let faceMap = null;
@@ -662,13 +680,14 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
   }
   faceGeo.morphTargetsRelative = true;
   faceGeo.morphAttributes.position = ['blink', 'mouth'].map(k => new THREE.Float32BufferAttribute(face[k].map(v => v * S), 3));
-  faceGeo.addGroup(0, face.idx[0].length, 0); faceGeo.addGroup(face.idx[0].length, face.idx[1].length, 1); faceGeo.addGroup(face.idx[0].length + face.idx[1].length, face.idx[2].length, 2);
+  { let o = 0; [face.idx[0], face.idx[1], face.idx[2], ...varKeys.map(k => face.vidx[k])].forEach((l, m) => { faceGeo.addGroup(o, l.length, m); o += l.length; }); }
   const coatMat = new THREE.MeshStandardMaterial({ name: 'Coat', vertexColors: true, roughness: hairless ? .55 : coatSpec.sheen ? .9 - .5 * coatSpec.sheen : .9, metalness: 0 });
   const faceMats = [
     new THREE.MeshStandardMaterial({ name: 'FaceGloss', vertexColors: !faceMap, map: faceMap, roughness: .3, metalness: 0 }),
     new THREE.MeshBasicMaterial({ name: 'EyeHighlight', color: '#ffffff' }),
     new THREE.MeshStandardMaterial({ name: 'Lid', vertexColors: !faceMap, map: faceMap, roughness: .9, metalness: 0 }),
   ];
+  for (const k of varKeys) { const [g, v] = k.split('__'), m = faceMats[+g].clone(); m.name = faceMats[+g].name + '__' + v; faceMats.push(m); }
   const body = new THREE.SkinnedMesh(bodyGeo, coatMat); body.name = 'Body';
   const faceMesh = new THREE.SkinnedMesh(faceGeo, faceMats); faceMesh.name = 'Face';
   faceMesh.morphTargetDictionary = { Blink: 0, MouthOpen: 1 };
@@ -687,7 +706,7 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
     len: { lH: lH * S, lR: lR * S, lMc: lMc * S, lF: lF * S, lT: lT * S, lMt: lMt * S },
     shoulderH: shoulderH * S, hipH: hipH * S, rumpR: .31 * B * fl * S, chestR: .33 * B * fl * S, BLm: BL * S, tongueLen: tongueLen * S, tongueIn: tongueIn * S, tongueU: TU, mouth: toM(Hc.clone().add(V(0, mY, mZ))), tail: s.tail, shape: s,
   };
-  group.userData = { shape: { fur: s.fur }, dims, bones, skeleton, meshes: { body, face: faceMesh }, tris: (bodyIdx.length + faceIdx.length) / 3,
+  group.userData = { shape: { fur: s.fur }, dims, bones, skeleton, meshes: { body, face: faceMesh }, faceDefaults, faceVariants: varKeys, tris: (bodyIdx.length + faceIdx.length) / 3,
     coatAt, field: F, modelScale: S };   // (coatAt / field take model units; the meshes are model units x modelScale: coat_texels.mjs)
   return group;
 }

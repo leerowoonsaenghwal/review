@@ -62,14 +62,26 @@ namespace CatIsland.UI
             else pattern = "solid";
             if (pattern == "solid" && white > .75f) baseC = cl.OrderByDescending(c => c.c.x).First().c;
             float L = baseC.x; bool grey = Chroma(baseC) < 12;
-            string breed = pattern switch
+            // 품종 고르기: 털 무늬가 같은 몸을 고른다 (게임은 그 몸의 털 무늬에 사진 색만 입힌다: CatCoat).
+            // 턱시도·젖소·삼색·카오스·흰 바탕 태비는 품종 대신 코리안 숏헤어 몸 + 그 무늬의 털 (variant)
+            string variant = "";
+            if (pattern == "calico" || pattern == "tortie") variant = pattern;
+            else if (pattern == "tuxedo" || pattern == "bicolor") variant = white > .5f ? "cow" : "tuxedo";
+            else if (pattern == "mackerel" && white > .15f) variant = "cheese_white";
+            string breed = variant != "" ? "korean_shorthair" : pattern switch
             {
-                "calico" or "tortie" => "korean_shorthair", "tuxedo" or "bicolor" => "korean_shorthair",
                 "mackerel" => Hue(baseC) > 35 && Hue(baseC) < 95 && !grey ? "korean_shorthair" : "american_shorthair",
                 _ => L > 88 ? "turkish_angora" : L < 30 ? "bombay" : grey ? "russian_blue" : "korean_shorthair",
             };
             string eye = L < 30 ? "iris" : "dark", whisk = "short";
-            string json = $"{{\"pattern\":\"{pattern}\",\"base\":\"{Hex(baseC)}\",\"dark\":\"{Hex(dark)}\",\"white\":{white:0.00}}}";
+            // 삼색·카오스: 기본 = 어두운 색, 두 번째 = 주황 / 흰색은 사진의 흰 털 색 그대로
+            var orangeC = colored.Where(c => Hue(c.c) > 35 && Hue(c.c) < 80 && Chroma(c.c) > 22).Select(c => c.c).DefaultIfEmpty(dark).First();
+            var blackC = colored.Where(c => c.c.x < 30).Select(c => c.c).DefaultIfEmpty(baseC).First();
+            if (variant == "calico" || variant == "tortie") { baseC = blackC; dark = blackC * .8f; }
+            if (variant == "tuxedo" || variant == "cow") dark = baseC * .8f;
+            var whiteC = cl.Where(c => c.c.x > 82 && Chroma(c.c) < 14).Select(c => c.c).DefaultIfEmpty(new Vector3(96, 0, 3)).First();
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            string json = $"{{\"pattern\":\"{pattern}\",\"variant\":\"{variant}\",\"base\":\"{Hex(baseC)}\",\"dark\":\"{Hex(dark)}\",\"white\":\"{Hex(whiteC)}\",\"second\":\"{Hex(orangeC)}\",\"whiteLevel\":{white.ToString("0.00", inv)}}}";
             return new PhotoCat { breed = breed, eyeStyle = eye, whiskerStyle = whisk, coatJson = json };
         }
 

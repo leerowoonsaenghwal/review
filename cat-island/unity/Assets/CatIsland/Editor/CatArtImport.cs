@@ -28,7 +28,8 @@ namespace CatIsland.EditorTools
         [Serializable] class ItemSpots { public CushionSpot cushion; public CushionSpot hideout; public CushionSpot mouse_toy; }
         [Serializable] class LickUpInfo { public float[] tip; }
         [Serializable] class SkipInfo { public string clip; public string reason; public string playInstead; }
-        [Serializable] class ClipsJson { public string id; public ClipInfo[] clips; public SkipInfo[] skippedClips; public ItemSpots itemSpots; }
+        [Serializable] class FaceInfo { public string eye; public string whisker; }
+        [Serializable] class ClipsJson { public string id; public ClipInfo[] clips; public SkipInfo[] skippedClips; public ItemSpots itemSpots; public FaceInfo face; }
 
         [Serializable] public class RootCurve { public string clip; public float fps; public float[] forward; public float[] up; }
         [Serializable] public class CatArtInfo
@@ -43,9 +44,25 @@ namespace CatIsland.EditorTools
             public Vector3 flopBelly;   // 발라당(FlopIdle) 자세에서 배가 향하는 방향 (고양이 기준)
             public float jumpD, jumpH, deckBack, turnIn; // clips.json JumpUp.jump: 판 뒤쪽 끝이 출발점에서 deckBack 앞 (qa_items 와 같은 배치)
             public JumpSet[] jumps;     // 높이별 점프 (CatRig.JumpSet 과 같은 모양)
-            public float toyX, toyZ = .35f, toyYaw, hideZ = -.2f, hideLift = .08f; public Vector3 lickTip = new Vector3(0, .5f, .45f);   // (쥐돌이·숨숨집·츄르 자리: 고양이 루트 기준)
+            public float toyX, toyZ = .35f, toyYaw, hideZ = -.2f, hideLift = .08f; public Vector3 lickTip = new Vector3(0, .5f, .45f); public string faceEye = "", faceWhisker = "";   // (쥐돌이·숨숨집·츄르 자리: 고양이 루트 기준)
         }
         [Serializable] public class JumpSet { public string clip; public bool up; public float H, D, deckBack, turnIn, edge; public RootCurve curve; }
+
+        /// <summary>사진 고양이 털 (CatCoat): 털 마스크는 색이 아닌 비율이라 sRGB 끔·512, 덧입히는 털 그림은 2048.</summary>
+        static void CoatTextures()
+        {
+            foreach (var path in Directory.GetFiles(OutRes + "/Cats").Where(f => f.EndsWith("_coatmask.png") || f.EndsWith("_coat.jpg")))
+            {
+                var ti = (TextureImporter)AssetImporter.GetAtPath(path.Replace('\\', '/'));
+                if (ti == null) continue;
+                bool mask = path.EndsWith("_coatmask.png"); int size = mask ? 512 : 2048;   // (마스크는 넓은 색 면이라 작게: 앱 크기)
+                var comp = mask ? TextureImporterCompression.CompressedHQ : TextureImporterCompression.Compressed;
+                if (ti.sRGBTexture == !mask && ti.maxTextureSize == size && ti.textureCompression == comp) continue;
+                ti.sRGBTexture = !mask; ti.maxTextureSize = size; ti.mipmapEnabled = true; ti.textureCompression = comp;
+                if (mask) { ti.alphaSource = TextureImporterAlphaSource.FromInput; ti.alphaIsTransparency = false; }
+                ti.SaveAndReimport();
+            }
+        }
 
         [MenuItem("CatIsland/Import Art")]
         public static void Run()
@@ -58,6 +75,7 @@ namespace CatIsland.EditorTools
 
             var manifest = ReadManifest();
             foreach (var cat in manifest.cats) ImportCat(cat);
+            CoatTextures();
             foreach (var item in manifest.items) ImportItem(item);
             AssetDatabase.SaveAssets();
             Debug.Log("[CatArtImport] OK");
@@ -222,6 +240,7 @@ namespace CatIsland.EditorTools
             if (json.itemSpots?.mouse_toy != null) { info.toyX = json.itemSpots.mouse_toy.x; info.toyZ = json.itemSpots.mouse_toy.z; info.toyYaw = json.itemSpots.mouse_toy.yaw; }
             if (json.itemSpots?.hideout != null) { info.hideZ = json.itemSpots.hideout.z; info.hideLift = json.itemSpots.hideout.catLift; }
             var lu = json.clips.FirstOrDefault(c => c.name == "LickUp")?.lickUp; if (lu?.tip != null && lu.tip.Length == 3) info.lickTip = new Vector3(lu.tip[0], lu.tip[1], lu.tip[2]);
+            if (json.face != null) { info.faceEye = json.face.eye ?? ""; info.faceWhisker = json.face.whisker ?? ""; }
             if (json.itemSpots?.cushion != null) { info.cushionZ = json.itemSpots.cushion.z; info.cushionLift = json.itemSpots.cushion.catLift; }
 
             // 6. 프리팹

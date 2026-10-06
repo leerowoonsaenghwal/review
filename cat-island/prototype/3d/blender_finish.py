@@ -108,18 +108,52 @@ if TEXEL_COAT:
     P[P[:, 0] > 1e5] = np.nan
     tmp = tempfile.mkdtemp()
     P.astype(np.float32).tofile(os.path.join(tmp, 'pos.f32'))
-    cmd = ['node', os.path.join(HERE, 'coat_texels.mjs'), name, os.path.join(tmp, 'pos.f32'), str(TEX), os.path.join(tmp, 'rgb.f32')]
-    if COAT_JSON: cmd.append(COAT_JSON)
-    env = dict(os.environ, **({'COAT_STYLE': STYLE} if STYLE else {}))
-    r = subprocess.run(cmd, cwd=HERE, env=env, capture_output=True, text=True)
-    print(r.stdout.strip(), r.stderr.strip()[-400:])
-    if r.returncode != 0: raise SystemExit('coat_texels.mjs failed')
-    RGB = np.fromfile(os.path.join(tmp, 'rgb.f32'), np.float32).reshape(-1, 3)
+    import json
+    hexrgb = lambda h: np.array([int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)], np.float32)
+    def coat_texels(tag, coat_json):
+        """per-texel colours (NaN off the field) + photo-cat coat mask (RGBA = base, dark/point, white, second)"""
+        cmd = ['node', os.path.join(HERE, 'coat_texels.mjs'), name, os.path.join(tmp, 'pos.f32'), str(TEX), os.path.join(tmp, 'rgb.f32')]
+        if coat_json: cmd.append(coat_json)
+        env = dict(os.environ, **({'COAT_STYLE': STYLE} if STYLE else {}))
+        env.update(COAT_MASK=os.path.join(tmp, 'mask.f32'), COAT_SLOTS=os.path.join(out_dir, tag + '.coat.json'))
+        r = subprocess.run(cmd, cwd=HERE, env=env, capture_output=True, text=True)
+        print(r.stdout.strip(), r.stderr.strip()[-400:])
+        if r.returncode != 0: raise SystemExit('coat_texels.mjs failed')
+        slots = json.load(open(os.path.join(out_dir, tag + '.coat.json')))
+        return (np.fromfile(os.path.join(tmp, 'rgb.f32'), np.float32).reshape(-1, 3), np.fromfile(os.path.join(tmp, 'mask.f32'), np.float32).reshape(-1, 4),
+                np.stack([hexrgb(slots[k]) for k in ('base', 'dark', 'white', 'second')]))
+    def save_mask(tag, M):
+        M = np.clip(M, 0, 1); H = TEX // 2
+        M = M.reshape(H, 2, H, 2, 4).mean((1, 3)).reshape(-1)   # (half size: the colours are broad shapes)
+        mk = bpy.data.images.new(f'{tag}_coatmask', H, H, alpha=True); mk.colorspace_settings.name = 'Non-Color'
+        mk.pixels.foreach_set(M); mk.alpha_mode = 'STRAIGHT'
+        mk.filepath_raw = os.path.join(out_dir, tag + '_coatmask.png'); mk.file_format = 'PNG'; mk.save()
+    RGB, M, S4 = coat_texels(name, COAT_JSON)
     C = np.empty(TEX * TEX * 4, np.float32); coat.pixels.foreach_get(C); C = C.reshape(-1, 4)
     ok = np.isfinite(RGB[:, 0])
     C[ok, :3] = RGB[ok]; C[ok, 3] = 1
     coat.pixels.foreach_set(C.ravel())
     print(f'coat: {ok.sum()} texels from the coat function ({ok.mean() * 100:.0f} % of the texture)')
+    # texels the coat function did not reach (ears, tufts, the bake margin) take the slot closest to their colour
+    miss = ~np.isfinite(M[:, 0])
+    M[miss] = np.eye(4, dtype=np.float32)[np.argmin(((C[miss, None, :3] - S4[None]) ** 2).sum(-1), axis=1)]
+    save_mask(name, M); M0 = M
+    print(f'coat mask: {(~miss).sum()} texels from the coat function, {miss.sum()} nearest slot')
+    # extra coats on the same mesh (--extra-coats tuxedo,cow,...: catgen KOREAN_COATS): a photo cat whose pattern the
+    # breed lacks gets this body with that coat's texture + mask (unity CatCoat). Only colours, so no new model.
+    for ec in [e for e in opt('--extra-coats', '').split(',') if e]:
+        r = subprocess.run(['node', '-e', f"import('./catgen.js').then(m => console.log(JSON.stringify(m.KOREAN_COATS.find(c => c.id === '{ec}').coat)))"], cwd=HERE, capture_output=True, text=True)
+        cj = os.path.join(tmp, ec + '.json'); open(cj, 'w').write(r.stdout.strip())
+        tag = f'{name}__{ec}'
+        RGBe, Me, S4e = coat_texels(tag, cj)
+        okE = np.isfinite(RGBe[:, 0]); missE = ~np.isfinite(Me[:, 0])
+        Me[missE] = M0[missE]                                    # (ears etc.: the main coat's slots, in this coat's colours)
+        Ce = C.copy(); Ce[okE, :3] = RGBe[okE]
+        Ce[~okE, :3] = (Me[~okE, :, None] * S4e[None]).sum(1) + (1 - Me[~okE].sum(1, keepdims=True)).clip(0, 1) * C[~okE, :3]
+        img = bpy.data.images.new(f'{tag}_coat', TEX, TEX); img.pixels.foreach_set(Ce.ravel())
+        img.filepath_raw = os.path.join(out_dir, tag + '_coat.jpg'); img.file_format = 'JPEG'; scene.render.image_settings.quality = 92; img.save()
+        save_mask(tag, Me)
+        print(f'extra coat {ec}: {okE.sum()} texels')
     bpy.data.images.remove(pos)
 image_target(lowmat, nrm)
 bpy.ops.object.bake(type='NORMAL', use_selected_to_active=True, cage_extrusion=.006, max_ray_distance=.02, normal_space='TANGENT')

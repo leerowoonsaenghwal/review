@@ -10,7 +10,7 @@ with sync_playwright() as p:
     for cid in ids:
         pg = b.new_page(); errs = []
         pg.on("pageerror", lambda e: errs.append(str(e)))
-        pg.goto(f"http://localhost:8766/export_cat.html?id={cid}", timeout=120000, wait_until="commit")   # (the build runs inside the page load)
+        pg.goto(f"http://localhost:8766/export_cat.html?id={cid}" + (f"&only={os.environ['ONLY']}" if os.environ.get("ONLY") else ""), timeout=120000, wait_until="commit")   # (the build runs inside the page load)
         try: pg.wait_for_function("window.__done === true", timeout=21000000)   # (long-haired breeds take over 100 min)
         except Exception: print(cid, "FAILED", errs); continue
         data = base64.b64decode(pg.evaluate("window.__glb")); info = pg.evaluate("window.__info")

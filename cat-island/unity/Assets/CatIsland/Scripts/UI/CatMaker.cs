@@ -14,7 +14,8 @@ namespace CatIsland.UI
     {
         static string breed = "korean_shorthair", eye = "dark", whisker = "short", name = ""; static Personality pers = Personality.Playful; static string coatJson = "";
         public static readonly string[] EyeIds = { "dark", "iris", "rim" }, WhiskerIds = { "short", "long", "dots" };
-        public static Action<string> OnPreview;      // (3D 미리보기: 품종이 바뀔 때)
+        public static Action<PhotoCat> OnPreview;    // (3D 미리보기: 품종·눈·수염·털이 바뀔 때)
+        static void Preview() => OnPreview?.Invoke(new PhotoCat { breed = breed, eyeStyle = eye, whiskerStyle = whisker, coatJson = coatJson });
 
         public static void Open(GameUI ui) => ui.Open(b => Build(ui, b));
 
@@ -29,7 +30,7 @@ namespace CatIsland.UI
             Kit.Size(Kit.Btn(prIn, Str.FromPhoto, () => PhotoReader.Pick(res =>
             {
                 if (res == null) { ui.Toast("사진을 고르지 않았어요"); return; }
-                breed = res.breed; eye = res.eyeStyle; whisker = res.whiskerStyle; coatJson = res.coatJson; OnPreview?.Invoke(breed);
+                breed = res.breed; eye = res.eyeStyle; whisker = res.whiskerStyle; coatJson = res.coatJson; Preview();
                 ui.Toast($"{Josa.EulReul(Catalog.BreedKo(breed))} 닮았어요"); Open(ui);
             }), Kit.Style.Primary), 90, 46);
             // 품종
@@ -38,12 +39,12 @@ namespace CatIsland.UI
             Kit.Size(grid, -1, Mathf.CeilToInt(Catalog.Breeds.Length / 3f) * 50);
             foreach (var b in Catalog.Breeds)
             {
-                var bb = b; var btn = Kit.Btn(grid, b.ko.Length > 7 ? b.ko.Substring(0, 7) : b.ko, () => { breed = bb.id; coatJson = ""; OnPreview?.Invoke(breed); Open(ui); }, breed == b.id ? Kit.Style.Primary : Kit.Style.Secondary);
+                var bb = b; var btn = Kit.Btn(grid, b.ko.Length > 7 ? b.ko.Substring(0, 7) : b.ko, () => { breed = bb.id; coatJson = ""; (eye, whisker) = CatFace.Defaults(breed); Preview(); Open(ui); }, breed == b.id ? Kit.Style.Primary : Kit.Style.Secondary);
                 btn.GetComponentInChildren<Text>().fontSize = Theme.Caption;
             }
             // 눈 · 수염 · 성격
-            Choice(list, Str.EyeStyle, Str.EyeNames, Array.IndexOf(EyeIds, eye), i => { eye = EyeIds[i]; Open(ui); });
-            Choice(list, Str.Whisker, Str.WhiskerNames, Array.IndexOf(WhiskerIds, whisker), i => { whisker = WhiskerIds[i]; Open(ui); });
+            Choice(list, Str.EyeStyle, Str.EyeNames, Array.IndexOf(EyeIds, eye), i => { eye = EyeIds[i]; Preview(); Open(ui); });
+            Choice(list, Str.Whisker, Str.WhiskerNames, Array.IndexOf(WhiskerIds, whisker), i => { whisker = WhiskerIds[i]; Preview(); Open(ui); });
             var ps = Enum.GetValues(typeof(Personality)).Cast<Personality>().ToArray();
             Choice(list, "성격", ps.Select(Catalog.Ko).ToArray(), Array.IndexOf(ps, pers), i => { pers = ps[i]; Open(ui); });
             // 이름

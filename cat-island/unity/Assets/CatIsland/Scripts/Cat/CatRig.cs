@@ -17,6 +17,8 @@ namespace CatIsland
     public class CatRig : MonoBehaviour
     {
         public string breed = "korean_shorthair";
+        public string eyeStyle = "", whiskerStyle = "";   // (비면 품종 기본: CatFace)
+        public string coatJson = "";                      // 사진 고양이 털 색 (CatCoat). 비면 품종 그대로
 
         // ---- 목표값 (CatBrain이 씀) ----
         [HideInInspector] public float moveSpeed;
@@ -68,6 +70,7 @@ namespace CatIsland
             public RootCurve jumpDown;
             public JumpSet[] jumps;            // (높이별 점프: 새 에셋부터. 없으면 jump / jumpDown 하나)
             public float toyX, toyZ = .35f, toyYaw, hideZ = -.2f, hideLift = .08f; public Vector3 lickTip = new Vector3(0, .5f, .45f);
+            public string faceEye = "", faceWhisker = "";   // 이 품종의 기본 눈 모양·수염
         }
         /// <summary>높이 차이 dh(m, 오르기 +)에 가장 가까운 점프. 높이별 점프가 없는 에셋은 null.</summary>
         public JumpSet NearestJump(bool up, float dh)
@@ -106,11 +109,20 @@ namespace CatIsland
             {
                 blinkIdx = face.sharedMesh.GetBlendShapeIndex("Blink");
                 mouthIdx = face.sharedMesh.GetBlendShapeIndex("MouthOpen");
+                SetFace(eyeStyle, whiskerStyle);
             }
 
             FitZones(bones);
+            if (!string.IsNullOrEmpty(coatJson)) CatCoat.Apply(Model.GetComponentsInChildren<SkinnedMeshRenderer>(true).FirstOrDefault(r => r.sharedMesh.blendShapeCount == 0), breed, coatJson);
             BubbleAnchor = new GameObject("BubbleAnchor").transform;
             BubbleAnchor.SetParent(transform, false);
+        }
+
+        /// <summary>눈 모양·수염을 바꾼다 (만들기 화면 미리보기, 저장된 고양이).</summary>
+        public void SetFace(string eye, string whisker)
+        {
+            eyeStyle = eye ?? ""; whiskerStyle = whisker ?? "";
+            if (face) CatFace.Apply(face, breed, eyeStyle, whiskerStyle, Info?.faceEye, Info?.faceWhisker);
         }
 
         /// <summary>쓰다듬기 판정 영역: 머리(구)와 몸(캡슐)을 실제 메시 정점에서 맞춘다.</summary>

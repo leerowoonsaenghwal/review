@@ -15,6 +15,17 @@ Shader "CatIsland/SoftLit"
         _Gloss ("Gloss", Range(0,1)) = 0
         _Emission ("Self Light", Range(0,1)) = 0
         [Toggle(_WORLDUV)] _WorldUV ("World UV (ground)", Float) = 0
+        // 사진 고양이 털 색 (CatCoat): 털 마스크 RGBA = 기본·무늬(포인트)·흰색·두 번째 색 비율, 원래 색 → 새 색
+        [Toggle(_COATMASK)] _UseCoatMask ("Coat Mask", Float) = 0
+        _CoatMask ("Coat Mask", 2D) = "black" {}
+        _OldBase ("Old Base", Color) = (1,1,1,1)
+        _OldDark ("Old Dark", Color) = (0,0,0,1)
+        _OldWhite ("Old White", Color) = (1,1,1,1)
+        _OldSecond ("Old Second", Color) = (1,0.5,0,1)
+        _NewBase ("New Base", Color) = (1,1,1,1)
+        _NewDark ("New Dark", Color) = (0,0,0,1)
+        _NewWhite ("New White", Color) = (1,1,1,1)
+        _NewSecond ("New Second", Color) = (1,0.5,0,1)
     }
     SubShader
     {
@@ -32,6 +43,7 @@ Shader "CatIsland/SoftLit"
             half _GroundAO;
             half _Gloss;
             half _Emission;
+            half4 _OldBase, _OldDark, _OldWhite, _OldSecond, _NewBase, _NewDark, _NewWhite, _NewSecond;
         CBUFFER_END
 
         #include "Curve.hlsl"
@@ -47,6 +59,7 @@ Shader "CatIsland/SoftLit"
             #pragma fragment frag
             #pragma shader_feature_local _NORMALMAP
             #pragma shader_feature_local _WORLDUV
+            #pragma multi_compile_local _ _COATMASK
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #pragma multi_compile_fog
@@ -56,6 +69,7 @@ Shader "CatIsland/SoftLit"
 
             TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
             TEXTURE2D(_BumpMap); SAMPLER(sampler_BumpMap);
+            TEXTURE2D(_CoatMask); SAMPLER(sampler_CoatMask);
 
             struct Attributes
             {
@@ -116,6 +130,17 @@ Shader "CatIsland/SoftLit"
                 half lit = wrapped * lerp(0.35h, 1.0h, light.shadowAttenuation);
 
                 half3 albedo = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, i.uv).rgb * _BaseColor.rgb;
+            #if defined(_COATMASK)
+                // 품종 털 무늬는 그대로, 색만 바꾼다: 비율대로 섞은 새 색 x 원래 털결(밝기 비) + 칸에 없는 색(볼터치 등)은 원래대로
+                half4 w = SAMPLE_TEXTURE2D(_CoatMask, sampler_CoatMask, i.uv);
+                half rest = saturate(1.0h - w.r - w.g - w.b - w.a);
+                half3 oldMix = w.r * _OldBase.rgb + w.g * _OldDark.rgb + w.b * _OldWhite.rgb + w.a * _OldSecond.rgb;
+                half3 newMix = w.r * _NewBase.rgb + w.g * _NewDark.rgb + w.b * _NewWhite.rgb + w.a * _NewSecond.rgb;
+                half lumA = dot(albedo, half3(0.2126h, 0.7152h, 0.0722h));
+                half lumO = dot(oldMix, half3(0.2126h, 0.7152h, 0.0722h)) + rest * lumA;
+                half fur = clamp(lumA / max(lumO, 0.02h), 0.75h, 1.25h);
+                albedo = newMix * fur + rest * albedo;
+            #endif
                 half3 ambient = SampleSH(n) * _ShadowTint.rgb;
                 half3 col = albedo * (ambient + light.color * lit);
 

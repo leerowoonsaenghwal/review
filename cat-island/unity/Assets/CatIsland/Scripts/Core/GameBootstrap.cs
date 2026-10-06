@@ -110,6 +110,7 @@ namespace CatIsland
             WorldLink.Refresh();
             if (Logic.S.zonesUnlocked.Contains(1)) IslandBuilder.OpenYardGate(world.Find("Island"));
             CatIsland.UI.Press.OnPress = () => { if (Logic.S.hapticsOn) Haptics.Impact(ImpactStyle.Soft, .5f); GameFeel.SoundOn = Logic.S.soundOn; GameFeel.Tap(); };
+            CatIsland.UI.CatMaker.OnPreview = ShowPreview;
             if (Logic.S.cats.Count == 0 && OpenCatMakerIfEmpty) CatIsland.UI.CatMaker.Open(UI);
             SyncCats(); SyncGuest();
             Router.BeforeBowlFill = () =>
@@ -131,12 +132,23 @@ namespace CatIsland
         {
             var go = new GameObject(data != null ? "Cat_" + data.name : "Cat"); go.SetActive(false);
             go.transform.position = pos; go.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
-            var rig = go.AddComponent<CatRig>(); rig.breed = breed;
+            var rig = go.AddComponent<CatRig>(); rig.breed = breed; if (data != null) { rig.eyeStyle = data.eyeStyle; rig.whiskerStyle = data.whiskerStyle; rig.coatJson = data.coatJson; }
             var audio = go.AddComponent<CatAudio>(); var brain = go.AddComponent<CatBrain>();
             brain.bowl = Bowl; brain.cushion = Cushion; brain.tower = Tower; brain.nav = Nav; brain.audioOut = audio; brain.cam = camT; brain.Data = data;
             if (Audio == null) Audio = audio;
             go.SetActive(true);
             return brain;
+        }
+
+        /// <summary>고양이 만들기 미리보기 (첫 고양이: 섬에 서 있는 미리보기 고양이를 고른 모습으로 바꾼다).</summary>
+        void ShowPreview(CatIsland.UI.PhotoCat p)
+        {
+            if (Logic == null || Logic.S.cats.Count > 0 || p == null) return;
+            var pos = Cat ? Cat.transform.position : new Vector3(0f, 0f, -0.6f);
+            if (Cat && Cat.Data == null) { Router.cats.Remove(Cat); Destroy(Cat.gameObject); }
+            Cat = SpawnCat(HasArt(p.breed) ? p.breed : "korean_shorthair", pos, 180f, new CatIsland.Game.CatData { eyeStyle = p.eyeStyle, whiskerStyle = p.whiskerStyle, coatJson = p.coatJson }, IslandCam.transform);
+            Cat.Data = null;   // (아직 저장된 고양이가 아님)
+            Router.cat = Cat; Router.cats.Add(Cat); IslandCam.follow = Cat.transform;
         }
 
         readonly Dictionary<string, CatBrain> catViews = new Dictionary<string, CatBrain>();
