@@ -100,12 +100,13 @@ if TEXEL_COAT:
     tcn = pnt.nodes.new('ShaderNodeTexCoord'); pem = pnt.nodes.new('ShaderNodeEmission'); pout = pnt.nodes.new('ShaderNodeOutputMaterial')
     pnt.links.new(tcn.outputs['Object'], pem.inputs['Color']); pnt.links.new(pem.outputs['Emission'], pout.inputs['Surface'])
     body.data.materials.clear(); body.data.materials.append(pm)
-    scene.cycles.samples = 1; scene.render.bake.margin = 6
+    scene.cycles.samples = 1; scene.render.bake.margin = 6; scene.render.bake.use_clear = False   # (keep the 'no surface' marker: a cleared image reads as surface points at the origin)
     image_target(lowmat, pos)
     bpy.ops.object.bake(type='EMIT', use_selected_to_active=True, cage_extrusion=.006, max_ray_distance=.02)
     scene.cycles.samples = 4
     P = np.empty(TEX * TEX * 4, np.float32); pos.pixels.foreach_get(P); P = P.reshape(-1, 4)[:, :3].copy()
     P[P[:, 0] > 1e5] = np.nan
+    P[np.all(np.abs(P) < 1e-7, axis=1)] = np.nan   # (texels left at exactly the origin are not on the cat)
     tmp = tempfile.mkdtemp()
     P.astype(np.float32).tofile(os.path.join(tmp, 'pos.f32'))
     import json
