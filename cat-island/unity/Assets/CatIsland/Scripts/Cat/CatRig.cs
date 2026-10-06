@@ -440,10 +440,11 @@ namespace CatIsland
                 var err = target * Quaternion.Inverse(s.q);
                 err.ToAngleAxis(out float ang, out Vector3 axis);
                 if (ang > 180f) ang -= 360f;
-                if (Mathf.Abs(ang) > 70f || float.IsNaN(axis.x)) { s.q = target; s.w = Vector3.zero; continue; }   // (순간이동·큰 전환: 따라잡기)
+                if (float.IsNaN(ang) || float.IsNaN(axis.x) || Mathf.Abs(ang) > 70f) { s.q = target; s.w = Vector3.zero; continue; }   // (순간이동·큰 전환: 따라잡기)
                 s.w += axis * (ang * Mathf.Deg2Rad * s.k * dt); s.w *= Mathf.Max(0f, 1f - s.c * dt);
                 float wl = s.w.magnitude;
-                if (wl > 1e-6f) s.q = Quaternion.AngleAxis(wl * dt * Mathf.Rad2Deg, s.w / wl) * s.q;
+                if (wl > 1e-6f) s.q = (Quaternion.AngleAxis(wl * dt * Mathf.Rad2Deg, s.w / wl) * s.q).normalized;   // (곱이 쌓이면 길이가 1에서 벗어나 각도가 NaN 이 된다)
+                if (float.IsNaN(s.q.x)) { s.q = target; s.w = Vector3.zero; }
                 s.b.rotation = s.q;
             }
         }
@@ -459,6 +460,7 @@ namespace CatIsland
             float target = Mathf.Clamp(.05f * Mathf.Abs(vy), 0f, .1f);
             sqV += (260f * (target - sqS) - 16f * sqV) * dt; sqS += sqV * dt;
             prevY = y; prevVy = vy;
+            if (float.IsNaN(sqS) || float.IsNaN(sqV)) { sqS = sqV = 0f; }
             float sy = 1f + Mathf.Clamp(sqS, -.16f, .14f), sxz = 1f / Mathf.Sqrt(sy);
             Model.localScale = new Vector3(modelScale.x * sxz, modelScale.y * sy, modelScale.z * sxz);
         }

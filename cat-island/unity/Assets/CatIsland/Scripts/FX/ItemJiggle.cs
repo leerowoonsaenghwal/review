@@ -49,7 +49,7 @@ namespace CatIsland
                 var p = transform.parent; var dirLocal = p ? p.InverseTransformDirection(rollDir) : rollDir;
                 off = dirLocal * rollDist * d;
                 spin = d * rollDist / .05f * Mathf.Rad2Deg;   // (반지름 5 cm 쯤 굴러간 만큼 돈다)
-                roll = Quaternion.AngleAxis(spin, Vector3.Cross(Vector3.up, dirLocal));
+                var rax = Vector3.Cross(Vector3.up, dirLocal); roll = rax.sqrMagnitude > 1e-6f ? Quaternion.AngleAxis(spin, rax.normalized) : Quaternion.identity;
                 if (u >= 1f) rollT = -1f;
             }
             transform.localScale = new Vector3(baseScale.x * (1f - sq * .5f), baseScale.y * (1f + sq), baseScale.z * (1f - sq * .5f));

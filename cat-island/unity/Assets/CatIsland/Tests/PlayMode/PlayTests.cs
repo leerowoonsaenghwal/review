@@ -379,8 +379,9 @@ namespace CatIsland.Tests
             Cat.Needs.SetForTest(1f, 1f);
             Cat.NoteUserActivity();
             Cat.ForceState(CatState.Groom);
-            yield return WaitUntil(() => Cat.Rig.ActionClip == "GroomFace", 5f);
-            Assert.AreEqual("GroomFace", Cat.Rig.ActionClip);
+            string[] groom = { "GroomFace", "ScratchEar", "NibbleClaws", "LickLips" };   // (품종에 있는 그루밍 중 하나)
+            yield return WaitUntil(() => System.Array.IndexOf(groom, Cat.Rig.ActionClip) >= 0, 5f);
+            Assert.Contains(Cat.Rig.ActionClip, groom);
             Assert.AreEqual(Posture.Sit, Cat.Rig.Current);
         }
 

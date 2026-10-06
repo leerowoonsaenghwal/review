@@ -578,6 +578,7 @@ namespace CatIsland
             if (stateTimer <= 0f) Enter(CatState.Idle);
         }
 
+        static readonly string[] GroomClips = { "GroomFace", "ScratchEar", "NibbleClaws", "LickLips" };
         void TickGroom(float dt)
         {
             Speed = 0f;
@@ -587,8 +588,11 @@ namespace CatIsland
                 if (Rig.Current == Posture.Sit && !Rig.Busy)
                 {
                     actionStarted = true;
-                    if (Rig.HasClip("GroomFace")) Rig.PlayAction("GroomFace", true);
-                    stateTimer = Rig.ClipLength("GroomFace");
+                    // 이 품종에 있는 그루밍 동작 중 하나 (새 그림체에서 닿지 않아 빠진 동작은 없다: 대신 입맛 다시기)
+                    var have = GroomClips.Where(Rig.HasClip).ToList();
+                    string clip = have.Count > 0 ? (have.Contains("GroomFace") && UnityEngine.Random.value < .5f ? "GroomFace" : have[UnityEngine.Random.Range(0, have.Count)]) : null;
+                    if (clip != null) { Rig.PlayAction(clip, clip == "GroomFace"); stateTimer = Rig.ClipLength(clip); }
+                    else stateTimer = 2f;
                 }
                 else if (StateTime > 4f) Enter(CatState.Idle);
                 return;
