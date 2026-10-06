@@ -64,6 +64,21 @@ namespace CatIsland.EditorTools
             }
         }
 
+        /// <summary>
+        /// 휴대폰에 맞는 텍스처: 최대 크기 + 아이폰 ASTC (색 6x6, 노멀 5x5). 바뀌었으면 true.
+        /// 고양이 털 1024: 가장 가까운 사진 시점에서도 몸이 화면의 절반이 안 된다. 노멀맵은 이미 40 % 로 약하게 쓰므로 512.
+        /// </summary>
+        static bool MobileTex(TextureImporter ti, int size, bool normal)
+        {
+            var ios = ti.GetPlatformTextureSettings("iPhone");
+            var fmt = normal ? TextureImporterFormat.ASTC_5x5 : TextureImporterFormat.ASTC_6x6;
+            if (ti.maxTextureSize == size && ios.overridden && ios.maxTextureSize == size && ios.format == fmt) return false;
+            ti.maxTextureSize = size;
+            ios.overridden = true; ios.maxTextureSize = size; ios.format = fmt; ios.compressionQuality = 80;
+            ti.SetPlatformTextureSettings(ios);
+            return true;
+        }
+
         [MenuItem("CatIsland/Import Art")]
         public static void Run()
         {
@@ -121,6 +136,10 @@ namespace CatIsland.EditorTools
                 return c;
             }).ToArray();
             imp.clipAnimations = clips;
+            // 앱 크기: 동작은 아주 작은 오차만 허용하는 키 줄이기 (회전 0.2°, 위치 0.2 %), 메시는 약한 압축
+            imp.animationCompression = ModelImporterAnimationCompression.KeyframeReduction;
+            imp.animationRotationError = .2f; imp.animationPositionError = .2f; imp.animationScaleError = .5f;
+            imp.meshCompression = ModelImporterMeshCompression.Low;
             imp.SaveAndReimport();
 
             // 2. 내장 텍스처 꺼내기
@@ -145,7 +164,7 @@ namespace CatIsland.EditorTools
                 bool normal = p.Contains("normal");
                 bool changed = false;
                 if (normal && ti.textureType != TextureImporterType.NormalMap) { ti.textureType = TextureImporterType.NormalMap; changed = true; }
-                if (ti.maxTextureSize != 2048) { ti.maxTextureSize = 2048; changed = true; }
+                changed |= MobileTex(ti, normal ? 512 : 1024, normal);
                 if (changed) ti.SaveAndReimport();
             }
 
@@ -379,7 +398,12 @@ namespace CatIsland.EditorTools
 
             var normalPath = $"{dir}/{id}_normal.png";
             var ti = (TextureImporter)AssetImporter.GetAtPath(normalPath);
-            if (ti != null && ti.textureType != TextureImporterType.NormalMap) { ti.textureType = TextureImporterType.NormalMap; ti.SaveAndReimport(); }
+            bool tch = ti != null && ti.textureType != TextureImporterType.NormalMap; if (tch) ti.textureType = TextureImporterType.NormalMap;
+            if (ti != null && (MobileTex(ti, 512, true) | tch)) ti.SaveAndReimport();
+            var cti = (TextureImporter)AssetImporter.GetAtPath($"{dir}/{id}_color.jpg");
+            if (cti != null && MobileTex(cti, 1024, false)) cti.SaveAndReimport();
+            foreach (var v in Directory.GetFiles(dir, id + "_color_v*.jpg")) { var vti = (TextureImporter)AssetImporter.GetAtPath(v.Replace('\\', '/')); if (vti != null && MobileTex(vti, 1024, false)) vti.SaveAndReimport(); }
+            if (imp.meshCompression != ModelImporterMeshCompression.Low) { imp.meshCompression = ModelImporterMeshCompression.Low; }
 
             var m = SoftMat($"{Art}/Materials/item_{id}.mat");
             m.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>($"{dir}/{id}_color.jpg"));

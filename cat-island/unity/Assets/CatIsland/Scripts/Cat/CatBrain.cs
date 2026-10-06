@@ -989,7 +989,11 @@ namespace CatIsland
             }
             // 장난감: 앞발로 칠 때마다 조금 굴러갔다 돌아온다 (3.2 초 동안 두 번)
             if (useKind == "bat" && ((useTimer < 2.6f && useTimer + dt >= 2.6f) || (useTimer < 1.0f && useTimer + dt >= 1.0f)))
-                ItemJiggle.Kick(useTarget.transform, Flat(useTarget.transform.position - transform.position), .18f);
+            {
+                var tid = useTarget.id;   // (서 있는 장난감은 흔들리고, 굴러가는 장난감은 굴러간다)
+                if (tid == "wand_toy" || tid == "feather_stand" || tid == "yarn_basket") ItemJiggle.Poke(useTarget.transform, .6f);
+                else ItemJiggle.Kick(useTarget.transform, Flat(useTarget.transform.position - transform.position), .18f);
+            }
             if (useKind == "litter" && useStep == 1 && useTimer <= 0f) { useStep = 2; Rig.Request(Posture.Sit); useTimer = 3f; return; }
             if (useKind == "litter" && useStep == 2 && useTimer <= 0f) { useStep = 3; Rig.Request(Posture.Stand); if (Rig.HasClip("Dig")) Rig.PlayAction("Dig", false, .2f); useTimer = 2.5f; return; }
             if (useTimer > 0f) return;
