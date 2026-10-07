@@ -14,6 +14,7 @@ import { buildCatModel } from './catmodel.js';
 import { makeRig, makeClips, solveAt, applyPose, stand, contactOf } from './catmotion.js';
 import { itemField as oldField, BOWL_SURF } from './items.js';
 import { kitField } from './itemkit.js';
+import fs from 'fs';
 // the items as the game ships them (itemkit.js parts, docs/ART_DIRECTION.md 5장); --old: the earlier sculpted items.
 // Anchors (where the cat eats, lands, lies) are the same in both: items.js
 const itemField = (() => { const cache = {}; return id => cache[id] ||= process.argv.includes('--old') ? oldField(id) : { ...kitField(id), anchors: oldField(id).anchors }; })();
@@ -36,8 +37,8 @@ for (const id of breeds) {
   // one scene: item at `at` (x,y,z), cat clip played with the root lifted by `lift`; `touch(part)` = parts that
   // must touch the item (checked with `when`), `soft`: how far the cat may press into it
   const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
-  const scene = (name, itemId, clipName, at, { lift = 0, touchParts = null, when = null, soft = PEN, ignore = [], yaw = 0, fps = FPS } = {}) => {
-    if (only && !name.includes(only)) return;
+  const scene = (name, itemId, clipName, at, { lift = 0, touchParts = null, when = null, soft = PEN, ignore = [], yaw = 0, fps = FPS, quiet = false } = {}) => {
+    if (only && !name.includes(only) && !quiet) return;
     const F0 = itemField(itemId), c = clip(clipName), n = Math.max(2, Math.round(c.dur * fps));
     const cy = Math.cos(yaw), sy = Math.sin(yaw), F = { d: (x, y, z) => F0.d(cy * x - sy * z, y, sy * x + cy * z) };   // (item turned by yaw about Y)
     let worst = { d: 0 }, runs = [], open = null;
@@ -59,6 +60,7 @@ for (const id of breeds) {
     }
     const misses = runs.filter(r => r.best > TOUCH);
     const bad = worst.d < soft || misses.length || (when && !runs.length);
+    if (quiet) return worst.d;
     if (bad) failed++;
     console.log(`  ${bad ? 'FAIL' : 'ok  '} ${name.padEnd(28)} ${worst.d < 0 ? `${worst.part} into ${itemId} ${(worst.d * 1000).toFixed(0)}mm at ${worst.t.toFixed(2)}s${worst.p ? ` (item space ${worst.p.map(v => (v * 100).toFixed(1)).join(', ')} cm)` : ''}` : 'nothing inside'}${when ? ` · contact ${runs.length - misses.length}/${runs.length}${misses.length ? ` (misses up to ${(Math.max(...misses.map(r => r.best)) * 1000).toFixed(0)}mm)` : ''}` : ''}`);
   };
@@ -81,7 +83,20 @@ for (const id of breeds) {
   const cu = itemField('cushion').anchors, ho = itemField('hideout').anchors;
   for (const cn of ['Loaf', 'Sleep']) scene(cn + ' · cushion', 'cushion', cn, [mid.x, 0, mid.z], { lift: cu.top, soft: -.015 });   // (a cushion gives 1.5 cm)
   // (the hideout goes where the body is inside and the head out of the door: the offset is searched and printed)
-  scene('Loaf · hideout', 'hideout', 'Loaf', [mid.x, 0, mid.z - (ho.catAhead ?? 0)], { lift: ho.floor, soft: SOFT });
+  // the spot the game uses (assets/cats/<id>.clips.json itemSpots.hideout), else the default under the trunk.
+  // --fix-spots: a breed whose head or ears reach the dome (big ears: Sphynx) is moved further out of the door until
+  // nothing is inside, and the spot is written back to its clips.json (the game reads it from there)
+  const assetFile = new URL(`../../assets/cats/${id}.clips.json`, import.meta.url), asset = fs.existsSync(assetFile) ? JSON.parse(fs.readFileSync(assetFile, 'utf8')) : null;
+  let hz = asset?.itemSpots?.hideout?.z ?? +(mid.z - (ho.catAhead ?? 0)).toFixed(3);
+  if (args.includes('--fix-spots') && asset?.itemSpots?.hideout) {
+    const base = +(mid.z - (ho.catAhead ?? 0)).toFixed(3);
+    for (const dz of [0, -.02, -.04, -.06, -.08, -.1, .02]) {   // (minus: the cat further out of the door, +z in item space is the door)
+      const w = scene('', 'hideout', 'Loaf', [mid.x, 0, base + dz], { lift: ho.floor, soft: SOFT, quiet: true, fps: 4 });
+      if (w >= -.006) { hz = +(base + dz).toFixed(3); break; }
+    }
+    if (hz !== asset.itemSpots.hideout.z) { asset.itemSpots.hideout.z = hz; fs.writeFileSync(assetFile, JSON.stringify(asset, null, 1)); console.log(`  (hideout spot moved to z ${hz} and written to ${id}.clips.json)`); }
+  }
+  scene('Loaf · hideout', 'hideout', 'Loaf', [mid.x, 0, hz], { lift: ho.floor, soft: SOFT });
   // PawBat: the toy under the paw at the bottom of the tap
   const pb = clip('PawBat'), toy = pb && pb.toy;   // (where the game puts the toy: worked out with the clip)
   if (!pb) console.log('  (PawBat left out for this breed: no toy scene)');
