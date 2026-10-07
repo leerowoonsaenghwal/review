@@ -146,5 +146,35 @@ namespace CatIsland.Tests
             for (int i = 1; i < m.Length; i++) maxStep = Mathf.Max(maxStep, Mathf.Abs(m[i] - m[i - 1]));
             Assert.LessOrEqual(Mathf.Abs(m[m.Length - 1] - m[0]), maxStep * 1.05f);
         }
+
+        /// <summary>
+        /// 게임에 들어가는 고양이 녹음(다시 합성한 소리, assets/sounds/cat): 배경 잡음이 없다 (조용한 10 % 구간이 −60 dBFS 아래),
+        /// 넘치지 않는다 (최대 0.46), 크기가 서로 비슷하다 (큰 부분 RMS가 −20 ~ −10 dBFS). 골골송은 떨림 소리라 크기·최대만 본다.
+        /// </summary>
+        [Test]
+        public void CatRecordings_NoBackgroundNoise_EvenLoudness()
+        {
+            var clips = Resources.LoadAll<AudioClip>("Sounds/cat");
+            Assert.GreaterOrEqual(clips.Length, 8, "고양이 소리 파일");
+            foreach (var c in clips)
+            {
+                var d = new float[c.samples * c.channels]; c.GetData(d, 0);
+                int f = c.frequency / 50, n = d.Length / f; var db = new float[n];
+                float peak = 0f;
+                for (int k = 0; k < n; k++)
+                {
+                    double e = 0; for (int i = 0; i < f; i++) { float v = d[k * f + i]; e += v * v; peak = Mathf.Max(peak, Mathf.Abs(v)); }
+                    db[k] = 10f * Mathf.Log10((float)(e / f) + 1e-12f);
+                }
+                System.Array.Sort(db);
+                float quiet = db[n / 10];
+                var sounding = System.Array.FindAll(db, v => v > -60f);   // (크기는 소리가 나는 부분만: 앞뒤 무음은 빼고)
+                float loud = sounding.Length > 0 ? sounding[sounding.Length * 8 / 10] : -120f;
+                Assert.LessOrEqual(peak, .46f, c.name + " 넘침");
+                if (c.name.StartsWith("purr")) Assert.That(loud, Is.InRange(-28f, -14f), c.name + " 크기 (골골송은 밑에 깔리는 소리)");
+                else Assert.That(loud, Is.InRange(-22f, -10f), c.name + " 크기");
+                if (!c.name.StartsWith("purr")) Assert.Less(quiet, -60f, c.name + " 배경 잡음 (조용한 구간)");
+            }
+        }
     }
 }
