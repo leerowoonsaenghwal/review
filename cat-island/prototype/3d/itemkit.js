@@ -285,9 +285,11 @@ function tower1(v) {
   // (the carpet's top is the deck a cat lands on: exactly DECK_STEP; the board sits under it)
   box(g, K.woodB, DW, DT, DL, 0, Y - DT / 2 - .006, 0);
   box(g, K.blue, DW - .08, .008, DL - .08, 0, Y - .004, 0, .004);
-  // the rim: set 6 mm in from the board's edge, 2.8 cm high, well rounded: a cat's hind paws pass over it jumping down (qa_items)
+  // side rails only: set 6 mm in from the board's edge, 2.8 cm high, well rounded. The front and back edges (where a
+  // cat jumps on and off) are open: a rim there caught the trailing hind paw of short-legged and long-bodied breeds
+  // jumping down (Munchkin 3 mm, Somali 10 mm, qa_items)
   const ri = .006, rw = .045, rh = .028;
-  for (const [w, l, x, z] of [[DW - 2 * ri, rw, 0, -DL / 2 + ri + rw / 2], [DW - 2 * ri, rw, 0, DL / 2 - ri - rw / 2], [rw, DL - 2 * ri - 2 * rw, -DW / 2 + ri + rw / 2, 0], [rw, DL - 2 * ri - 2 * rw, DW / 2 - ri - rw / 2, 0]]) box(g, K.butter, w, rh, l, x, Y + rh / 2, z, .016);
+  for (const x of [-DW / 2 + ri + rw / 2, DW / 2 - ri - rw / 2]) box(g, K.butter, rw, rh, DL - 2 * ri, x, Y + rh / 2, 0, .016);
   for (const [px, pz] of [[-DW / 2 + .05, -DL / 2 + .05], [DW / 2 - .05, -DL / 2 + .05], [-DW / 2 + .05, DL / 2 - .05], [DW / 2 - .05, DL / 2 - .05]]) {
     const h = Y - DT - .03;
     cyl(g, K.sisal, .042, .042, h - .03, px, .03 + h / 2, pz);
