@@ -64,6 +64,9 @@ for (const id of breeds) {
     if (bad) failed++;
     console.log(`  ${bad ? 'FAIL' : 'ok  '} ${name.padEnd(28)} ${worst.d < 0 ? `${worst.part} into ${itemId} ${(worst.d * 1000).toFixed(0)}mm at ${worst.t.toFixed(2)}s${worst.p ? ` (item space ${worst.p.map(v => (v * 100).toFixed(1)).join(', ')} cm)` : ''}` : 'nothing inside'}${when ? ` · contact ${runs.length - misses.length}/${runs.length}${misses.length ? ` (misses up to ${(Math.max(...misses.map(r => r.best)) * 1000).toFixed(0)}mm)` : ''}` : ''}`);
   };
+  // the game's own numbers (assets/cats/<id>.clips.json): --fix-spots searches a placement where nothing is inside and writes it back
+  const assetFile = new URL(`../../assets/cats/${id}.clips.json`, import.meta.url), asset = fs.existsSync(assetFile) ? JSON.parse(fs.readFileSync(assetFile, 'utf8')) : null;
+  const fix = args.includes('--fix-spots') && asset, saveAsset = msg => { fs.writeFileSync(assetFile, JSON.stringify(asset, null, 1)); console.log(`  (${msg}: written to ${id}.clips.json)`); };
   // Drink: bowl where the clip says
   const dk = clip('Drink'), bw = dk.drink.bowl, lap = (P, t) => t < dk.drink.laps / dk.drink.rate && (t * dk.drink.rate % 1) > .3 && (t * dk.drink.rate % 1) < .55;   // (the tongue is down around .36-.46 of a lap: at 30 fps a lap has 1-2 frames near it)
   for (const bowl of ['water_bowl', 'milk_bowl', 'food_bowl'])
@@ -71,12 +74,20 @@ for (const id of breeds) {
   // JumpUp: the tower deck sits where the old test box was (deck centre at D + 5 cm)
   const ju = clip('JumpUp');
   const deck = itemField('cat_tower_1').anchors.decks[0];
-  scene('JumpUp · cat_tower_1', 'cat_tower_1', 'JumpUp', [0, 0, ju.jump.deckBack + deck.size[1] / 2]);   // (deck's back edge at jump.deckBack)
+  const CARPET = -.005;   // (the decks and their rims are carpeted: a paw may press in this much, like the cushion's 15 mm)
+  scene('JumpUp · cat_tower_1', 'cat_tower_1', 'JumpUp', [0, 0, ju.jump.deckBack + deck.size[1] / 2], { soft: CARPET });   // (deck's back edge at jump.deckBack)
   // JumpDown: the cat stands where JumpUp landed (root D in, the deck centre deckBack + depth/2 from the start),
   // turned round and stepped turnIn in towards the centre: in its root space the tower is rotated 180 degrees and
   // its base is H below
   const jd = clip('JumpDown');
-  if (jd) scene('JumpDown · cat_tower_1', 'cat_tower_1', 'JumpDown', [0, jd.jump.H, ju.jump.D - ju.jump.deckBack - deck.size[1] / 2 + (jd.jump.turnIn || 0)], { yaw: Math.PI });
+  const ajd = asset?.clips?.find(c => c.name === 'JumpDown')?.jump;
+  let turnIn = ajd?.turnIn ?? jd?.jump.turnIn ?? 0;
+  const jdAt = ti => [0, jd.jump.H, ju.jump.D - ju.jump.deckBack - deck.size[1] / 2 + ti];
+  if (jd && fix && ajd) {   // (short legs: the trailing hind paw can brush the deck rim - the cat starts its jump a little further in)
+    const t0 = jd.jump.turnIn || 0;
+    for (const dt of [0, .01, .02, .03, .04, -.01]) if (scene('', 'cat_tower_1', 'JumpDown', jdAt(t0 + dt), { yaw: Math.PI, quiet: true, fps: 30, soft: CARPET }) >= CARPET + .001) { const v = +(t0 + dt).toFixed(3); if (v !== ajd.turnIn) { ajd.turnIn = turnIn = v; saveAsset(`JumpDown turnIn ${v}`); } break; }
+  }
+  if (jd) scene('JumpDown · cat_tower_1', 'cat_tower_1', 'JumpDown', jdAt(turnIn), { yaw: Math.PI, soft: CARPET });
   // lying on the cushion / inside the hideout: centred under the trunk, cat raised to the seat
   applyPose(rig, stand(rig)); rig.model.updateMatrixWorld(true);
   const mid = rig.B.Hips.getWorldPosition(rig.B.Hips.position.clone()).add(rig.B.Chest.getWorldPosition(rig.B.Chest.position.clone())).multiplyScalar(.5);
@@ -86,15 +97,14 @@ for (const id of breeds) {
   // the spot the game uses (assets/cats/<id>.clips.json itemSpots.hideout), else the default under the trunk.
   // --fix-spots: a breed whose head or ears reach the dome (big ears: Sphynx) is moved further out of the door until
   // nothing is inside, and the spot is written back to its clips.json (the game reads it from there)
-  const assetFile = new URL(`../../assets/cats/${id}.clips.json`, import.meta.url), asset = fs.existsSync(assetFile) ? JSON.parse(fs.readFileSync(assetFile, 'utf8')) : null;
   let hz = asset?.itemSpots?.hideout?.z ?? +(mid.z - (ho.catAhead ?? 0)).toFixed(3);
-  if (args.includes('--fix-spots') && asset?.itemSpots?.hideout) {
+  if (fix && asset?.itemSpots?.hideout) {
     const base = +(mid.z - (ho.catAhead ?? 0)).toFixed(3);
     for (const dz of [0, -.02, -.04, -.06, -.08, -.1, .02]) {   // (minus: the cat further out of the door, +z in item space is the door)
       const w = scene('', 'hideout', 'Loaf', [mid.x, 0, base + dz], { lift: ho.floor, soft: SOFT, quiet: true, fps: 4 });
       if (w >= -.006) { hz = +(base + dz).toFixed(3); break; }
     }
-    if (hz !== asset.itemSpots.hideout.z) { asset.itemSpots.hideout.z = hz; fs.writeFileSync(assetFile, JSON.stringify(asset, null, 1)); console.log(`  (hideout spot moved to z ${hz} and written to ${id}.clips.json)`); }
+    if (hz !== asset.itemSpots.hideout.z) { asset.itemSpots.hideout.z = hz; saveAsset(`hideout spot z ${hz}`); }
   }
   scene('Loaf · hideout', 'hideout', 'Loaf', [mid.x, 0, hz], { lift: ho.floor, soft: SOFT });
   // PawBat: the toy under the paw at the bottom of the tap
