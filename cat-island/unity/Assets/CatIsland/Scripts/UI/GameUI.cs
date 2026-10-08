@@ -195,7 +195,7 @@ namespace CatIsland.UI
             foreach (var d in Catalog.Items.Where(d => G.InShop(d) && TabHas(d)).OrderBy(d => d.limited ? 0 : 1).ThenBy(d => d.price))
             {
                 var r = Row(list, 66);
-                Kit.Size(Kit.IconImage(r, IconOf(d), 44), 44, 44);
+                Kit.Size(ItemIcon(r, d, 44), 44, 44);
                 RowText(r, d.ko + (d.limited ? "  · 한정" : ""));
                 int own = Bag.Get(G.S.inventory, d.id) + G.S.placed.Count(p => p.item == d.id);
                 if (own > 0 && !d.consumable) RowText(r, $"{own}개", Theme.Caption, 0, Theme.Latte);
@@ -257,14 +257,14 @@ namespace CatIsland.UI
             if (items.Count == 0) Kit.Size(Kit.Label(list, "가방이 비었어요. 상점에서 용품을 골라 봐요.", Theme.Body, Theme.Latte), -1, 60);
             foreach (var c in items)
             {
-                var d = Catalog.Item(c.id); var r = Row(list, 64); Kit.Size(Kit.IconImage(r, IconOf(d), 42), 42, 42); RowText(r, $"{d.ko}  ×{c.n}");
+                var d = Catalog.Item(c.id); var r = Row(list, 64); Kit.Size(ItemIcon(r, d, 42), 42, 42); RowText(r, $"{d.ko}  ×{c.n}");
                 var id = c.id; Kit.Size(Kit.Btn(r, Str.Place, () => { CloseAll(); PlaceFromBag(id); }), 90, 46);
             }
             if (G.S.placed.Count > 0) Kit.Size(Kit.Label(list, "섬에 놓인 것", Theme.Caption, Theme.Latte, TextAnchor.MiddleLeft), -1, 24);
             for (int i = 0; i < G.S.placed.Count; i++)
             {
                 var p = G.S.placed[i]; var d = Catalog.Item(p.item); var r = Row(list, 60); int idx = i;
-                Kit.Size(Kit.IconImage(r, IconOf(d), 38), 38, 38); RowText(r, d.ko + (p.zone == Zone.Yard ? " · 마당" : ""));
+                Kit.Size(ItemIcon(r, d, 38), 38, 38); RowText(r, d.ko + (p.zone == Zone.Yard ? " · 마당" : ""));
                 if (World is WorldSync ws) Kit.Size(Kit.Btn(r, "옮기기", () => { CloseAll(); ws.BeginMove(idx, ok => Refresh()); }, Kit.Style.Secondary), 84, 46);
                 bool essential = (p.item == "food_bowl" || p.item == "water_bowl") && G.S.placed.Count(x => x.item == p.item) == 1;   // (하나뿐인 그릇·물그릇은 넣지 않는다)
                 if (!essential) Kit.Size(Kit.Btn(r, Str.PutAway, () => { G.PutAway(idx); G.Save(); World?.Refresh(); Open(BuildBag); }, Kit.Style.Secondary), 64, 46);
@@ -376,7 +376,7 @@ namespace CatIsland.UI
             {
                 foreach (var r in Catalog.Recipes.Where(x => G.S.recipes.Contains(x.id)))
                 {
-                    var row = Row(list, 70); var d = Catalog.Item(r.item); Kit.Size(Kit.IconImage(row, IconOf(d), 40), 40, 40);
+                    var row = Row(list, 70); var d = Catalog.Item(r.item); Kit.Size(ItemIcon(row, d, 40), 40, 40);
                     RowText(row, d.ko + "\n" + string.Join(" · ", r.needs.Select((m, k) => $"{Catalog.MaterialKo[m]} {G.Material(m)}/{r.counts[k]}")), Theme.Caption);
                     var rid = r.id; Kit.Size(Kit.Btn(row, Str.Craft, () => { if (G.Craft(rid)) { Toast($"{Josa.EulReul(d.ko)} 만들었어요"); } else Toast("재료가 조금 모자라요"); Open(BuildCats); }, Kit.Style.Primary, UIIcon.Hammer), 104, 46);
                 }
@@ -441,6 +441,15 @@ namespace CatIsland.UI
             if (!G.S.zonesUnlocked.Contains(1)) { Open(BuildBag); return; }
             zone = zone == Zone.Indoor ? Zone.Yard : Zone.Indoor; World?.ShowZone(zone);
             zoneBtn.GetComponentInChildren<Text>().text = zone == Zone.Indoor ? Str.Yard : Str.Indoor;
+        }
+
+        /// <summary>용품 그림: 실제 모델을 찍은 작은 그림(Resources/ItemIcons, ItemIconBake)이 있으면 그것, 없으면(먹이 등) 아이콘.</summary>
+        public static Graphic ItemIcon(Transform parent, ItemDef d, float size)
+        {
+            var tex = d != null ? Resources.Load<Texture2D>("ItemIcons/" + d.model) : null;
+            if (!tex) return Kit.IconImage(parent, IconOf(d), size);
+            var rt = Kit.Rect(parent, "ItemIcon"); var raw = rt.gameObject.AddComponent<RawImage>(); raw.texture = tex; raw.raycastTarget = false;
+            rt.sizeDelta = new Vector2(size, size); return raw;
         }
 
         public static UIIcon IconOf(ItemDef d) => d.category switch
