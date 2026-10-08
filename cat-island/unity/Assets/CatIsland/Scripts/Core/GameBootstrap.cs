@@ -118,6 +118,7 @@ namespace CatIsland
             {
                 DayCycle.HourOverride = 14f; Day.Apply(14f);   // (시연은 낮: 밤이면 고양이들이 잔다)
                 Logic.S.catSlots = 4; Logic.AddCoins(20000); Logic.AddJelly(200);
+                Logic.S.notifyIdleFull = Logic.S.notifyWalkHome = false;   // (시연 화면을 알림 허락 창이 가리지 않게)
                 Logic.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Playful);
                 Logic.AddCat("persian", "보리", CatIsland.Game.Personality.Easygoing);
                 Logic.AddCat("siamese", "달이", CatIsland.Game.Personality.Playful);
