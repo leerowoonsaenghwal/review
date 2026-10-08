@@ -113,6 +113,18 @@ namespace CatIsland
             if (Logic.S.zonesUnlocked.Contains(1)) IslandBuilder.OpenYardGate(world.Find("Island"));
             CatIsland.UI.Press.OnPress = () => { if (Logic.S.hapticsOn) Haptics.Impact(ImpactStyle.Soft, .5f); GameFeel.SoundOn = Logic.S.soundOn; GameFeel.Tap(); };
             CatIsland.UI.CatMaker.OnPreview = ShowPreview;
+            // 시연 (-catisland-demo 또는 환경 변수 CATISLAND_DEMO=1 로 실행할 때만: 시뮬레이터 화면 녹화용, SIMCTL_CHILD_CATISLAND_DEMO=1 xcrun simctl launch …): 고양이 셋과 용품 몇 개가 있는 섬으로 바로 시작
+            if ((System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-catisland-demo") >= 0 || System.Environment.GetEnvironmentVariable("CATISLAND_DEMO") == "1") && Logic.S.cats.Count == 0)
+            {
+                DayCycle.HourOverride = 14f; Day.Apply(14f);   // (시연은 낮: 밤이면 고양이들이 잔다)
+                Logic.S.catSlots = 4; Logic.AddCoins(20000); Logic.AddJelly(200);
+                Logic.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Playful);
+                Logic.AddCat("persian", "보리", CatIsland.Game.Personality.Easygoing);
+                Logic.AddCat("siamese", "달이", CatIsland.Game.Personality.Playful);
+                foreach (var (id, x, z) in new[] { ("cushion", 4, 6), ("hideout", 7, 3), ("mouse_toy", 5, 8), ("plant_pot", 2, 3) })
+                    if (Logic.Buy(id)) Logic.Place(id, CatIsland.Game.Zone.Indoor, x, z, 2);
+                Logic.Save(); WorldLink.Refresh();
+            }
             if (Logic.S.cats.Count == 0 && OpenCatMakerIfEmpty) CatIsland.UI.CatMaker.Open(UI);
             SyncCats(); SyncGuest();
             Router.BeforeBowlFill = () =>

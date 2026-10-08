@@ -186,7 +186,9 @@ namespace CatIsland.Tests
             clock.UtcNow = new DateTime(2026, 10, 6, 12, 0, 0, DateTimeKind.Utc);   // 한국 밤 9시
             g.Resume();
             g.SendWalk(a.uid, 1); g.SendWalk(b.uid, 2); g.SendWalk(c.uid, 4);
-            g.ScheduleNotifications();
+            g.S.onboardingStep = 0; g.ScheduleNotifications();
+            Assert.AreEqual(0, notes.scheduled.Count, "처음 켠 직후(밥·놀이 전)에는 알림 허락을 묻지 않는다");
+            g.S.onboardingStep = 3; g.ScheduleNotifications();
             foreach (var n in notes.scheduled)
             {
                 var local = n.utc + clock.LocalOffset; Assert.IsTrue(local.Hour >= 8 && local.Hour < 22, n.id + " " + local);

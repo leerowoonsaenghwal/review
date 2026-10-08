@@ -419,7 +419,7 @@ namespace CatIsland
 
         Vector3 VisitSpot(CatBrain o)
         {
-            var side = o.transform.right * (Vector3.Dot(transform.position - o.transform.position, o.transform.right) >= 0 ? .55f : -.55f);
+            var side = o.transform.right * (Vector3.Dot(transform.position - o.transform.position, o.transform.right) >= 0 ? .65f : -.65f);   // (몸이 닿지 않게: 옆에 나란히)
             return nav != null ? nav.NearestFree(o.transform.position + side) : o.transform.position + side;
         }
 
@@ -427,7 +427,7 @@ namespace CatIsland
         {
             if (!friend || friend.State != CatState.Flee) { Enter(CatState.SitIdle); return; }
             moveTarget = friend.transform.position;
-            bool caught = MoveTowards(moveTarget, GameConfig.TrotSpeed * 1.05f, dt, .6f) || Flat(friend.transform.position - transform.position).magnitude < .62f;
+            bool caught = MoveTowards(moveTarget, GameConfig.TrotSpeed * 1.05f, dt, .7f) || Flat(friend.transform.position - transform.position).magnitude < .72f;
             if (caught || StateTime > 5f)
             {
                 friend.Enter(CatState.SitIdle); friend.faceDir = Flat(transform.position - friend.transform.position).normalized;

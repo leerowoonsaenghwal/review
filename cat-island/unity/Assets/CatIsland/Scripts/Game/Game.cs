@@ -599,6 +599,8 @@ namespace CatIsland.Game
         public void ScheduleNotifications()
         {
             Notifier.ClearAll();
+            // 처음 켜자마자 알림 허락을 묻지 않는다: 밥 주기·놀아 주기를 해 본 뒤부터 (첫 예약 때 아이폰이 허락을 묻는다)
+            if (S.onboardingStep < 3) return;
             var list = new List<(DateTime at, string id, string title, string body)>();
             var name = S.cats.FirstOrDefault(c => c.status != "star")?.name ?? "고양이";
             if (S.notifyIdleFull && S.cats.Any(c => c.status == "home"))
