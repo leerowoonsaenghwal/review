@@ -27,7 +27,7 @@ namespace CatIsland.EditorTools
             // 앱 이름·암호화 신고 (표준 암호화만 씀: 수출 신고 질문을 건너뛴다)
             var plistPath = Path.Combine(path, "Info.plist"); var plist = new PlistDocument(); plist.ReadFromFile(plistPath);
             plist.root.SetBoolean("ITSAppUsesNonExemptEncryption", false);
-            plist.root.SetString("CFBundleDisplayName", "놀러와요 고양이섬");
+            plist.root.SetString("CFBundleDisplayName", "놀고섬");   // (홈 화면 아이콘 아래 이름: 6~7글자만 보이므로 줄임말, BRAND.md. 정식 이름은 앱스토어에)
             plist.WriteToFile(plistPath);
         }
     }

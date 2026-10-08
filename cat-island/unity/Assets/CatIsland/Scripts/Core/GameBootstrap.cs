@@ -116,6 +116,7 @@ namespace CatIsland
             // 시연 (-catisland-demo 또는 환경 변수 CATISLAND_DEMO=1 로 실행할 때만: 시뮬레이터 화면 녹화용, SIMCTL_CHILD_CATISLAND_DEMO=1 xcrun simctl launch …): 고양이 셋과 용품 몇 개가 있는 섬으로 바로 시작
             bool demo = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-catisland-demo") >= 0 || System.Environment.GetEnvironmentVariable("CATISLAND_DEMO") == "1";
             if (demo) { DayCycle.HourOverride = 14f; Day.Apply(14f); }   // (시연은 늘 낮)
+            if (System.Environment.GetEnvironmentVariable("CATISLAND_TOUR") == "1") StartCoroutine(UI.Tour(4f));   // (화면 차례로 열기: 시뮬레이터 점검)
             if (demo && Logic.S.cats.Count == 0)
             {
                 Logic.S.catSlots = 4; Logic.AddCoins(20000); Logic.AddJelly(200);

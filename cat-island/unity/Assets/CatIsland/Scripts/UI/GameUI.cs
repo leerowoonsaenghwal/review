@@ -115,6 +115,16 @@ namespace CatIsland.UI
         }
 
         // ================================================================ 창 (아래에서 올라오는 카드)
+        /// <summary>시연 둘러보기 (CATISLAND_TOUR=1, 시뮬레이터 화면 점검용): 화면을 차례로 연다. 이용자는 볼 일이 없다.</summary>
+        public System.Collections.IEnumerator Tour(float each)
+        {
+            Func<RectTransform, string>[] screens = { BuildIdle, BuildShop, BuildOdds, BuildJellyShop, BuildBag, BuildTasks, BuildCats, BuildSettings };
+            foreach (var b in screens) { Open(b); yield return new WaitForSecondsRealtime(each); }
+            CatMaker.Open(this); yield return new WaitForSecondsRealtime(each);
+            StarLandUI.Open(this); yield return new WaitForSecondsRealtime(each);
+            CloseAll();
+        }
+
         public void Open(Func<RectTransform, string> build)
         {
             CloseAll();
