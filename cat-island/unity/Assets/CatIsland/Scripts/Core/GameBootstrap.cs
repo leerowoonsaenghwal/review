@@ -114,9 +114,10 @@ namespace CatIsland
             CatIsland.UI.Press.OnPress = () => { if (Logic.S.hapticsOn) Haptics.Impact(ImpactStyle.Soft, .5f); GameFeel.SoundOn = Logic.S.soundOn; GameFeel.Tap(); };
             CatIsland.UI.CatMaker.OnPreview = ShowPreview;
             // 시연 (-catisland-demo 또는 환경 변수 CATISLAND_DEMO=1 로 실행할 때만: 시뮬레이터 화면 녹화용, SIMCTL_CHILD_CATISLAND_DEMO=1 xcrun simctl launch …): 고양이 셋과 용품 몇 개가 있는 섬으로 바로 시작
-            if ((System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-catisland-demo") >= 0 || System.Environment.GetEnvironmentVariable("CATISLAND_DEMO") == "1") && Logic.S.cats.Count == 0)
+            bool demo = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-catisland-demo") >= 0 || System.Environment.GetEnvironmentVariable("CATISLAND_DEMO") == "1";
+            if (demo) { DayCycle.HourOverride = 14f; Day.Apply(14f); }   // (시연은 늘 낮)
+            if (demo && Logic.S.cats.Count == 0)
             {
-                DayCycle.HourOverride = 14f; Day.Apply(14f);   // (시연은 낮: 밤이면 고양이들이 잔다)
                 Logic.S.catSlots = 4; Logic.AddCoins(20000); Logic.AddJelly(200);
                 Logic.S.notifyIdleFull = Logic.S.notifyWalkHome = false;   // (시연 화면을 알림 허락 창이 가리지 않게)
                 Logic.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Playful);

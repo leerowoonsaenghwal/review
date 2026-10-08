@@ -686,7 +686,7 @@ namespace CatIsland.Tests
                     foreach (var o in game.Nav.obstacles.Where(o => o.owner == null && !(upOrJumping && o.item == game.Tower.transform)))
                     {
                         float d = o.Distance(k.Rig.BodyZone.position) - k.Rig.BodyHalf.x * .8f;
-                        if (d < worstItem) { worstItem = d; what = $"{k.name} in {o.name}"; }
+                        if (d < worstItem) { worstItem = d; what = $"{k.name} in {o.name} ({k.State}, posture {k.Rig.Current}, y {k.transform.position.y:F2})"; }
                     }
                     foreach (var k2 in cats) if (k2 != k && !k.OnTower && !k2.OnTower) closest = Mathf.Min(closest, Vector3.Distance(k.Rig.BodyZone.position, k2.Rig.BodyZone.position));
                 }

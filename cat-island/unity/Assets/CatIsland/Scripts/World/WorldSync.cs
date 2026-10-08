@@ -56,6 +56,7 @@ namespace CatIsland
                 int w = d.w, h = d.h; if (p.rot % 2 == 1) (w, h) = (h, w);
                 var ob = boot.Nav.Add(new Obstacle { name = d.id, item = go.transform, center = pos, half = new Vector2(w * Cell * .45f, h * Cell * .45f), yaw = 0 });
                 obstacles[p] = ob;
+                foreach (var cat in CatBrain.All) if (cat && cat.isActiveAndEnabled) cat.StepOutOf(ob, boot.Nav);   // (고양이가 서 있던 자리에 놓으면 고양이가 옆으로 비킨다)
             }
         }
         readonly Dictionary<Component, Obstacle> sceneObstacles = new Dictionary<Component, Obstacle>();

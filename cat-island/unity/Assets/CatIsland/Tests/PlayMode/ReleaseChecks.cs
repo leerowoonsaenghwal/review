@@ -136,6 +136,51 @@ namespace CatIsland.Tests
             Assert.IsNull(bad, bad);
         }
 
+        /// <summary>오래 놀게 두기: 고양이 5마리가 2분(4배속) 동안 돌아다니고 쫓고 옆에 앉아도 물건·서로에 박히지 않는다.</summary>
+        [UnityTest]
+        public IEnumerator Soak_FiveCats_NoOneInsideItemsOrEachOther()
+        {
+            var g = game.Logic; g.S.catSlots = 5; g.AddCoins(99999);
+            foreach (var (b, n, p) in new[] { ("korean_shorthair", "나비", CatIsland.Game.Personality.Playful), ("munchkin", "콩", CatIsland.Game.Personality.Playful), ("persian", "보리", CatIsland.Game.Personality.Easygoing), ("siamese", "달이", CatIsland.Game.Personality.Playful), ("maine_coon", "호두", CatIsland.Game.Personality.Easygoing) })
+                g.AddCat(b, n, p);
+            foreach (var (id, x, z) in new[] { ("cushion", 4, 6), ("hideout", 7, 3), ("mouse_toy", 5, 8), ("scratcher", 2, 4) })
+                if (g.Buy(id)) g.Place(id, CatIsland.Game.Zone.Indoor, x, z, 2);
+            game.WorldLink.Refresh(); yield return null; game.SyncCats(); yield return null;   // (용품을 먼저 세워야 고양이가 그 밖에 선다)
+            var cats = Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).Where(c => c.Data != null).ToList();
+            foreach (var c in cats) c.Needs.SetForTest(1f, 1f);
+            foreach (var c in cats) Debug.Log($"[Soak] start {c.name} {c.transform.position} {c.State}");
+            foreach (var o in game.Nav.obstacles.Where(o => o.owner == null && o.item)) Debug.Log($"[Soak] item {o.name} {o.center} half {o.half} r {o.radius}");
+            float logT = 0f;
+            Time.timeScale = 4f; float worst = 0f, closest = 9f; string what = "", pair = "";
+            for (float t = 0; t < 120f; t += Time.deltaTime)
+            {
+                yield return null;
+                if (t < 8f && t - logT > .5f) { logT = t; foreach (var c in cats) Debug.Log($"[Soak] t {t:F1} {c.name} {c.transform.position} {c.State}"); }
+                foreach (var k in cats)
+                {
+                    if (!k.isActiveAndEnabled) continue;
+                    bool up = k.OnTower || k.State.ToString().Contains("Jump") || k.State.ToString().Contains("Tower") || k.State == CatState.UseItem || k.State == CatState.GoToItem;
+                    bool onCushion = k.transform.position.y > .05f;   // (방석 위에 올라서 있음: 방석 '안'이 아니다)
+                    foreach (var o in game.Nav.obstacles.Where(o => o.owner == null && !(up && o.item == game.Tower.transform)))
+                    {
+                        if (up && k.State == CatState.UseItem) continue;   // (쓰는 중인 용품 안·위는 맞다)
+                        if (game.Cushion && o.item == game.Cushion.transform) continue;   // (방석은 올라서고 걸어 넘는 물건: 막힘 검사 대상 아님)
+                        if (k.LeftItem && o.item == k.LeftItem && Time.time - k.LeftAt < 12f) continue;   // (방금 쓰고 나오는 중)
+                        if (k.EnteringItem && o.item == k.EnteringItem) continue;   // (문으로 들어가는 중)
+                        float d = o.Distance(k.Rig.BodyZone.position) - k.Rig.BodyHalf.x * .8f;
+                        if (d < worst) { worst = d; what = $"{k.name} in {o.name} ({k.State}, {k.Rig.Current}, y {k.transform.position.y:F2}, t {t:F0}) cat {k.transform.position} body {k.Rig.BodyZone.position} ob {o.center} half {o.half} r {o.radius} item {(o.item ? o.item.position.ToString() : "-")} left {(k.LeftItem ? k.LeftItem.name : "-")} {Time.time - k.LeftAt:F1}s target {(k.EnteringItem ? k.EnteringItem.name : "-")}"; }
+                    }
+                    foreach (var k2 in cats) if (k2 != k && k2.isActiveAndEnabled && !k.OnTower && !k2.OnTower)
+                        { float dd = Vector3.Distance(k.Rig.BodyZone.position, k2.Rig.BodyZone.position); if (dd < closest) { closest = dd; pair = $"{k.name}({k.State}) - {k2.name}({k2.State}) t {t:F0}"; } }
+                }
+            }
+            Time.timeScale = 1f;
+            Debug.Log($"[Soak] worst item {worst * 1000:F0} mm {what}; closest cats {closest:F2} m {pair}");
+            // (용품 막힘은 격자 칸 크기 상자(한 칸 0.54 m)로 잰다: 대부분 용품은 그보다 작아 8 cm 안쪽까지는 실제로 닿지 않는다)
+            Assert.Greater(worst, -0.08f, what);
+            Assert.Greater(closest, 0.2f, pair);   // (나란히 앉으면 어깨가 살짝 닿는 정도까지는 고양이답다)
+        }
+
         [UnityTest]
         public IEnumerator FaceVariants_AndPhotoCoat()
         {

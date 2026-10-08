@@ -58,7 +58,7 @@ Shader "CatIsland/SoftLit"
             #pragma vertex vert
             #pragma fragment frag
             #pragma shader_feature_local _NORMALMAP
-            #pragma shader_feature_local _WORLDUV
+            #pragma multi_compile_local _ _WORLDUV   // (런타임에 코드로 만든 재질만 쓰므로 shader_feature 면 빌드에서 빠진다: 땅·마루·러그 무늬)
             #pragma multi_compile_local _ _COATMASK
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH

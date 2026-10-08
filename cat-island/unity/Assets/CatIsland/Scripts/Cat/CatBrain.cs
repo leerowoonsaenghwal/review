@@ -64,6 +64,8 @@ namespace CatIsland
             foreach (var o in All) if (o && o != this && o.isActiveAndEnabled && Flat(o.transform.position - p).magnitude < r) return true;
             return false;
         }
+        /// <summary>방석이 비었나: 차지한 고양이가 없고, 실제로 그 위·곁에 다른 고양이가 없다 (깬 뒤 방석 위에서 기지개 켜는 고양이도 있다).</summary>
+        bool CushionFree => Free(cushion) && cushion && !OtherCatNear(cushion.transform.position, cushion.Radius + .15f);
         bool Free(Component item) => item && item.gameObject.activeInHierarchy && (!claims.TryGetValue(item.transform, out var o) || !o || o == this);
         void ClaimFor(CatState s)
         {
@@ -364,7 +366,7 @@ namespace CatIsland
             if (idleDecide > 0f) return;
 
             if (Needs.IsHungry && Free(bowl)) { Enter(bowl && bowl.HasFood ? CatState.GoToBowl : CatState.WaitAtBowl); return; }
-            if (Needs.IsSleepy && cushion && Free(cushion)) { Enter(CatState.GoToCushion); return; }
+            if (Needs.IsSleepy && cushion && CushionFree) { Enter(CatState.GoToCushion); return; }
             if (Time.time - lastUserActivity > GameConfig.IdleInviteDelay && inviteCooldown <= 0f && cam)
             {
                 inviteCooldown = 20f;
@@ -374,7 +376,7 @@ namespace CatIsland
             // 밤에는 잔다: 빈 방석이 있으면 방석에서, 아니면 자고 있는 다른 고양이 옆에서 (고양이끼리 같이 자기)
             if (IsNight)
             {
-                if (cushion && Free(cushion) && cushion.gameObject.activeInHierarchy) { Enter(CatState.GoToCushion); return; }
+                if (cushion && CushionFree && cushion.gameObject.activeInHierarchy) { Enter(CatState.GoToCushion); return; }
                 var sleeper = All.Find(o => o && o != this && o.isActiveAndEnabled && o.State == CatState.Sleep && !o.OnTower);
                 if (sleeper) { var side = sleeper.transform.right * (UnityEngine.Random.value < .5f ? .7f : -.7f); moveTarget = nav != null ? nav.NearestFree(sleeper.transform.position + side) : sleeper.transform.position + side; Enter(CatState.GoToSleepNear); return; }
                 Enter(CatState.Sleep); return;
@@ -419,7 +421,7 @@ namespace CatIsland
 
         Vector3 VisitSpot(CatBrain o)
         {
-            var side = o.transform.right * (Vector3.Dot(transform.position - o.transform.position, o.transform.right) >= 0 ? .65f : -.65f);   // (몸이 닿지 않게: 옆에 나란히)
+            var side = o.transform.right * (Vector3.Dot(transform.position - o.transform.position, o.transform.right) >= 0 ? .7f : -.7f);   // (몸이 닿지 않게: 옆에 나란히)
             return nav != null ? nav.NearestFree(o.transform.position + side) : o.transform.position + side;
         }
 
@@ -467,12 +469,24 @@ namespace CatIsland
             if (StateTime > 9f) { Rig.lookTarget = null; Enter(CatState.SitIdle); }
         }
 
+        /// <summary>새로 놓인 물건 안에 서 있으면 가장 가까운 빈자리로 폴짝 비킨다 (물건 속에 묻히지 않게).</summary>
+        public void StepOutOf(Obstacle ob, NavGrid grid)
+        {
+            if (ob == null || grid == null || OnTower || State == CatState.UseItem || State == CatState.LeaveForWalk) return;
+            if (ob.Distance(transform.position) > .05f) return;
+            grid.Self = this; var to = grid.NearestFree(transform.position); grid.Self = null;
+            transform.position = new Vector3(to.x, transform.position.y, to.z);
+            path = null;
+            FxPool.Instance?.Burst(Icon.Exclaim, Rig.BubbleAnchor.position, 1, .1f, .26f);
+            if (State == CatState.GoToItem || State == CatState.Wander || State == CatState.Called) Enter(CatState.Idle);
+        }
+
         /// <summary>지금 쓰러 가는 물건 (길찾기에서 그 물건에만 좁게 다가간다).</summary>
         Transform UsingItem() =>
             State == CatState.GoToBowl || State == CatState.WaitAtBowl || State == CatState.Eat ? (bowl ? bowl.transform : null)
             : State == CatState.GoToCushion || State == CatState.LieDown || State == CatState.Sleep ? (cushion ? cushion.transform : null)
             : State == CatState.GoToTower ? (curTower ? curTower.transform : null)
-            : State == CatState.GoToItem || State == CatState.UseItem ? (useTarget ? useTarget.transform : null) : null;
+            : (State == CatState.GoToItem && !viaDoor) || State == CatState.UseItem ? (useTarget ? useTarget.transform : null) : null;   // (문 앞까지는 그 용품도 피해 간다)
 
         /// <summary>다음에 향할 곳: 길찾기 경로의 다음 지점 (장애물을 돌아간다).</summary>
         Vector3 Steer(Vector3 target, float dt)
@@ -484,7 +498,10 @@ namespace CatIsland
             {
                 pathGoal = target;
                 replanTimer = 1.5f;
-                nav.Self = this; path = nav.FindPath(transform.position, target, item); nav.Self = null;
+                nav.Self = this; path = nav.FindPath(transform.position, target, item);
+                // 목적지가 막힘 거리 안이면 길이 없어 곧장(물건을 뚫고) 가게 된다: 가장 가까운 빈자리까지 길을 찾고, 마지막만 곧게
+                if ((path == null || path.Count == 0) && (item == null || (cushion && item == cushion.transform)) && nav.Blocked(target, item))   // (그릇·통 같은 용품은 저마다 다가가는 방법이 있다) { var near = nav.NearestFree(target, item); path = nav.FindPath(transform.position, near, item); if (path != null && path.Count > 0) path.Add(target); }
+                nav.Self = null;
             }
             if (path == null || path.Count == 0) return target;
             while (path.Count > 1 && Flat(path[0] - transform.position).magnitude < 0.3f) path.RemoveAt(0);
@@ -537,10 +554,42 @@ namespace CatIsland
             float targetSpeed = Mathf.Max(0.12f, maxSpeed * align * Mathf.Clamp01(distGoal / (0.25f + maxSpeed * 0.35f) + 0.15f));
             Speed = Mathf.MoveTowards(Speed, targetSpeed, dt * (maxSpeed > 1.5f ? 4f : 2.5f));
             Vector3 next = pos + transform.forward * Speed * dt;
+            next = SlideOffItems(pos, next);
+            // 고양이끼리 너무 가까우면 살짝 옆으로 비켜 걷는다 (어떤 상태에서든 몸이 겹치지 않게)
+            foreach (var o in All)
+            {
+                if (!o || o == this || !o.isActiveAndEnabled || o.OnTower) continue;
+                var away = Flat(next - o.transform.position); float d = away.magnitude;
+                if (d < .34f && d > 1e-4f) next += away / d * (.34f - d) * .5f;
+            }
             next = ClampToIsland(next);
             next.y = transform.position.y;
             transform.position = next;
             return false;
+        }
+
+        /// <summary>
+        /// 마지막 안전장치: 길찾기가 실패해 곧장 가더라도 쓰고 있지 않은 용품 안으로는 들어가지 않는다 (그 가장자리를 따라 미끄러진다).
+        /// 방석은 올라서고 넘는 물건이라 뺀다. 이미 안에 있으면(쓰고 나오는 중 등) 더 깊이 들어가는 쪽만 막는다.
+        /// </summary>
+        Vector3 SlideOffItems(Vector3 pos, Vector3 next)
+        {
+            if (nav == null || OnTower) return next;
+            var item = UsingItem(); var step = Flat(next - pos);
+            const float body = .12f;
+            foreach (var o in nav.obstacles)
+            {
+                if (o.owner != null || o.item == null || o.item == item || (cushion && o.item == cushion.transform) || (LeftItem && o.item == LeftItem && Time.time - LeftAt < 12f)) continue;
+                float dn = o.Distance(next);
+                if (dn >= body || dn >= o.Distance(pos)) continue;
+                const float e = .01f;   // (바깥쪽 방향: 거리의 기울기)
+                var n = new Vector3(o.Distance(next + Vector3.right * e) - o.Distance(next - Vector3.right * e), 0f, o.Distance(next + Vector3.forward * e) - o.Distance(next - Vector3.forward * e));
+                if (n.sqrMagnitude < 1e-8f) continue; n.Normalize();
+                float into = Vector3.Dot(step, n);
+                if (into < 0f) step -= n * into;
+                next = pos + step;
+            }
+            return next;
         }
 
         void TickMoveTo(float dt, float speed, CatState then)
@@ -692,6 +741,7 @@ namespace CatIsland
             if (!cushion) { Enter(CatState.Idle); return; }
             if (!actionStarted && Rig.ActionClip == "LickLips") return; // 입술 핥기를 마치고 출발
             actionStarted = true;
+            if (OtherCatNear(cushion.transform.position, cushion.Radius + .15f)) { Enter(CatState.SitIdle); return; }   // (가는 사이 다른 고양이가 올라갔다)
             var spot = CushionSpot(out var face);
             if (MoveTowards(spot, GameConfig.WalkSpeed, dt, 0.05f))
             {
@@ -888,6 +938,13 @@ namespace CatIsland
 
         // ---- 용품 쓰기: 장난감 치기, 스크래처에서 기지개, 화장실에서 파기, 숨숨집에서 식빵, (모델이 아직 없는 용품은 옆에 앉기)
         ItemTag useTarget; string useKind; Vector3 useSpot; float useYaw, useLift; int useStep; float useTimer;
+        /// <summary>방금 쓰고 나온 용품 (나오는 동안은 그 바닥 높이를 지킨다, 테스트도 이것으로 안다).</summary>
+        public Transform LeftItem { get; private set; }
+        bool viaDoor;
+        /// <summary>문으로 들어가는 마지막 걸음 중 (그 용품 안에 있는 것이 맞다: 테스트).</summary>
+        public Transform EnteringItem => State == CatState.GoToItem && !viaDoor && useTarget ? useTarget.transform : null;
+        public float LeftAt { get; private set; } = -99f;
+        float leftLift;
         /// <summary>새로 놓인 용품을 바로 써 본다 (느낌표 말풍선). 기획서 2-2: 고양이가 바로 그 용품을 써 보는 것이 보상.</summary>
         public bool TryNewItem(ItemTag t)
         {
@@ -938,7 +995,7 @@ namespace CatIsland
         bool BeginUse(ItemTag t)
         {
             useKind = Kind(t.id); if (useKind == null) return false;
-            useTarget = t; useStep = 0; useLift = 0f;
+            useTarget = t; useStep = 0; useLift = 0f; viaDoor = false;
             var tp = t.transform.position; var f = Flat(t.transform.forward); if (f.sqrMagnitude < .01f) f = Vector3.forward; f.Normalize();
             var toItem = Flat(tp - transform.position); if (toItem.sqrMagnitude < .01f) toItem = -f; toItem.Normalize();
             float yawTo = Mathf.Atan2(toItem.x, toItem.z) * Mathf.Rad2Deg;
@@ -953,6 +1010,7 @@ namespace CatIsland
                 case "bed":       // 침대·벤치·해먹 위에서 식빵 (밤에는 잠)
                     useYaw = Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg + 90f; useSpot = tp; useLift = BedTop(t.id); break;
                 case "hide":      // 몸은 안에, 머리는 문 밖 (qa_items 숨숨집 장면과 같은 자리)
+                    viaDoor = true;
                     useYaw = Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg; useSpot = tp - Quaternion.Euler(0, useYaw, 0) * new Vector3(0, 0, Rig.Info.hideZ); useLift = Rig.Info.hideLift; break;
                 default:          // 옆에 앉아 바라보기
                     useYaw = yawTo; useSpot = tp - toItem * .7f; break;
@@ -964,6 +1022,15 @@ namespace CatIsland
         {
             if (!useTarget || OtherCatNear(useSpot, .5f)) { Enter(CatState.Idle); return; }   // (다른 고양이가 그 자리에 있으면 다음에)
             bool inside = useKind == "litter" || useKind == "hide" || useKind == "bed";
+            if (viaDoor)
+            {
+                // 숨숨집·침대는 먼저 문 앞으로 (뒤에서 곧장 가면 벽을 뚫는다), 그다음 문으로 곧게 들어간다
+                var door = useSpot + Quaternion.Euler(0f, useYaw, 0f) * Vector3.forward * .75f;
+                if (nav != null) door = nav.NearestFree(door);   // (문 앞 점이 막힘 거리 안이면 길찾기가 실패해 곧장 (벽을 뚫고) 간다)
+                if (MoveTowards(door, GameConfig.WalkSpeed, dt, .1f) || Flat(door - transform.position).magnitude < .12f) viaDoor = false;
+                else if (StateTime > 14f) Enter(CatState.Idle);
+                return;
+            }
             if (MoveTowards(useSpot, GameConfig.WalkSpeed, dt, inside ? .06f : .1f) || (inside && Flat(useSpot - transform.position).magnitude < .45f))
             {
                 // (통·숨숨집 안으로는 마지막 몇 걸음을 곧게: 길찾기는 물건 안을 막아 둔다)
@@ -1002,10 +1069,17 @@ namespace CatIsland
             if (useKind == "litter" && useStep == 2 && useTimer <= 0f) { useStep = 3; Rig.Request(Posture.Stand); if (Rig.HasClip("Dig")) Rig.PlayAction("Dig", false, .2f); useTimer = 2.5f; return; }
             if (useTimer > 0f) return;
             if (useKind == "bat" || useKind == "stretch") Rig.StopAction();
-            var id = useTarget.id; useTarget = null;
+            var id = useTarget.id; LeftItem = useTarget.transform; LeftAt = Time.time; leftLift = useLift; var kind = useKind; useTarget = null;
             if (Data != null) OnUsedItem?.Invoke(id);
             if (Rig.Current != Posture.Stand) Rig.Request(Posture.Stand);
-            Enter(CatState.Idle);
+            if (kind == "hide" || kind == "bed")
+            {
+                // 숨숨집·침대에서 나올 때는 문(앞) 쪽으로 걸어 나온다: 바로 다른 곳으로 가면 벽을 뚫고 지나간다
+                Enter(CatState.Wander);
+                moveTarget = useSpot + Quaternion.Euler(0f, useYaw, 0f) * Vector3.forward * .75f;
+                if (nav != null) moveTarget = nav.NearestFree(moveTarget);
+            }
+            else Enter(CatState.Idle);
         }
         /// <summary>앞발이 장난감을 치는 순간 (PawBat 한 바퀴의 58 %: qa_items 와 같은 때). 이때 장난감이 굴러간다.</summary>
         bool BatTapNow(float dt)
@@ -1220,6 +1294,7 @@ namespace CatIsland
             float target = 0f;
             if (OnTower && curTower) target = curTower.Height(deck);
             else if (State == CatState.UseItem && useLift > 0f) target = useLift;
+            else if (LeftItem && leftLift > 0f && Time.time - LeftAt < 12f && Flat(transform.position - LeftItem.position).magnitude < .55f) target = leftLift;   // (나오는 동안 바닥에 묻히지 않게)
             else if (cushion)
             {
                 float d = Flat(transform.position - cushion.transform.position).magnitude;
