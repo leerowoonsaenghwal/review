@@ -658,7 +658,7 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
   };
   const bodyGeo = mkGeo(bodyPos, bodyCol, bodyIdx, bodySI, bodySW);
   const nf = face.pos.length / 3;
-  const varKeys = Object.keys(face.vidx).sort();
+  const varKeys = Object.keys(face.vidx).sort().filter(k => face.vidx[k].length);
   const faceIdx = face.idx[0].concat(face.idx[1], face.idx[2], ...varKeys.map(k => face.vidx[k]));
   const faceGeo = mkGeo(face.pos, face.col, faceIdx, face.si, face.sw);
   faceGeo.setAttribute('uv', new THREE.Float32BufferAttribute(face.uv, 2));
@@ -680,7 +680,8 @@ export function buildCatModel(shapeIn = {}, coatSpecIn = {}, opts = {}) {
   }
   faceGeo.morphTargetsRelative = true;
   faceGeo.morphAttributes.position = ['blink', 'mouth'].map(k => new THREE.Float32BufferAttribute(face[k].map(v => v * S), 3));
-  { let o = 0; [face.idx[0], face.idx[1], face.idx[2], ...varKeys.map(k => face.vidx[k])].forEach((l, m) => { faceGeo.addGroup(o, l.length, m); o += l.length; }); }
+  // (an empty group is skipped: the exporter wrote it as an index-less primitive = junk triangles over the whole face)
+  { let o = 0; [face.idx[0], face.idx[1], face.idx[2], ...varKeys.map(k => face.vidx[k])].forEach((l, m) => { if (l.length) faceGeo.addGroup(o, l.length, m); o += l.length; }); }
   const coatMat = new THREE.MeshStandardMaterial({ name: 'Coat', vertexColors: true, roughness: hairless ? .55 : coatSpec.sheen ? .9 - .5 * coatSpec.sheen : .9, metalness: 0 });
   const faceMats = [
     new THREE.MeshStandardMaterial({ name: 'FaceGloss', vertexColors: !faceMap, map: faceMap, roughness: .3, metalness: 0 }),

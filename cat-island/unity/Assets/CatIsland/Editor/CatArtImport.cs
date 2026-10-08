@@ -136,10 +136,10 @@ namespace CatIsland.EditorTools
                 return c;
             }).ToArray();
             imp.clipAnimations = clips;
-            // 앱 크기: 동작은 아주 작은 오차만 허용하는 키 줄이기 (회전 0.2°, 위치 0.2 %), 메시는 약한 압축
+            // 앱 크기: 동작은 아주 작은 오차만 허용하는 키 줄이기 (회전 0.2°, 위치 0.2 %)
             imp.animationCompression = ModelImporterAnimationCompression.KeyframeReduction;
             imp.animationRotationError = .2f; imp.animationPositionError = .2f; imp.animationScaleError = .5f;
-            imp.meshCompression = ModelImporterMeshCompression.Low;
+            imp.meshCompression = ModelImporterMeshCompression.Off;   // (고양이는 압축 없음: 1 mm 수염·눈꺼풀 선이 격자에 맞춰 조각난다)
             imp.isReadable = true;   // (CatFace: 고른 눈·수염 조각만 합친 메시를 만들려면 얼굴 삼각형을 읽어야 한다)
             imp.SaveAndReimport();
 
