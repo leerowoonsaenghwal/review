@@ -12,6 +12,8 @@ namespace CatIsland
     public static class Haptics
     {
         public static int ImpactCount { get; private set; }
+        /// <summary>설정의 '진동' (끄면 모든 진동이 멈춘다).</summary>
+        public static bool Enabled = true;
         public static float PurrIntensity { get; private set; }
 
 #if UNITY_IOS && !UNITY_EDITOR
@@ -29,13 +31,14 @@ namespace CatIsland
         public static void Impact(ImpactStyle style, float intensity = 1f)
         {
             ImpactCount++;
+            if (!Enabled) return;
             CatHaptics_Impact((int)style, Mathf.Clamp01(intensity));
         }
 
         /// <summary>0이면 멈춤. 매 프레임 불러도 된다 (변화가 작으면 무시).</summary>
         public static void SetPurr(float intensity)
         {
-            intensity = Mathf.Clamp01(intensity);
+            intensity = Enabled ? Mathf.Clamp01(intensity) : 0f;
             if (Mathf.Abs(intensity - PurrIntensity) < 0.03f && !(intensity == 0f && PurrIntensity > 0f)) return;
             PurrIntensity = intensity;
             CatHaptics_SetPurr(intensity);

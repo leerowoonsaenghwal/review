@@ -182,28 +182,39 @@ namespace CatIsland
         }
     }
 
-    /// <summary>배경음악 재생: 시작할 때 천천히 커진다.</summary>
+    /// <summary>
+    /// 배경음악 재생: 낮 곡과 밤 곡(assets/sounds/music, prototype/3d/music_render.py 로 코드로 만든 곡)을 섬의 시간에 따라
+    /// 천천히 바꿔 튼다 (8초 겹쳐 넘어가기). 곡 파일이 없으면 예전 합성 곡. 시작할 때 천천히 커진다.
+    /// </summary>
     public class BackgroundMusic : MonoBehaviour
     {
         public float volume = 0.5f;
-        AudioSource src;
+        /// <summary>설정의 '음악'.</summary>
+        public static bool On = true;
+        AudioSource day, night;
+        float dayW = 1f;
 
         void Start()
         {
-            src = gameObject.AddComponent<AudioSource>();
-            src.clip = Music.CreateClip();
-            src.loop = true;
-            src.volume = 0f;
-            src.spatialBlend = 0f;
-            src.priority = 200;
-            src.Play();
+            AudioSource Src(AudioClip c) { var s = gameObject.AddComponent<AudioSource>(); s.clip = c; s.loop = true; s.volume = 0f; s.spatialBlend = 0f; s.priority = 200; s.Play(); return s; }
+            var dc = Resources.Load<AudioClip>("Sounds/music/bgm_day"); var nc = Resources.Load<AudioClip>("Sounds/music/bgm_night");
+            day = Src(dc ? dc : Music.CreateClip());
+            if (nc) night = Src(nc);
+            dayW = IsNight ? 0f : 1f;
         }
+
+        static bool IsNight => GameBootstrap.Instance && GameBootstrap.Instance.Day && GameBootstrap.Instance.Day.Night;
 
         void Update()
         {
-            if (src && src.volume < volume) src.volume = Mathf.MoveTowards(src.volume, volume, Time.deltaTime * volume / 2.5f);
+            if (!day) return;
+            float want = night && IsNight ? 0f : 1f;
+            dayW = Mathf.MoveTowards(dayW, want, Time.unscaledDeltaTime / 8f);
+            float master = Mathf.MoveTowards(day.volume + (night ? night.volume : 0f), On ? volume : 0f, Time.unscaledDeltaTime * volume / (On ? 2.5f : .4f));
+            day.volume = master * dayW; if (night) night.volume = master * (1f - dayW);
         }
 
-        public bool Playing => src && src.isPlaying;
+        public bool Playing => day && day.isPlaying;
+        public string Current => night && dayW < .5f ? "night" : "day";
     }
 }

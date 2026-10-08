@@ -79,6 +79,21 @@ namespace CatIsland.EditorTools
             return true;
         }
 
+        /// <summary>배경음악: 길어서(2분) 흘려 듣기(Streaming)로, Vorbis 압축 (메모리에 풀어 두면 40 MB가 넘는다).</summary>
+        static void MusicImport()
+        {
+            const string dir = "Assets/CatIsland/Resources/Sounds/music";
+            if (!Directory.Exists(dir)) return;
+            foreach (var path in Directory.GetFiles(dir, "*.ogg"))
+            {
+                var ai = (AudioImporter)AssetImporter.GetAtPath(path.Replace('\\', '/')); if (ai == null) continue;
+                var st = ai.defaultSampleSettings;
+                if (st.loadType == AudioClipLoadType.Streaming && st.compressionFormat == AudioCompressionFormat.Vorbis) continue;
+                st.loadType = AudioClipLoadType.Streaming; st.compressionFormat = AudioCompressionFormat.Vorbis; st.quality = .7f;
+                ai.defaultSampleSettings = st; ai.loadInBackground = true; ai.SaveAndReimport();
+            }
+        }
+
         [MenuItem("CatIsland/Import Art")]
         public static void Run()
         {
@@ -91,6 +106,7 @@ namespace CatIsland.EditorTools
             var manifest = ReadManifest();
             foreach (var cat in manifest.cats) ImportCat(cat);
             CoatTextures();
+            MusicImport();
             foreach (var item in manifest.items) ImportItem(item);
             AssetDatabase.SaveAssets();
             Debug.Log("[CatArtImport] OK");

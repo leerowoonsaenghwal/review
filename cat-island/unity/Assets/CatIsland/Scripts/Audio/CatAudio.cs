@@ -14,6 +14,8 @@ namespace CatIsland
     {
         public const int Rate = 44100;
         public const float Peak = 0.45f;
+        /// <summary>설정의 '효과음'을 끄면 고양이 소리(야옹·골골·발소리)도 멈춘다.</summary>
+        public static bool Muted;
 
         AudioSource purrSrc, sfx, stepSrc;
         AudioClip purr, pop, kibble;
@@ -75,7 +77,7 @@ namespace CatIsland
 
         void Update()
         {
-            float v = Mathf.MoveTowards(purrSrc.volume, purrTarget * 0.6f, Time.deltaTime * (purrTarget > purrSrc.volume ? 1.0f : 0.5f));
+            float v = Mathf.MoveTowards(purrSrc.volume, (Muted ? 0f : purrTarget) * 0.6f, Time.deltaTime * (purrTarget > purrSrc.volume ? 1.0f : 0.5f));
             purrSrc.volume = v;
             if (v > 0.001f && !purrSrc.isPlaying) purrSrc.Play();
             else if (v <= 0.001f && purrSrc.isPlaying) purrSrc.Stop();
@@ -94,6 +96,7 @@ namespace CatIsland
         /// <summary>발소리: 바닥 재질별로 네 가지 중 하나 (같은 소리가 연달아 나지 않게).</summary>
         public void Step(Surface surface, float loudness)
         {
+            if (Muted) return;
             var set = steps[(int)surface];
             int i = Random.Range(0, set.Length - 1);
             if (i >= lastStep && lastStep >= 0) i++;
@@ -111,6 +114,7 @@ namespace CatIsland
 
         void Play(AudioClip c, float vol, float pitch)
         {
+            if (Muted) return;
             sfx.pitch = pitch;
             sfx.PlayOneShot(c, vol);
             PlayedCount++;

@@ -164,7 +164,8 @@ namespace CatIsland.Tests
                     foreach (var o in game.Nav.obstacles.Where(o => o.owner == null && !(up && o.item == game.Tower.transform)))
                     {
                         if (up && k.State == CatState.UseItem) continue;   // (쓰는 중인 용품 안·위는 맞다)
-                        if (game.Cushion && o.item == game.Cushion.transform) continue;   // (방석은 올라서고 걸어 넘는 물건: 막힘 검사 대상 아님)
+                        if (onCushion && game.Cushion && o.item == game.Cushion.transform) continue;   // (방석 위에 올라서 있음)
+                        if (game.Cushion && o.item == game.Cushion.transform && (k.State == CatState.GoToCushion || k.State == CatState.LieDown || k.State == CatState.Sleep)) continue;
                         if (k.LeftItem && o.item == k.LeftItem && Time.time - k.LeftAt < 12f) continue;   // (방금 쓰고 나오는 중)
                         if (k.EnteringItem && o.item == k.EnteringItem) continue;   // (문으로 들어가는 중)
                         float d = o.Distance(k.Rig.BodyZone.position) - k.Rig.BodyHalf.x * .8f;
@@ -179,6 +180,26 @@ namespace CatIsland.Tests
             // (용품 막힘은 격자 칸 크기 상자(한 칸 0.54 m)로 잰다: 대부분 용품은 그보다 작아 8 cm 안쪽까지는 실제로 닿지 않는다)
             Assert.Greater(worst, -0.08f, what);
             Assert.Greater(closest, 0.2f, pair);   // (나란히 앉으면 어깨가 살짝 닿는 정도까지는 고양이답다)
+        }
+
+        [UnityTest]
+        public IEnumerator Settings_SoundMusicHaptics_ReallyTurnOff_AndMusicFollowsNight()
+        {
+            var g = game.Logic; g.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Playful); game.SyncCats(); yield return null;
+            var bgm = game.GetComponent<BackgroundMusic>(); Assert.NotNull(bgm);
+            var audio = Cat.GetComponent<CatAudio>();
+            g.S.soundOn = false; g.S.musicOn = false; g.S.hapticsOn = false; yield return null;
+            int before = audio.PlayedCount; audio.Meow();
+            Assert.AreEqual(before, audio.PlayedCount, "효과음을 끄면 야옹도 안 난다");
+            Haptics.SetPurr(1f); Assert.AreEqual(0f, Haptics.PurrIntensity, "진동을 끄면 골골 진동도 없다");
+            yield return new WaitForSecondsRealtime(1f);
+            float vol = game.GetComponents<AudioSource>().Sum(s => s.volume);
+            Assert.Less(vol, .02f, "음악을 끄면 조용해진다");
+            g.S.soundOn = g.S.musicOn = g.S.hapticsOn = true;
+            DayCycle.HourOverride = 23f; game.Day.Apply(23f);
+            yield return new WaitForSecondsRealtime(9f);
+            Assert.AreEqual("night", bgm.Current, "밤에는 밤 곡");
+            DayCycle.HourOverride = 13f; game.Day.Apply(13f);
         }
 
         [UnityTest]

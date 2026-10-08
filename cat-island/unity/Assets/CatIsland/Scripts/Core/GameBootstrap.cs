@@ -243,6 +243,8 @@ namespace CatIsland
 
         void Update()
         {
+            if (Logic != null)   // (설정: 효과음·음악·진동을 소리 나는 모든 곳에)
+            { GameFeel.SoundOn = Logic.S.soundOn; CatAudio.Muted = !Logic.S.soundOn; BackgroundMusic.On = Logic.S.musicOn; Haptics.Enabled = Logic.S.hapticsOn; }
             if (Logic == null || Time.unscaledTime < logicTickAt) return;
             logicTickAt = Time.unscaledTime + 5f; Logic.Tick(); SyncGuest();
         }

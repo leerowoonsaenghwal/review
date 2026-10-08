@@ -69,7 +69,7 @@ def main() -> int:
             ok &= copy(var, ART / "Items" / item / var.name)
     # 소리: assets/sounds/<묶음>/*.wav → Resources/Sounds/<묶음>/ (게임이 이름 앞부분으로 고른다: meow_, chirp_, nip_, purr_)
     snd_dst = UNITY / "Assets" / "CatIsland" / "Resources" / "Sounds"
-    for wav in sorted((ASSETS / "sounds").glob("*/*.wav")):
+    for wav in sorted(list((ASSETS / "sounds").glob("*/*.wav")) + list((ASSETS / "sounds").glob("*/*.ogg"))):   # (배경음악은 ogg: music_render.py)
         ok &= copy(wav, snd_dst / wav.parent.name / wav.name)
     print("완료" if ok else "일부 파일이 없습니다")
     return 0 if ok else 1

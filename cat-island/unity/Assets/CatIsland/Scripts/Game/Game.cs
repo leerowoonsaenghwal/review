@@ -116,7 +116,7 @@ namespace CatIsland.Game
         void Advance(long now)
         {
             double dt = Math.Max(0, now - S.lastIdleAt);
-            if (dt <= 0) return;
+            if (dt <= 0) { ReturnWalks(now); return; }   // (같은 초에 다시 불려도 산책에서 돌아온 고양이는 받는다)
             double hours = dt / 3600.0;
             // 방치 보상: 받지 않고 쌓인 시간이 8시간이 될 때까지만 (그동안의 수입 속도: 상태가 줄기 전과 뒤의 평균)
             double r0 = IdleRatePerHour();
@@ -134,9 +134,9 @@ namespace CatIsland.Game
                 S.idleBank += (long)Math.Round(rate * add); S.idleHours += add;
             }
             S.lastIdleAt = now;
-            // 산책에서 돌아옴
-            foreach (var c in S.cats.Where(c => c.status == "walk" && c.walkEndsAt <= now).ToList()) WalkHome(c);
+            ReturnWalks(now);   // (산책 중이던 시간은 상태가 줄지 않은 채로: 돌아온 뒤부터 집 고양이)
         }
+        void ReturnWalks(long now) { foreach (var c in S.cats.Where(c => c.status == "walk" && c.walkEndsAt <= now).ToList()) WalkHome(c); }
 
         public IEnumerable<CatData> HomeCats => S.cats.Where(c => c.status == "home");
 
