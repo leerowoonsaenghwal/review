@@ -41,6 +41,7 @@ namespace CatIsland.EditorTools
             PlayerSettings.productName = "놀고섬";   // 홈 화면 이름 (정식 이름은 스토어에: 놀러와요 고양이섬, docs/BRAND.md)
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.iOS, "com.rowoon.CatIsland");
             PlayerSettings.bundleVersion = "1.0.0";
+            PlayerSettings.stripUnusedMeshComponents = true;   // (쓰지 않는 정점 데이터는 빌드에서 뺀다: 앱 크기)
             // 앱 아이콘: assets/app_icon/AppIcon-1024.png (식빵섬, docs/BRAND.md 13장) → 모든 크기는 Unity 가 만든다
             const string iconPath = "Assets/CatIsland/Art/AppIcon/AppIcon-1024.png";
             var iconSrc = Path.GetFullPath(Path.Combine(Application.dataPath, "../../assets/app_icon/AppIcon-1024.png"));
