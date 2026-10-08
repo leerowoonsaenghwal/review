@@ -1,14 +1,22 @@
 {
     "id": "chinchilla_persian",
     "clips": [
+        "Dig",
         "Drink",
         "FallAsleep",
         "Flop",
         "FlopIdle",
         "Gallop",
+        "GroomFace",
         "Idle",
+        "JumpDown",
+        "JumpDown40",
+        "JumpDown80",
         "JumpUp",
+        "JumpUp40",
+        "JumpUp80",
         "LickLips",
+        "LickUp",
         "LieDown",
         "Loaf",
         "NibbleClaws",
@@ -20,15 +28,7 @@
         "StandUp",
         "Stretch",
         "Trot",
-        "Walk",
-        "JumpDown80",
-        "JumpUp80",
-        "Dig",
-        "JumpDown",
-        "JumpDown40",
-        "LickUp",
-        "GroomFace",
-        "JumpUp40"
+        "Walk"
     ],
     "loops": [
         "Idle",
@@ -326,7 +326,7 @@
             -0.20000001788139344
         ]
     },
-    "headRadius": 0.2694421708583832,
+    "headRadius": 0.2694423794746399,
     "bowlX": 0.013799999840557576,
     "bowlZ": 0.5304999947547913,
     "cushionZ": -0.02199999988079071,

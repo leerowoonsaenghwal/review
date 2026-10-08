@@ -1,16 +1,25 @@
 {
     "id": "norwegian_forest",
     "clips": [
+        "Dig",
         "Drink",
         "FallAsleep",
         "Flop",
         "FlopIdle",
         "Gallop",
+        "GroomFace",
         "Idle",
+        "JumpDown",
+        "JumpDown40",
+        "JumpDown80",
         "JumpUp",
+        "JumpUp40",
+        "JumpUp80",
         "LickLips",
+        "LickUp",
         "LieDown",
         "Loaf",
+        "NibbleClaws",
         "PawBat",
         "ScratchEar",
         "Sit",
@@ -19,16 +28,7 @@
         "StandUp",
         "Stretch",
         "Trot",
-        "Walk",
-        "GroomFace",
-        "JumpUp80",
-        "Dig",
-        "JumpDown",
-        "NibbleClaws",
-        "JumpUp40",
-        "JumpDown40",
-        "JumpDown80",
-        "LickUp"
+        "Walk"
     ],
     "loops": [
         "Idle",
@@ -326,7 +326,7 @@
             -0.20000001788139344
         ]
     },
-    "headRadius": 0.25810477137565615,
+    "headRadius": 0.25810492038726809,
     "bowlX": 0.013799999840557576,
     "bowlZ": 0.5733000040054321,
     "cushionZ": -0.02199999988079071,
