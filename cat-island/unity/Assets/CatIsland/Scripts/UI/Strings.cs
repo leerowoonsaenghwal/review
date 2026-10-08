@@ -26,6 +26,8 @@ namespace CatIsland.UI
         public static string WalkHours(int h) => $"{h}시간";
         public static string WalkBack(string cat) => $"산책 간 {UI.J.IGa(cat)} 돌아왔어요. 뭘 물고 왔을까요?";
         public const string Settings = "설정", Sound = "효과음", Music = "음악", Haptics = "진동", Notify = "알림", Cloud = "iCloud 저장", Restore = "구매 복원", Privacy = "개인정보 처리방침", Credits = "만든 사람들";
+        /// <summary>고양이 소리 출처 (assets/sounds/cat/SOURCES.md, CC BY 4.0 은 작성자 표기 필요).</summary>
+        public const string SoundCredits = "고양이 소리: 위키미디어 공용 녹음을 다시 합성 — PantheraLeo1359531 (CC BY 4.0), Heismark · Insanejeff (퍼블릭 도메인), Tsester (CC0)";
         public const string PhotoPrivacy = "사진은 집사님 휴대폰 안에서만 써요. 밖으로 나가지 않아요.";
         public const string OddsHonest = "이 상자의 확률은 여기서 모두 볼 수 있어요.";
         public const string JellyShop = "젤리 상점";

@@ -409,6 +409,7 @@ namespace CatIsland.UI
             Kit.Size(Kit.Label(list, Str.PhotoPrivacy, Theme.Caption, Theme.Latte), -1, 50);
             Kit.Size(Kit.Label(list, "광고는 집사님이 고를 때만 봐요. 배너 광고는 없어요.", Theme.Caption, Theme.Latte), -1, 40);
             Kit.Size(Kit.Label(list, "글꼴: 주아 (SIL Open Font License)", Theme.Tiny, Theme.Latte), -1, 24);
+            Kit.Size(Kit.Label(list, Str.SoundCredits, Theme.Tiny, Theme.Latte), -1, 48);
             return Str.Settings;
         }
         void Toggle(RectTransform list, string label, Func<bool> get, Action<bool> set)
