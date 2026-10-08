@@ -95,3 +95,4 @@
   - 먼치킨 5개 → GroomFace·ScratchEar·NibbleClaws·PawBat / 오리엔탈 Gallop·ScratchEar → GroomFace·ScratchEar / 스핑크스 Gallop·ScratchEar → GroomFace·ScratchEar
   - 그 밖: 샴 GroomFace·ScratchEar·NibbleClaws, 러시안 블루·아메리칸·버먼·사바나 GroomFace, 이집션 마우·아비시니안 Gallop·GroomFace, 벵갈 없음
   - 빠진 그루밍은 게임에서 있는 그루밍 동작 중에서 골라 대신한다. 털 긴 품종(페르시안·히말라얀·랙돌·친칠라·노르웨이 숲·메인쿤)은 내보내기 시간 한도로 실패 → 한도 24시간으로 다시
+- 2026-10-08 32품종 새 그림체로 게임에 (시베리안만 남음). 얼굴 깨짐 원인(빈 눈꺼풀 조각이 인덱스 없는 프리미티브로 나가 얼굴 전체 쓰레기 삼각형) 찾아 33개 원본 고치고 마무리만 다시. 모든 고양이 얼굴 점검 테스트(ArtTests). 용품 점검 31품종 통과(숨숨집 자리 7품종, 캣타워 앞뒤 테두리 없앰). 고양이 소리 다시 합성(배경 잡음 없음), 설정에 소리 출처. 스토어 스크린샷 다시. 앱 341 MB. 테스트 EditMode 43, PlayMode 33.
