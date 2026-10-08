@@ -1,6 +1,6 @@
 {
  "id": "siberian",
- "ko": "시베리안",
+ "ko": "\uc2dc\ubca0\ub9ac\uc548",
  "bones": 43,
  "clips": [
   {
@@ -382,7 +382,7 @@
   },
   "hideout": {
    "x": 0,
-   "z": -0.222,
+   "z": -0.242,
    "catLift": 0.08,
    "clips": [
     "Loaf"

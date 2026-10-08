@@ -992,7 +992,7 @@ namespace CatIsland
                 return;
             }
             // 장난감: 앞발로 칠 때마다 조금 굴러갔다 돌아온다 (3.2 초 동안 두 번)
-            if (useKind == "bat" && ((useTimer < 2.6f && useTimer + dt >= 2.6f) || (useTimer < 1.0f && useTimer + dt >= 1.0f)))
+            if (useKind == "bat" && BatTapNow(dt))
             {
                 var tid = useTarget.id;   // (서 있는 장난감은 흔들리고, 굴러가는 장난감은 굴러간다)
                 if (tid == "wand_toy" || tid == "feather_stand" || tid == "yarn_basket") ItemJiggle.Poke(useTarget.transform, .6f);
@@ -1007,6 +1007,15 @@ namespace CatIsland
             if (Rig.Current != Posture.Stand) Rig.Request(Posture.Stand);
             Enter(CatState.Idle);
         }
+        /// <summary>앞발이 장난감을 치는 순간 (PawBat 한 바퀴의 58 %: qa_items 와 같은 때). 이때 장난감이 굴러간다.</summary>
+        bool BatTapNow(float dt)
+        {
+            float len = Rig.ClipLength("PawBat"), e = 3.2f - useTimer - .2f;   // (시작 뒤 .2 초는 동작으로 넘어가는 섞임)
+            if (len <= 0f || e < 0f) return false;
+            float ph = e % len / len, prev = (e - dt) % len / len;
+            return prev < .58f && ph >= .58f || (dt > 0f && e - dt < 0f && ph >= .58f);
+        }
+
         /// <summary>용품을 다 썼다 (게임 규칙 쪽: 놀이·할 일).</summary>
         public Action<string> OnUsedItem;
         /// <summary>다른 고양이와 쫓기 놀이를 마쳤을 때 (놀이 상태가 둘 다 오른다: Game.PlayTogether).</summary>

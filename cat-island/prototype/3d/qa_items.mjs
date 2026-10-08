@@ -27,7 +27,11 @@ let failed = 0;
 for (const id of breeds) {
   const b = BREEDS.find(x => x.id === id);
   const rig = makeRig(buildCatModel(b.shape, b.coat, { res: .03 }));
-  const clips = makeClips(rig, { only: ['Drink', 'JumpUp', 'JumpDown', 'Loaf', 'Sleep', 'FlopIdle', 'PawBat'] }), C = contactOf(rig);
+  // (--only: just the clips that scene needs - a long-haired breed's full set takes hours)
+  const onlyArg = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
+  const NEED = { Drink: ['Drink'], Jump: ['JumpUp', 'JumpDown'], cushion: ['Loaf', 'Sleep'], hideout: ['Loaf'], PawBat: ['PawBat'] };
+  const want = onlyArg ? [...new Set(Object.entries(NEED).filter(([k]) => onlyArg.includes(k) || k.includes(onlyArg)).flatMap(([, v]) => v))] : ['Drink', 'JumpUp', 'JumpDown', 'Loaf', 'Sleep', 'FlopIdle', 'PawBat'];
+  const clips = makeClips(rig, { only: want }), C = contactOf(rig);
   const clip = n => clips.find(c => c.name === n);
   console.log(`\n${b.ko} (${id})`);
   // world positions of every cat vertex (body + face, which holds the tongue and the beans)
@@ -37,7 +41,7 @@ for (const id of breeds) {
   // one scene: item at `at` (x,y,z), cat clip played with the root lifted by `lift`; `touch(part)` = parts that
   // must touch the item (checked with `when`), `soft`: how far the cat may press into it
   const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
-  const scene = (name, itemId, clipName, at, { lift = 0, touchParts = null, when = null, soft = PEN, ignore = [], yaw = 0, fps = FPS, quiet = false } = {}) => {
+  const scene = (name, itemId, clipName, at, { lift = 0, touchParts = null, when = null, soft = PEN, ignore = [], yaw = 0, fps = FPS, quiet = false, move = null } = {}) => {
     if (only && !name.includes(only) && !quiet) return;
     const F0 = itemField(itemId), c = clip(clipName), n = Math.max(2, Math.round(c.dur * fps));
     const cy = Math.cos(yaw), sy = Math.sin(yaw), F = { d: (x, y, z) => F0.d(cy * x - sy * z, y, sy * x + cy * z) };   // (item turned by yaw about Y)
@@ -48,7 +52,7 @@ for (const id of breeds) {
       solveAt(rig, { ...c, pose: tt => { const Q = c.pose(tt); Q.rootY = (Q.rootY || 0) + lift; return Q; } }, t); C.update();
       let gapT = Infinity;
       for (const [x, y, z, part] of verts()) {
-        const d = F.d(x - at[0], y - at[1], z - at[2]);
+        const mv = move ? move(t) : null, d = F.d(x - at[0] - (mv ? mv[0] : 0), y - at[1], z - at[2] - (mv ? mv[2] : 0));
         if (touchParts && touchParts.includes(part)) { gapT = Math.min(gapT, d); if (d < SOFT * 2) worst = d < worst.d ? { d, part, t } : worst; continue; }
         if (ignore.includes(part)) continue;
         if (d < soft && d < worst.d) worst = { d, part, t, p: [x - at[0], y - at[1], z - at[2]] };
@@ -68,12 +72,13 @@ for (const id of breeds) {
   const assetFile = new URL(`../../assets/cats/${id}.clips.json`, import.meta.url), asset = fs.existsSync(assetFile) ? JSON.parse(fs.readFileSync(assetFile, 'utf8')) : null;
   const fix = args.includes('--fix-spots') && asset, saveAsset = msg => { fs.writeFileSync(assetFile, JSON.stringify(asset, null, 1)); console.log(`  (${msg}: written to ${id}.clips.json)`); };
   // Drink: bowl where the clip says
-  const dk = clip('Drink'), bw = dk.drink.bowl, lap = (P, t) => t < dk.drink.laps / dk.drink.rate && (t * dk.drink.rate % 1) > .3 && (t * dk.drink.rate % 1) < .55;   // (the tongue is down around .36-.46 of a lap: at 30 fps a lap has 1-2 frames near it)
-  for (const bowl of ['water_bowl', 'milk_bowl', 'food_bowl'])
+  const dk = clip('Drink'), bw = dk?.drink?.bowl, lap = (P, t) => t < dk.drink.laps / dk.drink.rate && (t * dk.drink.rate % 1) > .3 && (t * dk.drink.rate % 1) < .55;   // (the tongue is down around .36-.46 of a lap: at 30 fps a lap has 1-2 frames near it)
+  if (dk) for (const bowl of ['water_bowl', 'milk_bowl', 'food_bowl'])
     scene('Drink · ' + bowl, bowl, 'Drink', [bw.x, 0, bw.z], { touchParts: ['tongue'], when: lap, fps: 60 });
   // JumpUp: the tower deck sits where the old test box was (deck centre at D + 5 cm)
   const ju = clip('JumpUp');
   const deck = itemField('cat_tower_1').anchors.decks[0];
+  if (ju) {
   const CARPET = -.005;   // (the decks and their rims are carpeted: a paw may press in this much, like the cushion's 15 mm)
   scene('JumpUp · cat_tower_1', 'cat_tower_1', 'JumpUp', [0, 0, ju.jump.deckBack + deck.size[1] / 2], { soft: CARPET });   // (deck's back edge at jump.deckBack)
   // JumpDown: the cat stands where JumpUp landed (root D in, the deck centre deckBack + depth/2 from the start),
@@ -88,17 +93,18 @@ for (const id of breeds) {
     for (const dt of [0, .01, .02, .03, .04, -.01]) if (scene('', 'cat_tower_1', 'JumpDown', jdAt(t0 + dt), { yaw: Math.PI, quiet: true, fps: 30, soft: CARPET }) >= CARPET + .001) { const v = +(t0 + dt).toFixed(3); if (v !== ajd.turnIn) { ajd.turnIn = turnIn = v; saveAsset(`JumpDown turnIn ${v}`); } break; }
   }
   if (jd) scene('JumpDown · cat_tower_1', 'cat_tower_1', 'JumpDown', jdAt(turnIn), { yaw: Math.PI, soft: CARPET });
+  }
   // lying on the cushion / inside the hideout: centred under the trunk, cat raised to the seat
   applyPose(rig, stand(rig)); rig.model.updateMatrixWorld(true);
   const mid = rig.B.Hips.getWorldPosition(rig.B.Hips.position.clone()).add(rig.B.Chest.getWorldPosition(rig.B.Chest.position.clone())).multiplyScalar(.5);
   const cu = itemField('cushion').anchors, ho = itemField('hideout').anchors;
-  for (const cn of ['Loaf', 'Sleep']) scene(cn + ' · cushion', 'cushion', cn, [mid.x, 0, mid.z], { lift: cu.top, soft: -.015 });   // (a cushion gives 1.5 cm)
+  for (const cn of ['Loaf', 'Sleep']) if (clip(cn)) scene(cn + ' · cushion', 'cushion', cn, [mid.x, 0, mid.z], { lift: cu.top, soft: -.015 });   // (a cushion gives 1.5 cm)
   // (the hideout goes where the body is inside and the head out of the door: the offset is searched and printed)
   // the spot the game uses (assets/cats/<id>.clips.json itemSpots.hideout), else the default under the trunk.
   // --fix-spots: a breed whose head or ears reach the dome (big ears: Sphynx) is moved further out of the door until
   // nothing is inside, and the spot is written back to its clips.json (the game reads it from there)
   let hz = asset?.itemSpots?.hideout?.z ?? +(mid.z - (ho.catAhead ?? 0)).toFixed(3);
-  if (fix && asset?.itemSpots?.hideout) {
+  if (fix && asset?.itemSpots?.hideout && clip('Loaf')) {
     const base = +(mid.z - (ho.catAhead ?? 0)).toFixed(3);
     for (const dz of [0, -.02, -.04, -.06, -.08, -.1, .02]) {   // (minus: the cat further out of the door, +z in item space is the door)
       const w = scene('', 'hideout', 'Loaf', [mid.x, 0, base + dz], { lift: ho.floor, soft: SOFT, quiet: true, fps: 4 });
@@ -106,11 +112,26 @@ for (const id of breeds) {
     }
     if (hz !== asset.itemSpots.hideout.z) { asset.itemSpots.hideout.z = hz; saveAsset(`hideout spot z ${hz}`); }
   }
-  scene('Loaf · hideout', 'hideout', 'Loaf', [mid.x, 0, hz], { lift: ho.floor, soft: SOFT });
+  if (clip('Loaf')) scene('Loaf · hideout', 'hideout', 'Loaf', [mid.x, 0, hz], { lift: ho.floor, soft: SOFT });
   // PawBat: the toy under the paw at the bottom of the tap
   const pb = clip('PawBat'), toy = pb && pb.toy;   // (where the game puts the toy: worked out with the clip)
-  if (!pb) console.log('  (PawBat left out for this breed: no toy scene)');
-  else scene('PawBat · mouse_toy', 'mouse_toy', 'PawBat', [toy.x, 0, toy.z], { touchParts: ['FL'], when: (P, t) => t > pb.dur * .42 && t < pb.dur * .58, soft: SOFT, yaw: toy.yaw });
+  if (!pb) { if (want.includes('PawBat')) console.log('  (PawBat left out for this breed: no toy scene)'); }
+  else {
+    // the game's toy spot (clips.json itemSpots.mouse_toy); --fix-spots: a big paw (long fur) that sinks into the toy
+    // gets the toy moved out along the cat's facing, the first spot where nothing sinks in and the tap still touches
+    const at = asset?.itemSpots?.mouse_toy, tw = (P, t) => t > pb.dur * .42 && t < pb.dur * .58;
+    // the game rolls the toy away from the cat right after the tap (CatBrain bat -> ItemJiggle.Kick 18 cm, out in .77 s):
+    // the paw following through after the tap meets the floor where the toy was, not the toy
+    const tk = pb.dur * .58, roll = t => { if (t <= tk) return null; const u = (t - tk) / 2.2, k = u < .35 ? 1 - (1 - u / .35) ** 3 : 1; return [0, 0, .18 * k]; };
+    let tx = at?.x ?? toy.x, tz = at?.z ?? toy.z;
+    if (fix && at) {
+      for (const dz of [0, .01, .02, .03, .04, .05, .06]) {
+        const w = scene('', 'mouse_toy', 'PawBat', [toy.x, 0, toy.z + dz], { soft: SOFT, yaw: toy.yaw, quiet: true, ignore: [], move: roll });
+        if (w >= SOFT + .002) { const nz = +(toy.z + dz).toFixed(3); if (nz !== at.z) { at.z = tz = nz; tx = at.x; saveAsset(`mouse_toy spot z ${nz}`); } break; }
+      }
+    }
+    scene('PawBat · mouse_toy', 'mouse_toy', 'PawBat', [tx, 0, tz], { touchParts: ['FL'], when: tw, soft: SOFT, yaw: toy.yaw, move: roll });
+  }
 }
 console.log(failed ? `\n${failed} FAIL` : '\nall ok');
 process.exit(failed ? 1 : 0);
