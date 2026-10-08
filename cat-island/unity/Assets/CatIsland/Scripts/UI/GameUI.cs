@@ -330,7 +330,7 @@ namespace CatIsland.UI
             {
                 foreach (var c in G.S.cats.Where(c => c.status != "star"))
                 {
-                    var r = Row(list, 112); Kit.Size(Kit.IconImage(r, UIIcon.Cat, 46), 46, 46);
+                    var r = Row(list, 112); Kit.Size(CatIcon(r, c.breed, 64), 64, 64);
                     var info = $"{c.name} · {Catalog.BreedKo(c.breed)}\n{Catalog.Ko(c.personality)} · 호감 {c.Level}단계\n" +
                                (c.status == "walk" ? $"산책 중 · {Math.Max(1, (c.walkEndsAt - G.Now) / 60)}분 뒤 와요" : $"밥 {Pct(c.hunger)} · 물 {Pct(c.thirst)} · 놀이 {Pct(c.play)}");
                     Kit.Size(RowText(r, info, Theme.Caption), -1, 96, 1);
@@ -351,7 +351,7 @@ namespace CatIsland.UI
             else if (catsTab == "dex")
             {
                 Kit.Size(Kit.Label(list, $"만난 품종 {G.S.dex.Count} / {Catalog.Breeds.Length}", Theme.Body, null, TextAnchor.MiddleLeft), -1, 32);
-                foreach (var b in Catalog.Breeds) { bool met = G.S.dex.Contains(b.id); var r = Row(list, 48); Kit.Size(Kit.IconImage(r, met ? UIIcon.Cat : UIIcon.Lock, 32), 32, 32); RowText(r, met ? $"{b.ko}  (만남 {G.Meetings(b.id)}번)" : "아직 못 만났어요", Theme.Body, 1, met ? (Color?)null : Theme.Latte); }
+                foreach (var b in Catalog.Breeds) { bool met = G.S.dex.Contains(b.id); var r = Row(list, 60); Kit.Size(CatIcon(r, b.id, 52, !met), 52, 52); RowText(r, met ? $"{b.ko}  (만남 {G.Meetings(b.id)}번)" : "아직 못 만났어요", Theme.Body, 1, met ? (Color?)null : Theme.Latte); }
             }
             else if (catsTab == "garden")
             {
@@ -449,6 +449,16 @@ namespace CatIsland.UI
             var tex = d != null ? Resources.Load<Texture2D>("ItemIcons/" + d.model) : null;
             if (!tex) return Kit.IconImage(parent, IconOf(d), size);
             var rt = Kit.Rect(parent, "ItemIcon"); var raw = rt.gameObject.AddComponent<RawImage>(); raw.texture = tex; raw.raycastTarget = false;
+            rt.sizeDelta = new Vector2(size, size); return raw;
+        }
+
+        /// <summary>고양이 얼굴 그림 (Resources/CatIcons, CatIconBake). 아직 못 만난 품종은 어두운 실루엣.</summary>
+        public static Graphic CatIcon(Transform parent, string breed, float size, bool silhouette = false)
+        {
+            var tex = Resources.Load<Texture2D>("CatIcons/" + breed);
+            if (!tex) return Kit.IconImage(parent, silhouette ? UIIcon.Lock : UIIcon.Cat, size);
+            var rt = Kit.Rect(parent, "CatIcon"); var raw = rt.gameObject.AddComponent<RawImage>(); raw.texture = tex; raw.raycastTarget = false;
+            if (silhouette) raw.color = new Color(.22f, .17f, .14f, .4f);   // (누군지 모르게, 모양만)
             rt.sizeDelta = new Vector2(size, size); return raw;
         }
 
