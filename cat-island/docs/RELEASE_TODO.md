@@ -13,7 +13,8 @@
 | 7 | 실제 아이폰 테스트 | 사용자 아이폰 | 빌드 설치 후 5~10분 플레이, 이상하면 알려 주기 |
 | 8 | 상표 출원 ("놀러와요 고양이섬") | 특허로 (patent.go.kr) | 상품류 9류(게임 소프트웨어), 41류(온라인 게임 제공) |
 | 10 | 앱 기능 켜기 (서명에 필요) | developer.apple.com → Identifiers → 이 앱 | iCloud(키값 저장), Game Center, In-App Purchase 를 켠다. Xcode 프로젝트에는 빌드 때 자동으로 켜진다 |
-| 9 | 앱스토어 심사 제출 | App Store Connect | 스크린샷·설명 문구는 개발 끝에 준비 |
+| 11 | 앱 개인정보 보호 항목 입력 | App Store Connect → 앱 → 앱 개인정보 보호 | `docs/APPSTORE.md` '앱 개인정보 보호' 표대로 (광고 넣기 전: 수집 안 함) |
+| 9 | 앱스토어 심사 제출 | App Store Connect | 스크린샷 `assets/store/69`·`65`, 설명·키워드·심사 메모 `docs/APPSTORE.md`, 아이콘은 빌드에 들어 있음 |
 
 ## 상품 ID (App Store Connect → 인앱 구입에 이대로 등록)
 | 상품 ID | 이름 | 가격 | 종류 |
