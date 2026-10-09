@@ -1,6 +1,6 @@
 {
  "id": "manx",
- "ko": "맹크스 (꼬리 없음)",
+ "ko": "\ub9f9\ud06c\uc2a4 (\uaf2c\ub9ac \uc5c6\uc74c)",
  "bones": 43,
  "clips": [
   {
@@ -218,6 +218,17 @@
    "lickUp": null
   },
   {
+   "name": "GroomFace",
+   "dur": 6.6,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null,
+   "lickUp": null
+  },
+  {
    "name": "ScratchEar",
    "dur": 3,
    "loop": true,
@@ -346,6 +357,12 @@
  ],
  "groomRoutine": [
   {
+   "clip": "GroomFace",
+   "region": "front paw (lick) and face (paw wash: cheek, whisker pad, muzzle)",
+   "share": 0.31,
+   "from": "Sit"
+  },
+  {
    "clip": "ScratchEar",
    "region": "neck behind the jaw (hind-foot scratch)",
    "share": 0,
@@ -358,12 +375,7 @@
    "from": "Sit"
   }
  ],
- "skippedClips": [
-  {
-   "clip": "GroomFace",
-   "reason": "failed the contact check on this body (FL into head 10 mm at 2.20 s)"
-  }
- ],
+ "skippedClips": [],
  "itemSpots": {
   "mouse_toy": {
    "x": 0.071,

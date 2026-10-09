@@ -7,6 +7,7 @@
         "Flop",
         "FlopIdle",
         "Gallop",
+        "GroomFace",
         "Idle",
         "JumpDown",
         "JumpDown40",
@@ -27,8 +28,7 @@
         "StandUp",
         "Stretch",
         "Trot",
-        "Walk",
-        "GroomFace"
+        "Walk"
     ],
     "loops": [
         "Idle",

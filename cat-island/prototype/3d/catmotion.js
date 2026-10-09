@@ -1058,10 +1058,12 @@ export function makeClips(rig, opts = {}) {
       P.earLp = -.3 * k; P.earLy = -.2 * k;
       P.blink = Math.max(.6, k);
     } else P.blink = up > .5 ? .75 : blinkAt(t, [.2]);
+    // (the paw is settled out of the head again from 1.95 s, before the wash turns the head: held as posed until
+    //  2.2 s, a big head rolled into it - Manx 10 mm)
     if (t >= .45 && t < 1.82) licking(P, t, .45, 3, 2.2, faceStroke, faceTrack);   // (three licks, done before the wash turns the head away at 2.05 s)
     // (no closing lick after the wash: on a big head the lone lick missed the paw by about 1 cm)
     return P;
-  }, 6.6, { fkAt: t => (t > .7 && t < 2.2) || (t > 2.5 && t < 4.85) || (t > 5.2 && t < 6.0) ? ['FL'] : [] }, 24), { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.lickU >= LICK_CORE[0] && P.lickU <= LICK_CORE[1] }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }],
+  }, 6.6, { fkAt: t => (t > .7 && t < 1.95) || (t > 2.5 && t < 4.85) || (t > 5.2 && t < 6.0) ? ['FL'] : [] }, 24), { contacts: [{ a: 'tongue', b: ['FL'], when: P => P.lickU >= LICK_CORE[0] && P.lickU <= LICK_CORE[1] }, { a: 'FL', b: ['head'], when: (P, t) => t > 2.45 && t < 4.9 }],
     // the paw held to the mouth and rubbed over the face is meant to touch it: fur on fur may press in as far as a lick may (7 mm)
     softContacts: [{ a: 'FL', b: ['head'], when: (P, t) => t > .4 && t < 6.1 }] });   // (the paw is up at the face from the first lick to the last)
 
