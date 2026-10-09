@@ -1,6 +1,6 @@
 {
  "id": "sphynx",
- "ko": "스핑크스",
+ "ko": "\uc2a4\ud551\ud06c\uc2a4",
  "bones": 43,
  "clips": [
   {
@@ -218,6 +218,17 @@
    "lickUp": null
   },
   {
+   "name": "GroomFace",
+   "dur": 6.6,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null,
+   "lickUp": null
+  },
+  {
    "name": "NibbleClaws",
    "dur": 3.4,
    "loop": true,
@@ -335,6 +346,12 @@
  ],
  "groomRoutine": [
   {
+   "clip": "GroomFace",
+   "region": "front paw (lick) and face (paw wash: cheek, whisker pad, muzzle)",
+   "share": 0.31,
+   "from": "Sit"
+  },
+  {
    "clip": "NibbleClaws",
    "region": "front claws",
    "share": 0,
@@ -342,10 +359,6 @@
   }
  ],
  "skippedClips": [
-  {
-   "clip": "GroomFace",
-   "reason": "contact out of reach for this body (16 mm short)"
-  },
   {
    "clip": "ScratchEar",
    "reason": "failed the contact check on this body (HL into torso 4 mm at 0.67 s)"

@@ -1,6 +1,6 @@
 {
  "id": "birman",
- "ko": "버먼",
+ "ko": "\ubc84\uba3c",
  "bones": 43,
  "clips": [
   {
@@ -218,6 +218,17 @@
    "lickUp": null
   },
   {
+   "name": "GroomFace",
+   "dur": 6.6,
+   "loop": true,
+   "rootMotion": false,
+   "speed": null,
+   "stride": null,
+   "jump": null,
+   "drink": null,
+   "lickUp": null
+  },
+  {
    "name": "ScratchEar",
    "dur": 3,
    "loop": true,
@@ -346,6 +357,12 @@
  ],
  "groomRoutine": [
   {
+   "clip": "GroomFace",
+   "region": "front paw (lick) and face (paw wash: cheek, whisker pad, muzzle)",
+   "share": 0.31,
+   "from": "Sit"
+  },
+  {
    "clip": "ScratchEar",
    "region": "neck behind the jaw (hind-foot scratch)",
    "share": 0,
@@ -358,12 +375,7 @@
    "from": "Sit"
   }
  ],
- "skippedClips": [
-  {
-   "clip": "GroomFace",
-   "reason": "contact out of reach for this body (14 mm short)"
-  }
- ],
+ "skippedClips": [],
  "itemSpots": {
   "mouse_toy": {
    "x": 0.066,

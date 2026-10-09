@@ -13,7 +13,7 @@ import sys, xml.etree.ElementTree as ET
 r = ET.parse(sys.argv[1]).getroot()
 print(sys.argv[1].split('/')[-1], r.attrib.get('result'), 'passed', r.attrib.get('passed'), '/', r.attrib.get('total'))
 for tc in r.iter('test-case'):
-    if tc.attrib['result'] != 'Passed':
+    if tc.attrib['result'] not in ('Passed', 'Skipped'):
         m = tc.find('failure/message')
         print('  FAIL', tc.attrib['name'], ((m.text or '').strip().replace('\n', ' | ')[:300] if m is not None else ''))
 PY
