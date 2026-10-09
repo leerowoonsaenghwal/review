@@ -26,7 +26,8 @@
         "StandUp",
         "Stretch",
         "Trot",
-        "Walk"
+        "Walk",
+        "GroomFace"
     ],
     "loops": [
         "Idle",
@@ -36,6 +37,7 @@
         "Sit",
         "Loaf",
         "Sleep",
+        "GroomFace",
         "NibbleClaws",
         "LickUp",
         "Drink",
