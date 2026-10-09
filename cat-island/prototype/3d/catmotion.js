@@ -389,7 +389,7 @@ export function settle(rig, P, { fk = [], floor = .002, iters = 12, dense = fals
 export function touch(rig, P, { a, b, zone = null, keys, bounds = {}, gap = .001, iters = 30, at = Q => Q, lim = .12, guard = null, apart = false, pairless = false, maxR = .06, guardDepth = .003 }) {
   const C = contactOf(rig);
   const setOf = name => name === 'tongue' ? (C.sets.tongue ||= C.points(p => p === 'tongue', 'face', 2)) : C.sets[name] || (C.sets['all' + name] ||= C.points(p => p === name, 'body', 2));
-  const A = setOf(a), guards = (guard || [{ a, b }]).map(g => ({ set: setOf(g.a), b: g.b, name: g.a }));
+  const A = setOf(a), guards = (guard || [{ a, b }]).map(g => ({ set: setOf(g.a), b: g.b, name: g.a, depth: g.depth ?? guardDepth }));
   const pa = new THREE.Vector3(), pb = new THREE.Vector3(), tmp = new THREE.Vector3();
   let res = { d: Infinity }, bestP = { ...P }, bestErr = Infinity, step = lim;
   const pose = Q => { applyPose(rig, at({ ...Q })); };
@@ -414,10 +414,10 @@ export function touch(rig, P, { a, b, zone = null, keys, bounds = {}, gap = .001
     let over = 0; const viol = [];
     for (const g of guards) {
       const okG = p => g.b.includes(p), w = C.depth(g.set, okG, C.rest[g.name] || null, maxR);
-      if (w.d < -guardDepth) {
+      if (w.d < -g.depth) {
         const gp0 = C.M[g.set.mesh].pos; viol.push({ who: g.set === A ? a : 'guard', into: w.part, d: +w.d.toFixed(4), at: [gp0[3 * w.i], gp0[3 * w.i + 1], gp0[3 * w.i + 2]].map(x => +x.toFixed(3)), bone: rig.model.userData.skeleton.bones[C.M[g.set.mesh].si[4 * w.i]].name });
         const gp = C.M[g.set.mesh].pos, r = C.nearest(gp[3 * w.i], gp[3 * w.i + 1], gp[3 * w.i + 2], okG, maxR);
-        if (r) { rows.push({ mesh: g.set.mesh, i: w.i, t: r.t, bary: r.bary, n: r.n.clone(), want: .001 }); over += -guardDepth - w.d; }
+        if (r) { rows.push({ mesh: g.set.mesh, i: w.i, t: r.t, bary: r.bary, n: r.n.clone(), want: .001 }); over += -g.depth - w.d; }
       }
     }
     // backtracking: a step that made things worse is undone and the step size halved
@@ -980,6 +980,11 @@ export function makeClips(rig, opts = {}) {
   const PAWK = ['FLx', 'FLy', 'FLz'], FACEK = [...HEADK, ...PAWK, 'FLa', 'FLt'];
   // every grooming solve also keeps the head off all four legs and the front legs out of the head
   const GUARD = [{ a: 'head', b: ['FL', 'FR', 'HL', 'HR'] }, { a: 'FL', b: ['head', 'torso'] }, { a: 'FR', b: ['head'] }];
+  // (the paw held up to the mouth: fur on fur, forearm against the chin, may press in 5 mm - the shipping check
+  //  allows 7 mm for it while the paw is up (softContacts) - so a big head's tongue can still reach the paw)
+  // (the wrist turns too, tipping the paw up toward the mouth - within a cat's wrist: flexed back to tucked)
+  const LICKB = { ...HB, FLa: [-1.2, .9] };
+  const LICKGUARD = [{ a: 'head', b: ['FL'], depth: .005 }, { a: 'head', b: ['FR', 'HL', 'HR'] }, { a: 'FL', b: ['head'], depth: .005 }, { a: 'FL', b: ['torso'] }, { a: 'FR', b: ['head'] }];
   const blendFace = (P, A, B, u, k) => { for (const key of FACEK) P[key] = lerp(P[key], lerp(A[key], B[key], u), k); };
   applyPose(rig, SITG);
   const chestFront = worldOf(rig, 'Chest').z + d.chestR;
@@ -994,20 +999,33 @@ export function makeClips(rig, opts = {}) {
   //    chin, so the paw is held low out in front of the chest and the head bends down to it (and the tongue
   //    reaches out to it). Higher face spots are out of the arm's reach (measured), so the wash stays low.
   const faceStroke = (Q, s2) => { Q.hdPitch += (s2 > 0 ? .015 : .04) * s2; };   // (a small nod: with the bigger head, more pulled the tongue off the paw at the end of each lick)
-  lickBase = over(SITG, UPP, { FLx: .05 * sx, FLy: rig.ballH + .02, FLz: chestFront + .06, FLa: .2, FLt: 0, hdPitch: .8, nkPitch: SITG.nkPitch - .6, hdYaw: 0, hdRoll: 0 });
-  touchBest(S, lickBase, { a: 'tongue', b: ['FL'], keys: [...PAWK, 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], bounds: HB, iters: 40, at: lickAt(faceStroke), guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD], guardDepth: .0015 },
-    [{ hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLy: rig.ballH, FLz: chestFront + .09 }, { FLx: .1 * sx, hdYaw: .45 * sx, hdRoll: .2 * sx }, { FLx: .12 * sx, FLz: chestFront + .08, hdYaw: .6 * sx, nkYaw: .3 * sx, hdRoll: .25 * sx }, { FLx: .09 * sx, FLz: chestFront + .1, hdYaw: .3 * sx, hdPitch: 1 }, { FLx: .11 * sx, FLz: chestFront + .05, hdYaw: .5 * sx, hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLx: .07 * sx, FLz: chestFront + .12, hdPitch: 1.1, nkPitch: SITG.nkPitch - .7 }],
-    { FLx: [0, .04 * sx], FLz: [-.03, 0, .03, .06, .09, .12], hdPitch: [-.6, -.4, -.2, 0, .2, .4], nkPitch: [-.2, 0, .3], hdYaw: [0, .4 * sx] });   // (head raised too: a long muzzle licks the paw held out in front)
-  // (a big head with a long muzzle and a plush paw: from the starts above the paw can end up held inside the
-  //  muzzle with the tongue on it. Also start with the paw out in front of and just under the mouth, where it
-  //  is on any build, and keep whichever solves best)
-  if (touch.last - .001 > .0015) {
-    const keep = { ...lickBase }, keepErr = touch.last, keepInfo = touch.info;
-    const m = mouthAt(lickAt(faceStroke)({ ...lickBase }));
-    const fromMouth = [1.3, 1.8, 2.4].flatMap(f => [0, .03].flatMap(dy => [0, -.4].map(hp => ({ FLx: .03 * sx, FLz: m.z + f * d.pawR, FLy: Math.max(rig.ballH, m.y - d.pawR - dy), hdPitch: lickBase.hdPitch + hp }))));
-    touchBest(S, lickBase, { a: 'tongue', b: ['FL'], keys: [...PAWK, 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], bounds: HB, iters: 40, at: lickAt(faceStroke), guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD], guardDepth: .0015 }, fromMouth);
-    if (touch.last >= keepErr) { Object.assign(lickBase, keep); touch.last = keepErr; touch.info = keepInfo; }
+  const lickSolve = (keys, bounds, guard) => {
+    lickBase = over(SITG, UPP, { FLx: .05 * sx, FLy: rig.ballH + .02, FLz: chestFront + .06, FLa: .2, FLt: 0, hdPitch: .8, nkPitch: SITG.nkPitch - .6, hdYaw: 0, hdRoll: 0 });
+    const opt = { a: 'tongue', b: ['FL'], keys, bounds, iters: 40, at: lickAt(faceStroke), guard: [{ a: 'tongue', b: ['FL'] }, ...guard], guardDepth: .0015 };
+    touchBest(S, lickBase, opt,
+      [{ hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLy: rig.ballH, FLz: chestFront + .09 }, { FLx: .1 * sx, hdYaw: .45 * sx, hdRoll: .2 * sx }, { FLx: .12 * sx, FLz: chestFront + .08, hdYaw: .6 * sx, nkYaw: .3 * sx, hdRoll: .25 * sx }, { FLx: .09 * sx, FLz: chestFront + .1, hdYaw: .3 * sx, hdPitch: 1 }, { FLx: .11 * sx, FLz: chestFront + .05, hdYaw: .5 * sx, hdPitch: .9, nkPitch: SITG.nkPitch - .4 }, { FLx: .07 * sx, FLz: chestFront + .12, hdPitch: 1.1, nkPitch: SITG.nkPitch - .7 }],
+      { FLx: [0, .04 * sx], FLz: [-.03, 0, .03, .06, .09, .12], hdPitch: [-.6, -.4, -.2, 0, .2, .4], nkPitch: [-.2, 0, .3], hdYaw: [0, .4 * sx] });   // (head raised too: a long muzzle licks the paw held out in front)
+    // (a big head with a long muzzle and a plush paw: from the starts above the paw can end up held inside the
+    //  muzzle with the tongue on it. Also start with the paw out in front of and just under the mouth, where it
+    //  is on any build, and keep whichever solves best)
+    if (touch.last - .001 > .0015) {
+      const keep = { ...lickBase }, keepErr = touch.last, keepInfo = touch.info;
+      const m = mouthAt(lickAt(faceStroke)({ ...lickBase }));
+      const fromMouth = [1.3, 1.8, 2.4].flatMap(f => [0, .03].flatMap(dy => [0, -.4].map(hp => ({ FLx: .03 * sx, FLz: m.z + f * d.pawR, FLy: Math.max(rig.ballH, m.y - d.pawR - dy), hdPitch: lickBase.hdPitch + hp }))));
+      touchBest(S, lickBase, opt, fromMouth);
+      if (touch.last >= keepErr) { Object.assign(lickBase, keep); touch.last = keepErr; touch.info = keepInfo; }
+    }
+    return { base: { ...lickBase }, last: touch.last, info: touch.info };
+  };
+  let lick = lickSolve([...PAWK, 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], HB, GUARD);
+  // (still short - the forearm comes up against a big chin before the tongue meets the paw: solved again with
+  //  the wrist turning the paw up toward the mouth and the paw's fur allowed against the chin (LICKGUARD), and
+  //  the closer of the two kept - each build keeps the solve that suits it)
+  if (Math.abs(lick.last - .001) > GROOM_REACH_LIMIT * .5) {
+    const alt = lickSolve([...PAWK, 'FLa', 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], LICKB, LICKGUARD);
+    if (Math.abs(alt.last - .001) < Math.abs(lick.last - .001)) lick = alt;
   }
+  lickBase = lick.base; touch.last = lick.last; touch.info = lick.info;
   report.pawLick = Math.abs(touch.last - .001); report.pawLickInfo = touch.info;
   const faceTrack = lickTrack(lickBase, faceStroke, { b: ['FL'], guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD] });
   const WASH = [[.4, -.35, .8], [.32, -.45, .8], [.22, -.52, .75]].map(([x, y, z]) => V(x * sx, y, z).multiplyScalar(HS));
