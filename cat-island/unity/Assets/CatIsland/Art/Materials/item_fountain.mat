@@ -40,6 +40,7 @@ Material:
     m_Floats:
     - _BumpScale: 1
     - _Emission: 0
+    - _Fade: 1
     - _Gloss: 0.3
     - _GroundAO: 0.12
     - _RimStrength: 0.18

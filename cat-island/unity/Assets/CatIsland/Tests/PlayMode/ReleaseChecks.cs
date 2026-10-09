@@ -109,6 +109,30 @@ namespace CatIsland.Tests
             Assert.Less(Vector3.Distance(model.localScale, s0), .002f);
         }
 
+        /// <summary>고양이를 가리는 용품은 점무늬로 비치고(_FADE 재질), 비키면 원래 재질로 돌아온다.</summary>
+        [UnityTest]
+        public IEnumerator Occluder_InFrontOfCat_FadesThenComesBack()
+        {
+            var cam = game.IslandCam; var fade = cam.GetComponent<OccluderFade>(); Assert.IsNotNull(fade);
+            var box = GameObject.CreatePrimitive(PrimitiveType.Cube); Object.Destroy(box.GetComponent<Collider>());
+            box.AddComponent<ItemTag>().id = "test_box"; box.transform.localScale = new Vector3(.6f, .6f, .6f);
+            var mr = box.GetComponent<MeshRenderer>(); var mat = Resources.Load<Material>("CatSoftLit"); mr.sharedMaterial = mat;
+            for (float t = 0; t < .8f; t += Time.deltaTime)
+            {
+                var c = game.Cat.transform.position + Vector3.up * .3f;
+                box.transform.position = Vector3.Lerp(cam.transform.position, c, .5f);   // (카메라와 고양이 사이)
+                yield return null;
+            }
+            Assert.IsTrue(fade.IsFaded(box.transform), "고양이를 가리면 비친다");
+            Assert.IsTrue(mr.sharedMaterial.IsKeywordEnabled("_FADE"));
+            Assert.Less(mr.sharedMaterial.GetFloat("_Fade"), .5f);
+            box.transform.position = game.Cat.transform.position + new Vector3(30f, 0f, 0f);   // (멀리 비킨다)
+            yield return new WaitForSeconds(.6f);
+            Assert.IsFalse(fade.IsFaded(box.transform), "비키면 돌아온다");
+            Assert.AreSame(mat, mr.sharedMaterial, "원래 재질 그대로");
+            Object.Destroy(box);
+        }
+
         [UnityTest]
         public IEnumerator NoBrokenBounds_WhileBootingAndPlaying()
         {

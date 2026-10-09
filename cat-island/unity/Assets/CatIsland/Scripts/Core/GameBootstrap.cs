@@ -80,6 +80,7 @@ namespace CatIsland
                     urp.msaaSampleCount = 1;
             }
             IslandCam = camGo.AddComponent<IslandCamera>();
+            var fade = camGo.AddComponent<OccluderFade>(); fade.extra.Add(Cushion.transform); fade.extra.Add(Tower.transform);   // (고양이를 가리는 용품은 비친다)
             Weather = new GameObject("Weather").AddComponent<WeatherFx>(); Weather.transform.position = new Vector3(4f, 0f, 0f);   // (집 안 + 마당 위)
             Day = gameObject.AddComponent<DayCycle>(); Day.sun = RenderSettings.sun; Day.cam = cam; Day.weather = Weather; Day.Apply(DayCycle.HourOverride >= 0 ? DayCycle.HourOverride : (float)DateTime.Now.TimeOfDay.TotalHours);
 

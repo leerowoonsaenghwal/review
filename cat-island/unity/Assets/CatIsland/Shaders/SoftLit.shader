@@ -26,6 +26,8 @@ Shader "CatIsland/SoftLit"
         _NewDark ("New Dark", Color) = (0,0,0,1)
         _NewWhite ("New White", Color) = (1,1,1,1)
         _NewSecond ("New Second", Color) = (1,0.5,0,1)
+        // 고양이를 가리는 용품 (OccluderFade): _FADE 를 켜고 이 비율만큼만 점무늬로 그린다
+        _Fade ("Fade", Range(0,1)) = 1
     }
     SubShader
     {
@@ -44,9 +46,20 @@ Shader "CatIsland/SoftLit"
             half _Gloss;
             half _Emission;
             half4 _OldBase, _OldDark, _OldWhite, _OldSecond, _NewBase, _NewDark, _NewWhite, _NewSecond;
+            half _Fade;
         CBUFFER_END
 
         #include "Curve.hlsl"
+        // 점무늬로 비치기 (불투명 그대로, 정렬 없이): 4x4 바이어 행렬 문턱보다 _Fade 가 작은 픽셀은 버린다.
+        // 켜진 재질(_FADE)만 discard 를 가진다 - 다른 물체는 타일 GPU 의 숨은 면 제거를 그대로 쓴다
+        void FadeClip(float2 pixel)
+        {
+        #if defined(_FADE)
+            uint2 q = (uint2)pixel & 3;
+            const float b[16] = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 };
+            clip(_Fade - (b[q.y * 4 + q.x] + 0.5) / 16.0);
+        #endif
+        }
         ENDHLSL
 
         Pass
@@ -60,6 +73,7 @@ Shader "CatIsland/SoftLit"
             #pragma shader_feature_local _NORMALMAP
             #pragma multi_compile_local _ _WORLDUV   // (런타임에 코드로 만든 재질만 쓰므로 shader_feature 면 빌드에서 빠진다: 땅·마루·러그 무늬)
             #pragma multi_compile_local _ _COATMASK
+            #pragma multi_compile_local _ _FADE
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #pragma multi_compile_fog
@@ -113,6 +127,7 @@ Shader "CatIsland/SoftLit"
             half4 frag(Varyings i) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(i);
+                FadeClip(i.positionCS.xy);
                 float3 n = normalize(i.normalWS);
             #if _NORMALMAP
                 half3 nTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, i.uv), _BumpScale);
@@ -226,6 +241,7 @@ Shader "CatIsland/SoftLit"
             #pragma vertex vert
             #pragma fragment frag
             #pragma multi_compile_instancing
+            #pragma multi_compile_local _ _FADE
 
             struct Attributes { float4 positionOS : POSITION; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings { float4 positionCS : SV_POSITION; };
@@ -238,7 +254,7 @@ Shader "CatIsland/SoftLit"
                 return o;
             }
 
-            half4 frag(Varyings i) : SV_Target { return 0; }
+            half4 frag(Varyings i) : SV_Target { FadeClip(i.positionCS.xy); return 0; }
             ENDHLSL
         }
     }
