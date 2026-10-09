@@ -984,7 +984,7 @@ export function makeClips(rig, opts = {}) {
   //  allows 7 mm for it while the paw is up (softContacts) - so a big head's tongue can still reach the paw)
   // (the wrist turns too, tipping the paw up toward the mouth - within a cat's wrist: flexed back to tucked)
   const LICKB = { ...HB, FLa: [-1.2, .9] };
-  const LICKGUARD = [{ a: 'head', b: ['FL'], depth: .005 }, { a: 'head', b: ['FR', 'HL', 'HR'] }, { a: 'FL', b: ['head'], depth: .005 }, { a: 'FL', b: ['torso'] }, { a: 'FR', b: ['head'] }];
+  const LICKGUARD = g => [{ a: 'head', b: ['FL'], depth: g }, { a: 'head', b: ['FR', 'HL', 'HR'] }, { a: 'FL', b: ['head'], depth: g }, { a: 'FL', b: ['torso'] }, { a: 'FR', b: ['head'] }];
   const blendFace = (P, A, B, u, k) => { for (const key of FACEK) P[key] = lerp(P[key], lerp(A[key], B[key], u), k); };
   applyPose(rig, SITG);
   const chestFront = worldOf(rig, 'Chest').z + d.chestR;
@@ -1017,25 +1017,31 @@ export function makeClips(rig, opts = {}) {
     }
     return { base: { ...lickBase }, last: touch.last, info: touch.info };
   };
-  let lick = lickSolve([...PAWK, 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], HB, GUARD);
-  // (still short - the forearm comes up against a big chin before the tongue meets the paw: solved again with
-  //  the wrist turning the paw up toward the mouth and the paw's fur allowed against the chin (LICKGUARD), and
-  //  the closer of the two kept - each build keeps the solve that suits it)
-  if (Math.abs(lick.last - .001) > GROOM_REACH_LIMIT * .5) {
-    const alt = lickSolve([...PAWK, 'FLa', 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], LICKB, LICKGUARD);
-    if (Math.abs(alt.last - .001) < Math.abs(lick.last - .001)) lick = alt;
-  }
-  lickBase = lick.base; touch.last = lick.last; touch.info = lick.info;
-  report.pawLick = Math.abs(touch.last - .001); report.pawLickInfo = touch.info;
-  const faceTrack = lickTrack(lickBase, faceStroke, { b: ['FL'], guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD] });
   const WASH = [[.4, -.35, .8], [.32, -.45, .8], [.22, -.52, .75]].map(([x, y, z]) => V(x * sx, y, z).multiplyScalar(HS));
-  const washPoses = WASH.map(off => {
-    const P = over(lickBase, { FLx: lickBase.FLx + .3 * d.pawR * sx, FLy: lickBase.FLy + .6 * d.pawR, FLa: -.4, FLt: .3, hdRoll: .35 * sx, hdYaw: .25 * sx, nkRoll: .1 * sx });
+  // the wash strokes start from the lick pose (the paw stays up between them), so each lick solve is scored
+  // with its wash: the worse of the two is what the clip has to make
+  const washFrom = base => WASH.map(off => {
+    const P = over(base, { FLx: base.FLx + .3 * d.pawR * sx, FLy: base.FLy + .6 * d.pawR, FLa: -.4, FLt: .3, hdRoll: .35 * sx, hdYaw: .25 * sx, nkRoll: .1 * sx });
     touchBest(S, P, { a: 'FL', b: ['head'], zone: { bone: 'Head', off: headSurf(off), r: .04 }, keys: [...HEADK, ...PAWK], bounds: HB, gap: -.002, guard: GUARD },
       [{ hdPitch: 1.0, nkPitch: SITG.nkPitch - .3 }, { hdRoll: .6 * sx }, { hdPitch: .9, nkPitch: SITG.nkPitch + .2, hdRoll: .5 * sx }],
       { hdPitch: [-.2, 0, .2, .4], nkPitch: [-.2, 0, .3], hdRoll: [-.2, 0, .25], hdYaw: [-.2, 0, .2] });
     return { P, err: Math.abs(touch.last + .002), info: touch.info };
   });
+  const scored = l => { const w = washFrom(l.base); return { ...l, wash: w, err: Math.max(Math.abs(l.last - .001), ...w.map(x => x.err)) }; };
+  let lick = scored(lickSolve([...PAWK, 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], HB, GUARD));
+  // (still short - the forearm comes up against a big chin before the tongue meets the paw: solved again with
+  //  the wrist turning the paw up toward the mouth and the paw's fur allowed against the chin (LICKGUARD: 5 mm,
+  //  then 6.5 mm - the shipping check allows 7 mm while the paw is up), and the best of them kept - the solves
+  //  are not monotonic in the allowance, each build keeps the one that suits it)
+  for (const depth of [.005, .0065]) {
+    if (lick.err <= GROOM_REACH_LIMIT * .8) break;
+    const alt = scored(lickSolve([...PAWK, 'FLa', 'nkPitch', 'nkYaw', 'hdPitch', 'hdYaw', 'hdRoll'], LICKB, LICKGUARD(depth)));
+    if (alt.err < lick.err) lick = alt;
+  }
+  lickBase = lick.base; touch.last = lick.last; touch.info = lick.info;
+  report.pawLick = Math.abs(touch.last - .001); report.pawLickInfo = touch.info;
+  const faceTrack = lickTrack(lickBase, faceStroke, { b: ['FL'], guard: [{ a: 'tongue', b: ['FL'] }, ...GUARD] });
+  const washPoses = lick.wash;
   report.wash = Math.max(...washPoses.map(w => w.err)); report.washEach = washPoses.map(w => [+(w.err * 1000).toFixed(1), w.info]);
   add('GroomFace', 6.6, true, withSettle(S, t => {
     const P = { ...SITG };
