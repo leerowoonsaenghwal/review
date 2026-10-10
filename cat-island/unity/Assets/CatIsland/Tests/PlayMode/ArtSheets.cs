@@ -78,6 +78,42 @@ namespace CatIsland.Tests
             Assert.Pass("Shots/sheets/breeds.png, eye_whisker.png");
         }
 
+        /// <summary>자세 바꾸기 필름 (발라당 눕기·일어나기, 자다 일어나기): 비스듬히 옆에서 0.12초마다 → Shots/sheets/posture_*.png</summary>
+        [UnityTest]
+        public IEnumerator PostureFilm()
+        {
+            var (cam, light) = Stage(); cam.fieldOfView = 30f;
+            foreach (var id in new[] { "korean_shorthair", "munchkin" })
+            {
+                CatRig rig = null; yield return Cat(id, "", "", r => rig = r);
+                cam.transform.position = rig.transform.position + Quaternion.Euler(0f, 55f, 0f) * Vector3.forward * 2.6f + Vector3.up * 1.0f; cam.transform.LookAt(rig.transform.position + Vector3.up * .25f);
+                IEnumerator Film(string name, Posture from, Posture to, float secs)
+                {
+                    rig.Request(from); for (float t = 0; t < 4f && (rig.Current != from || rig.Busy); t += Time.deltaTime) yield return null;
+                    for (float t = 0; t < .5f; t += Time.deltaTime) yield return null;
+                    var frames = new System.Collections.Generic.List<Texture2D>(); rig.Request(to);
+                    for (float t = 0, next = 0; t < secs; t += Time.deltaTime) { if (t >= next) { next += .12f; frames.Add(ShotFixed(cam)); } yield return null; }
+                    Save($"posture_{id}_{name}", frames.ToArray(), 8); foreach (var f in frames) Object.Destroy(f);
+                }
+                yield return Film("flop_from_sit", Posture.Sit, Posture.Flop, 2.2f);
+                yield return Film("flop_from_stand", Posture.Stand, Posture.Flop, 2.2f);
+                yield return Film("flop_up", Posture.Flop, Posture.Stand, 2.4f);
+                yield return Film("flop_to_sit", Posture.Flop, Posture.Sit, 3.2f);
+                yield return Film("sleep_up", Posture.Sleep, Posture.Stand, 2.4f);
+                Object.Destroy(rig.gameObject); yield return null;
+            }
+            Object.Destroy(cam.gameObject); Object.Destroy(light.gameObject);
+        }
+
+        static Texture2D ShotFixed(Camera cam)
+        {
+            var rt = new RenderTexture(Tile, Tile, 24) { antiAliasing = 4 };
+            cam.targetTexture = rt; cam.Render();
+            RenderTexture.active = rt; var t = new Texture2D(Tile, Tile, TextureFormat.RGB24, false); t.ReadPixels(new Rect(0, 0, Tile, Tile), 0, 0); t.Apply();
+            RenderTexture.active = null; cam.targetTexture = null; rt.Release();
+            return t;
+        }
+
         /// <summary>벌린 입 (CatMouth): 33품종 웃음(0.5)·크게(1) 를 한 장에 → Shots/sheets/mouths.png. 주둥이에 붙어 있고 떠 보이지 않는지.</summary>
         [UnityTest]
         public IEnumerator BreedMouths()

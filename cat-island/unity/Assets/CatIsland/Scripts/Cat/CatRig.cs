@@ -235,14 +235,16 @@ namespace CatIsland
         public float ClipLength(string clip) => clipLen.TryGetValue(clip, out var l) ? l : 1f;
         public bool HasClip(string clip) => clipLen.ContainsKey(clip);
 
-        void Play(string state, float fade)
+        void Play(string state, float fade, float offset = 0f)
         {
             if (Playing == state) return;
             Playing = state;
-            Anim.CrossFadeInFixedTime(state, fade);
+            Anim.CrossFadeInFixedTime(state, fade, 0, offset);
         }
+        bool HasState(string s) => Anim && Anim.HasState(0, Animator.StringToHash(s));
 
         bool walking;
+        const float FlopLowAt = .5f;   // (발라당 동작에서 몸이 낮아지고 구르기 시작하는 때, 초)
 
         string BaseClip(Posture p)
         {
@@ -278,7 +280,7 @@ namespace CatIsland
         void Step()
         {
             if (InTransition || ActionClip != null || Current == Target) return;
-            string clip = null; Posture next = Target; float fade = 0.25f;
+            string clip = null; Posture next = Target; float fade = 0.25f, offset = 0f; bool reverse = false;
             switch (Current)
             {
                 case Posture.Stand:
@@ -289,27 +291,34 @@ namespace CatIsland
                 case Posture.Sit:
                     if (Target == Posture.Stand) clip = "StandUp";
                     else if (Target == Posture.Loaf || Target == Posture.Sleep) { clip = "LieDown"; next = Posture.Loaf; fade = 0.4f; }
-                    else if (Target == Posture.Flop) { clip = "Flop"; fade = 0.4f; }
+                    else if (Target == Posture.Flop) { clip = "Flop"; fade = 0.45f; offset = FlopLowAt; }   // (앉은 자리에서: 선 자세로 일어나지 않고 낮아진 데서부터 구른다)
                     break;
                 case Posture.Loaf:
                     if (Target == Posture.Sleep) clip = "FallAsleep";
                     else if (Target == Posture.Stand) { clip = "StandUp"; fade = 0.5f; }
                     else if (Target == Posture.Sit) { fade = 0.6f; }
-                    else if (Target == Posture.Flop) { clip = "Flop"; fade = 0.5f; }
+                    else if (Target == Posture.Flop) { clip = "Flop"; fade = 0.5f; offset = FlopLowAt; }
                     break;
                 case Posture.Sleep:
                     next = Posture.Loaf; fade = 0.8f;
                     break;
                 case Posture.Flop:
-                    if (Target == Posture.Stand) { clip = "StandUp"; fade = 0.6f; }
+                    // 일어나기: 눕기를 거꾸로 (굴러서 배를 깔고, 다리를 모아 선다) → 선 자세에서 원하는 자세로 이어서
+                    if (HasState("FlopUp")) { reverse = true; next = Posture.Stand; fade = 0.3f; }
+                    else if (Target == Posture.Stand) { clip = "StandUp"; fade = 0.6f; }
                     else { next = Target == Posture.Sleep ? Posture.Loaf : Target; fade = 0.6f; if (next == Posture.Loaf) clip = null; }
                     break;
             }
             pendingPosture = next;
-            if (clip != null && HasClip(clip))
+            if (reverse)
             {
-                Play(clip, fade);
-                transitionLeft = ClipLength(clip) - 0.15f;
+                Play("FlopUp", fade);
+                transitionLeft = ClipLength("Flop") / 1.15f - 0.1f;
+            }
+            else if (clip != null && HasClip(clip))
+            {
+                Play(clip, fade, offset);
+                transitionLeft = ClipLength(clip) - offset - 0.15f;
             }
             else
             {

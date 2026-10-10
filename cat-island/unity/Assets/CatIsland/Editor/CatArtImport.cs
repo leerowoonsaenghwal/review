@@ -244,7 +244,7 @@ namespace CatIsland.EditorTools
             var skipped = new HashSet<string>((json.skippedClips ?? new SkipInfo[0]).Select(s => s.clip));
             string ctrlPath = $"{Art}/Animation/{id}.controller";
             // 동작 구성이 같으면 Animator 를 다시 만들지 않는다 (git 에 의미 없는 변경이 쌓이지 않게)
-            string signature = string.Join(",", allClips.Where(c => !skipped.Contains(c.name)).Select(c => c.name).OrderBy(n => n)) + "|v2";
+            string signature = string.Join(",", allClips.Where(c => !skipped.Contains(c.name)).Select(c => c.name).OrderBy(n => n)) + "|v4";   // (v3: 발라당 일어나기 FlopUp)
             string sigPath = $"{Art}/Animation/{id}.controller.sig";
             var existing = AssetDatabase.LoadAssetAtPath<AnimatorController>(ctrlPath);
             bool rebuild = existing == null || !File.Exists(sigPath) || File.ReadAllText(sigPath) != signature;
@@ -349,6 +349,26 @@ namespace CatIsland.EditorTools
             return rc;
         }
 
+        /// <summary>동작을 거꾸로 (시간을 뒤집은 새 동작, 컨트롤러 안에 저장). speed 배 빠르게.</summary>
+        static AnimationClip Reversed(AnimatorController ctrl, AnimationClip src, string name, float speed)
+        {
+            var dst = new AnimationClip { name = name, frameRate = src.frameRate, hideFlags = HideFlags.HideInHierarchy };
+            float len = src.length;
+            foreach (var b in AnimationUtility.GetCurveBindings(src))
+            {
+                var cv = AnimationUtility.GetEditorCurve(src, b); var keys = cv.keys; var rk = new Keyframe[keys.Length];
+                for (int i = 0; i < keys.Length; i++)
+                {
+                    var k = keys[keys.Length - 1 - i];
+                    rk[i] = new Keyframe((len - k.time) / speed, k.value, -k.outTangent * speed, -k.inTangent * speed);
+                }
+                AnimationUtility.SetEditorCurve(dst, b, new AnimationCurve(rk));
+            }
+            var st = AnimationUtility.GetAnimationClipSettings(src); st.loopTime = false; AnimationUtility.SetAnimationClipSettings(dst, st);
+            AssetDatabase.AddObjectToAsset(dst, ctrl);
+            return dst;
+        }
+
         static void BuildController(AnimatorController ctrl, List<AnimationClip> allClips, HashSet<string> skipped)
         {
             AnimationClip Clip(string n) => allClips.FirstOrDefault(c => c.name == n);
@@ -373,6 +393,8 @@ namespace CatIsland.EditorTools
                 var st = sm.AddState(c.name);
                 st.motion = c;
                 if (c.name == "Idle") sm.defaultState = st;
+                // 발라당에서 일어나기: 눕기 동작을 거꾸로 (굴러 돌아와 엎드렸다가 선다). CatRig 은 끝에서부터 재생한다
+                if (c.name == "Flop") { var up = sm.AddState("FlopUp"); up.motion = Reversed(ctrl, c, "FlopUp", 1.15f); }
             }
         }
 
