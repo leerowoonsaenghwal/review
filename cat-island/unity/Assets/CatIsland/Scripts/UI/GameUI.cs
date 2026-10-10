@@ -29,7 +29,7 @@ namespace CatIsland.UI
         public static GameUI Instance { get; private set; }
         public RectTransform Root { get; private set; }        // 안전 영역
         public RectTransform SheetLayer { get; private set; }
-        Text coinText, jellyText, hintText; RectTransform idleBtn, guestBtn, zoneBtn, hintCard; Text idleAmt; Image tasksBadge, catsBadge;
+        Text coinText, jellyText, hintText; RectTransform idleBtn, guestBtn, zoneBtn, hintCard; Text idleAmt; Image tasksBadge, catsBadge, decoBadge;
         readonly List<GameObject> openSheets = new List<GameObject>();
         public bool SheetOpen => openSheets.Count > 0;
         public string LastToast { get; private set; }
@@ -81,7 +81,7 @@ namespace CatIsland.UI
             var bot = Kit.Rect(Root, "Bottom"); Kit.Anchor(bot, new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(0, 10), new Vector2(370, 88));
             var h = Kit.HList(bot, 10); h.childAlignment = TextAnchor.LowerCenter;
             Kit.IconBtn(bot, UIIcon.Shop, Str.Shop, () => Open(BuildShop));
-            Kit.IconBtn(bot, UIIcon.Bag, Str.Decorate, () => Open(BuildBag));
+            var db = Kit.IconBtn(bot, UIIcon.Bag, Str.Decorate, () => Open(BuildBag)); decoBadge = Kit.Badge(db.transform);
             var tb = Kit.IconBtn(bot, UIIcon.Tasks, Str.Tasks, () => Open(BuildTasks)); tasksBadge = Kit.Badge(tb.transform);
             var cb = Kit.IconBtn(bot, UIIcon.Cat, Str.Cats, () => Open(BuildCats)); catsBadge = Kit.Badge(cb.transform);
             Kit.IconBtn(bot, UIIcon.Camera, Str.Photo, OpenPhoto);
@@ -111,6 +111,7 @@ namespace CatIsland.UI
             zoneBtn.gameObject.SetActive(G.S.zonesUnlocked.Contains(1) || G.S.onboardingStep >= 7);
             tasksBadge.enabled = G.S.tasks.Any(t => !t.claimed && t.progress >= Catalog.DailyTasks.First(d => d.id == t.id).goal) || G.CanAttend;
             catsBadge.enabled = G.S.cats.Any(c => c.status == "home" && (c.hunger < .25f || c.thirst < .25f));
+            decoBadge.enabled = G.S.cats.Count > 0 && G.S.floor.Count == 0 && G.S.tileBag.Any(c => c.n > 0);   // (받은 데크 타일을 아직 한 장도 안 깔았다: 꾸미기에서 깔아 보기)
             string hint = Str.Hint(G.OnboardingHint()); hintCard.gameObject.SetActive(!string.IsNullOrEmpty(hint) && !SheetOpen && !TileMode.Active); hintText.text = hint;   // (바닥 깔기 막대와 겹치지 않게)
         }
 

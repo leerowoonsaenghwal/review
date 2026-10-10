@@ -555,6 +555,14 @@ namespace CatIsland
         Vector3 FreeSpot(Vector3 p, Transform item = null) { nav.Self = this; var r = nav.NearestFree(p, item); nav.Self = null; return r; }
         bool BlockedForMe(Vector3 p) { nav.Self = this; bool b = nav.Blocked(p); nav.Self = null; return b; }
 
+        /// <summary>방석 가기를 그만둘 때: 반쯤 올라서 있으면 '방금 쓰고 나오는 중'으로 걸어 나가고(방석 안에 서 있지 않게), 아니면 그 자리에서 쉰다.</summary>
+        void GiveUpCushion()
+        {
+            if (cushion && Flat(transform.position - cushion.transform.position).magnitude < cushion.Radius + .2f)
+            { LeftItem = cushion.transform; LeftAt = Time.time; leftLift = 0f; Enter(CatState.Wander); return; }   // (걸쳐 앉지 않고 걸어 나간다)
+            Enter(CatState.SitIdle);
+        }
+
         /// <summary>MoveTowards 가 '도착'을 돌려줬지만 실제로는 막혀서·다른 고양이 때문에 멈춘 경우 (자리 맞추기로 끌어당기면 미끄러지듯 순간이동한다).</summary>
         bool TooFarToSettle(Vector3 spot) => Flat(spot - transform.position).magnitude > .15f;
 
@@ -874,11 +882,11 @@ namespace CatIsland
             if (!cushion) { Enter(CatState.Idle); return; }
             if (!actionStarted && Rig.ActionClip == "LickLips") return; // 입술 핥기를 마치고 출발
             actionStarted = true;
-            if (OtherCatNear(cushion.transform.position, cushion.Radius + .15f)) { Enter(CatState.SitIdle); return; }   // (가는 사이 다른 고양이가 올라갔다)
+            if (OtherCatNear(cushion.transform.position, cushion.Radius + .15f)) { GiveUpCushion(); return; }   // (가는 사이 다른 고양이가 올라갔다)
             var spot = CushionSpot(out var face);
             if (MoveTowards(spot, GameConfig.WalkSpeed, dt, 0.05f))
             {
-                if (TooFarToSettle(spot)) { Enter(CatState.SitIdle); return; }
+                if (TooFarToSettle(spot)) { GiveUpCushion(); return; }
                 faceDir = face;
                 transform.position = Vector3.Lerp(transform.position, new Vector3(spot.x, transform.position.y, spot.z), 1f - Mathf.Exp(-8f * dt));
                 if (FacingAngle(face) < 6f) Enter(CatState.LieDown);
