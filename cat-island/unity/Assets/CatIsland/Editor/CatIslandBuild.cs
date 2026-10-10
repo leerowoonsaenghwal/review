@@ -25,6 +25,8 @@ namespace CatIsland.EditorTools
             EditorUserBuildSettings.development = false; // Unity 6 iOS 프로필 기본값이 개발 빌드라 명시적으로 끈다
             // Apple Silicon Mac의 시뮬레이터는 arm64 (기본값 x86_64면 대상 기기를 못 찾음)
             PlayerSettings.iOS.simulatorSdkArchitecture = AppleMobileArchitectureSimulator.ARM64;
+            // 출시 빌드: 보통 로그에는 호출 경로를 붙이지 않는다 (로그마다 비용, 기기 기록이 지저분해짐). 경고·오류·예외는 그대로
+            PlayerSettings.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
 
             var opts = new BuildPlayerOptions
             {

@@ -311,17 +311,26 @@ namespace CatIsland
     /// <summary>프레임 시간 기록: 5초마다 평균 fps, 가장 긴 프레임, 25 ms 넘은 프레임 수를 로그로 남긴다 (실기기 버벅임 진단).</summary>
     public class PerfMonitor : MonoBehaviour
     {
-        float acc, worst; int frames, slow;
+        float acc, worst; int frames, slow, gcAtStart = -1, gcAtWorst, lastGc;
+        string worstWhat = "";
         void Update()
         {
             float dt = Time.unscaledDeltaTime;
+            int gc = System.GC.CollectionCount(0); if (gcAtStart < 0) { gcAtStart = gc; lastGc = gc; }
             acc += dt; frames++;
-            worst = Mathf.Max(worst, dt);
+            if (dt > worst)
+            {
+                // (가장 긴 프레임에 무슨 일이 있었나: 메모리 정리(GC), 열린 창, 고양이 수 - 기기 버벅임 원인 찾기)
+                worst = dt; gcAtWorst = gc - lastGc;
+                var ui = CatIsland.UI.GameUI.Instance;
+                worstWhat = $"gc={gcAtWorst} sheet={(ui && ui.SheetOpen ? "open" : "-")} cats={CatBrain.All.Count} items={ItemTag.All.Count}";
+            }
+            lastGc = gc;
             if (dt > 0.025f) slow++;
             if (acc >= 5f)
             {
-                Debug.Log($"[CatIsland] perf fps={frames / acc:F1} worst={worst * 1000f:F1}ms slow(>25ms)={slow} target={Application.targetFrameRate} vsync={QualitySettings.vSyncCount}");
-                acc = 0f; frames = 0; slow = 0; worst = 0f;
+                Debug.Log($"[CatIsland] perf fps={frames / acc:F1} worst={worst * 1000f:F1}ms ({worstWhat}) slow(>25ms)={slow} gc={gc - gcAtStart} mem={UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong() / 1048576}MB target={Application.targetFrameRate}");
+                acc = 0f; frames = 0; slow = 0; worst = 0f; gcAtStart = gc;
             }
         }
     }
