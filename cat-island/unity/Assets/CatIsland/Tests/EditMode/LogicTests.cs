@@ -228,6 +228,7 @@ namespace CatIsland.Tests
         {
             var q = new CatIsland.QualityGovernor(0);
             void Run(float fps, float seconds) { for (float t = 0; t < seconds; t += 1f / fps) q.Tick(1f / fps); }
+            Run(10f, 4.9f); Assert.AreEqual(0, q.Level, "켤 때 처음 5초는 판단하지 않는다");
             Run(60f, 9f); Assert.AreEqual(0, q.Level, "넉넉하면 그대로");
             Run(40f, 3.1f); Assert.AreEqual(1, q.Level, "느리면 3초 만에 한 단계 낮춤");
             Run(40f, 9.3f); Assert.AreEqual(3, q.Level, "계속 느리면 끝까지"); Run(40f, 6f); Assert.AreEqual(3, q.Level, "가장 낮은 단계에서 멈춤");

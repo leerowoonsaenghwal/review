@@ -22,6 +22,22 @@ namespace CatIsland.Tests
             into.Add(sum / frames);
         }
 
+        /// <summary>고양이 상태별 메모리: 고양이 4마리·용품이 있는 섬을 2분(2배속) 돌리고 상태마다 프레임당 평균·최대를 로그로.</summary>
+        [UnityTest]
+        public IEnumerator Cats_BytesPerFrame_ByState()
+        {
+            var g = game.Logic; g.S.catSlots = 5; g.AddCoins(99999);
+            foreach (var (b, n) in new[] { ("korean_shorthair", "나비"), ("persian", "보리"), ("siamese", "달이"), ("maine_coon", "호두") }) g.AddCat(b, n, CatIsland.Game.Personality.Playful);
+            foreach (var (id, x, z) in new[] { ("cushion", 7, 9), ("hideout", 10, 6), ("mouse_toy", 8, 11), ("scratcher", 5, 7) }) if (g.Buy(id)) g.Place(id, CatIsland.Game.Zone.Indoor, x, z, 2);
+            game.WorldLink.Refresh(); yield return null; game.SyncCats(); yield return null;
+            CatBrain.AllocByState.Clear(); CatBrain.AllocTrace = true; Time.timeScale = 2f;
+            for (float t = 0; t < 120f; t += Time.deltaTime) yield return null;
+            Time.timeScale = 1f; CatBrain.AllocTrace = false;
+            foreach (var kv in CatBrain.AllocByState.OrderByDescending(k => k.Value.bytes))
+                Debug.Log($"[AllocState] {kv.Key}: avg {kv.Value.bytes / System.Math.Max(1, kv.Value.frames)} B/frame, max {kv.Value.max} B, frames {kv.Value.frames}, total {kv.Value.bytes / 1024} KB");
+            Assert.Pass();
+        }
+
         [UnityTest]
         public IEnumerator FirstScreen_BytesPerFrame_ByComponent()
         {

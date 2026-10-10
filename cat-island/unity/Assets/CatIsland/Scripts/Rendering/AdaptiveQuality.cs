@@ -20,7 +20,9 @@ namespace CatIsland
         /// <summary>프레임마다 (실제 걸린 시간). 단계가 바뀌면 true.</summary>
         public bool Tick(float dt)
         {
-            clock += dt; acc += dt; frames++;
+            clock += dt;
+            if (clock < 5f) return false;   // (켤 때 불러오기로 끊기는 구간은 판단하지 않는다)
+            acc += dt; frames++;
             if (acc < Window) return false;
             float fps = frames / acc; acc = 0f; frames = 0;
             if (fps < target * .87f && Level < MaxLevel)

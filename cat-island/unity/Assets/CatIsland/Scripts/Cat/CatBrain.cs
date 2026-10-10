@@ -106,7 +106,7 @@ namespace CatIsland
         bool firstPetChecked, actionStarted;
         int zoomiesLeft;
         float savedAffection, heightY, stepPhase, turnStep, replanTimer;
-        List<Vector3> path;
+        List<Vector3> path; bool planned;   // (planned: 길찾기를 했음 - 길이 없다는 결과도 포함)
         Vector3 pathGoal = new Vector3(999f, 0f, 999f);
         Vector3 jumpStart, jumpDir;
         Quaternion flopFacing;
@@ -164,7 +164,7 @@ namespace CatIsland
             if (OnTower && IsFree()) { leaveTower = true; leaveToward = ClampToIsland(world); if (State != CatState.OnTower) Enter(CatState.OnTower); return; }
             if (!IsFree() || OnTower) return;
             moveTarget = ClampToIsland(world);
-            if (nav != null) moveTarget = nav.NearestFree(moveTarget);
+            if (nav != null) moveTarget = FreeSpot(moveTarget);
             audioOut?.Chirp();
             Enter(CatState.Called);
         }
@@ -198,7 +198,14 @@ namespace CatIsland
 
         // ------------------------------------------------------------ 갱신
 
-        void Update() { Tick(Time.deltaTime); }
+        void Update()
+        {
+            if (!AllocTrace) { Tick(Time.deltaTime); return; }
+            string st = State.ToString(); long a0 = UnityEngine.Profiling.Profiler.GetMonoUsedSizeLong(); Tick(Time.deltaTime); long a = System.Math.Max(0, UnityEngine.Profiling.Profiler.GetMonoUsedSizeLong() - a0);
+            AllocByState.TryGetValue(st, out var v); AllocByState[st] = (v.bytes + a, v.frames + 1, System.Math.Max(v.max, a));
+        }
+        /// <summary>점검: 고양이 상태별로 프레임마다 새로 만드는 메모리 (AllocProbe).</summary>
+        public static bool AllocTrace; public static readonly Dictionary<string, (long bytes, int frames, long max)> AllocByState = new Dictionary<string, (long, int, long)>();
 
         public void Tick(float dt)
         {
@@ -399,7 +406,7 @@ namespace CatIsland
             {
                 if (cushion && CushionFree && cushion.gameObject.activeInHierarchy) { Enter(CatState.GoToCushion); return; }
                 var sleeper = All.Find(o => o && o != this && o.isActiveAndEnabled && o.State == CatState.Sleep && !o.OnTower);
-                if (sleeper) { var side = sleeper.transform.right * (UnityEngine.Random.value < .5f ? .7f : -.7f); moveTarget = nav != null ? nav.NearestFree(sleeper.transform.position + side) : sleeper.transform.position + side; Enter(CatState.GoToSleepNear); return; }
+                if (sleeper) { var side = sleeper.transform.right * (UnityEngine.Random.value < .5f ? .7f : -.7f); moveTarget = nav != null ? FreeSpot(sleeper.transform.position + side) : sleeper.transform.position + side; Enter(CatState.GoToSleepNear); return; }
                 Enter(CatState.Sleep); return;
             }
             float r = UnityEngine.Random.value;
@@ -436,14 +443,14 @@ namespace CatIsland
         {
             friend = by; Enter(CatState.Flee);
             var away = Flat(transform.position - by.transform.position).normalized; if (away.sqrMagnitude < .01f) away = transform.forward;
-            moveTarget = nav != null ? nav.NearestFree(transform.position + Quaternion.Euler(0, UnityEngine.Random.Range(-50f, 50f), 0) * away * 2.2f) : transform.position + away * 2.2f;
+            moveTarget = nav != null ? FreeSpot(transform.position + Quaternion.Euler(0, UnityEngine.Random.Range(-50f, 50f), 0) * away * 2.2f) : transform.position + away * 2.2f;
             FxPool.Instance?.Burst(Icon.Exclaim, Rig.BubbleAnchor.position, 1, 0.1f, 0.3f);
         }
 
         Vector3 VisitSpot(CatBrain o)
         {
             var side = o.transform.right * (Vector3.Dot(transform.position - o.transform.position, o.transform.right) >= 0 ? .7f : -.7f);   // (몸이 닿지 않게: 옆에 나란히)
-            return nav != null ? nav.NearestFree(o.transform.position + side) : o.transform.position + side;
+            return nav != null ? FreeSpot(o.transform.position + side) : o.transform.position + side;
         }
 
         void TickChase(float dt)
@@ -465,7 +472,7 @@ namespace CatIsland
             if (MoveTowards(moveTarget, GameConfig.TrotSpeed, dt, .25f))
             {
                 var away = Flat(transform.position - (friend ? friend.transform.position : transform.position - transform.forward)).normalized;
-                moveTarget = nav != null ? nav.NearestFree(transform.position + Quaternion.Euler(0, UnityEngine.Random.Range(-70f, 70f), 0) * away * 1.8f) : transform.position + away * 1.8f;
+                moveTarget = nav != null ? FreeSpot(transform.position + Quaternion.Euler(0, UnityEngine.Random.Range(-70f, 70f), 0) * away * 1.8f) : transform.position + away * 1.8f;
             }
             if (StateTime > 7f) Enter(CatState.SitIdle);
         }
@@ -497,7 +504,7 @@ namespace CatIsland
             if (ob.Distance(transform.position) > .05f) return;
             grid.Self = this; var to = grid.NearestFree(transform.position); grid.Self = null;
             transform.position = new Vector3(to.x, transform.position.y, to.z);
-            path = null;
+            path = null; planned = false;
             FxPool.Instance?.Burst(Icon.Exclaim, Rig.BubbleAnchor.position, 1, .1f, .26f);
             if (State == CatState.GoToItem || State == CatState.Wander || State == CatState.Called) Enter(CatState.Idle);
         }
@@ -515,13 +522,19 @@ namespace CatIsland
             if (nav == null) return target;
             var item = UsingItem();
             replanTimer -= dt;
-            if (path == null || Flat(target - pathGoal).magnitude > 0.1f || replanTimer <= 0f)
+            // (다시 찾는 때: 처음, 목표가 옮겨 갔을 때(멀수록 너그럽게: 쫓기 놀이처럼 움직이는 목표), 1.5초마다.
+            //  길이 없다는 결과도 1.5초 동안은 그대로 쓴다 - 매 프레임 길찾기를 하면 프레임마다 수십 KB 를 만든다)
+            float moved = Flat(target - pathGoal).magnitude, far = Flat(target - transform.position).magnitude;
+            float tol = State == CatState.Chase || State == CatState.Flee ? Mathf.Max(0.1f, far * .25f) : 0.1f;   // (움직이는 목표만 너그럽게)
+            if (!planned || moved > tol || replanTimer <= 0f)
             {
-                pathGoal = target;
+                pathGoal = target; planned = true;
                 replanTimer = 1.5f;
                 nav.Self = this; path = nav.FindPath(transform.position, target, item);
                 // 목적지가 막힘 거리 안이면 길이 없어 곧장(물건을 뚫고) 가게 된다: 가장 가까운 빈자리까지 길을 찾고, 마지막만 곧게
-                if ((path == null || path.Count == 0) && (item == null || (cushion && item == cushion.transform)) && nav.Blocked(target, item))   // (그릇·통 같은 용품은 저마다 다가가는 방법이 있다) { var near = nav.NearestFree(target, item); path = nav.FindPath(transform.position, near, item); if (path != null && path.Count > 0) path.Add(target); }
+                // (그릇·통 같은 용품은 저마다 다가가는 방법이 있다)
+                if ((path == null || path.Count == 0) && State != CatState.GoToItem && (item == null || (cushion && item == cushion.transform)) && nav.Blocked(target, item))   // (용품으로 가는 중(숨숨집 문 앞 등)은 제외)
+                { var near = nav.NearestFree(target, item); path = nav.FindPath(transform.position, near, item); if (path != null && path.Count > 0) path.Add(target); }
                 nav.Self = null;
             }
             if (path == null || path.Count == 0) return target;
@@ -537,6 +550,10 @@ namespace CatIsland
             }
             return path[0];
         }
+
+        /// <summary>가장 가까운 빈자리 (자기 몸은 장애물로 보지 않는다: 보면 고양이가 다가갈수록 그 점이 고양이를 피해 달아난다).</summary>
+        Vector3 FreeSpot(Vector3 p, Transform item = null) { nav.Self = this; var r = nav.NearestFree(p, item); nav.Self = null; return r; }
+        bool BlockedForMe(Vector3 p) { nav.Self = this; bool b = nav.Blocked(p); nav.Self = null; return b; }
 
         /// <summary>MoveTowards 가 '도착'을 돌려줬지만 실제로는 막혀서·다른 고양이 때문에 멈춘 경우 (자리 맞추기로 끌어당기면 미끄러지듯 순간이동한다).</summary>
         bool TooFarToSettle(Vector3 spot) => Flat(spot - transform.position).magnitude > .15f;
@@ -1144,7 +1161,7 @@ namespace CatIsland
             {
                 // 숨숨집·침대는 먼저 문 앞으로 (뒤에서 곧장 가면 벽을 뚫는다), 그다음 문으로 곧게 들어간다
                 var door = useSpot + Quaternion.Euler(0f, useYaw, 0f) * Vector3.forward * .75f;
-                if (nav != null) door = nav.NearestFree(door);   // (문 앞 점이 막힘 거리 안이면 길찾기가 실패해 곧장 (벽을 뚫고) 간다)
+                if (nav != null) door = FreeSpot(door);   // (문 앞 점이 막힘 거리 안이면 길찾기가 실패해 곧장 (벽을 뚫고) 간다)
                 if (MoveTowards(door, GameConfig.WalkSpeed, dt, .1f) || Flat(door - transform.position).magnitude < .12f) viaDoor = false;
                 else if (StateTime > 14f) Enter(CatState.Idle);
                 return;
@@ -1196,7 +1213,7 @@ namespace CatIsland
                 // 숨숨집·침대에서 나올 때는 문(앞) 쪽으로 걸어 나온다: 바로 다른 곳으로 가면 벽을 뚫고 지나간다
                 Enter(CatState.Wander);
                 moveTarget = useSpot + Quaternion.Euler(0f, useYaw, 0f) * Vector3.forward * .75f;
-                if (nav != null) moveTarget = nav.NearestFree(moveTarget);
+                if (nav != null) moveTarget = FreeSpot(moveTarget);
             }
             else Enter(CatState.Idle);
         }
@@ -1248,7 +1265,7 @@ namespace CatIsland
         Action leaveDone; Transform carried;
         public void LeaveForWalk(Action gone)
         {
-            leaveDone = gone; moveTarget = ClampToIsland(new Vector3(4.4f, 0f, -2.6f)); if (nav != null) moveTarget = nav.NearestFree(moveTarget);
+            leaveDone = gone; moveTarget = ClampToIsland(new Vector3(4.4f, 0f, -2.6f)); if (nav != null) moveTarget = FreeSpot(moveTarget);
             if (OnTower) { OnTower = false; heightY = 0; }
             Enter(CatState.LeaveForWalk);
         }
@@ -1260,7 +1277,7 @@ namespace CatIsland
         {
             transform.position = ClampToIsland(new Vector3(4.4f, 0f, -2.6f)); transform.rotation = Quaternion.LookRotation(-transform.position.normalized);
             if (gift) { carried = gift.transform; carried.SetParent(Rig.Head, false); carried.localPosition = Rig.Head.InverseTransformPoint(Rig.HeadZone.position + transform.forward * (Rig.HeadRadius * .9f) - Vector3.up * Rig.HeadRadius * .45f); carried.localScale = Vector3.one * .6f; }
-            moveTarget = nav != null ? nav.NearestFree(new Vector3(.6f, 0f, -.8f)) : new Vector3(.6f, 0, -.8f);
+            moveTarget = nav != null ? FreeSpot(new Vector3(.6f, 0f, -.8f)) : new Vector3(.6f, 0, -.8f);
             Rig.mouthOpen = .35f; Enter(CatState.ReturnFromWalk);
         }
         void TickReturn(float dt)
@@ -1315,7 +1332,7 @@ namespace CatIsland
                 Vector3 away = Flat(transform.position - pointerWorld);
                 if (away.sqrMagnitude < 0.0001f) away = -transform.forward;
                 moveTarget = ClampToIsland(transform.position + away.normalized * 0.6f);
-                if (nav != null) moveTarget = nav.NearestFree(moveTarget);
+                if (nav != null) moveTarget = FreeSpot(moveTarget);
                 Enter(CatState.Called);
             }
         }
@@ -1441,7 +1458,7 @@ namespace CatIsland
                 Vector2 r = UnityEngine.Random.insideUnitCircle * GameConfig.WanderRadius;
                 var p = new Vector3(r.x, 0f, r.y * 0.8f - 0.3f);
                 if (Flat(p - transform.position).magnitude < minDist) continue;
-                if (nav != null && nav.Blocked(p)) continue;
+                if (nav != null && BlockedForMe(p)) continue;
                 return p;
             }
             return Vector3.zero;
@@ -1454,7 +1471,7 @@ namespace CatIsland
             int k = Mathf.Max(0, All.IndexOf(this));
             var side = Vector3.Cross(Vector3.up, toCam.normalized) * ((k % 2 == 0 ? 1 : -1) * ((k + 1) / 2) * .8f);
             var p = ClampToIsland(toCam.normalized * 1.6f + side);
-            return nav != null ? nav.NearestFree(p) : p;
+            return nav != null ? FreeSpot(p) : p;
         }
 
         public static Vector3 ClampToIsland(Vector3 p)
