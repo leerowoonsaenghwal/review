@@ -83,3 +83,22 @@ python3 prototype/3d/export_items.py OUT_DIR [id,...]
 
 1. `items.js`: 둥근 기본 도형을 더하고 깎아 조형한 뒤, 표면을 하나의 닫힌 메시로 뽑는다(고양이와 같은 방식).
 2. `blender_items.py`: 다시 감싸기(voxel remesh) → 면 줄이기 → 구멍 메우기 → 펼치기(UV) → 색·노멀·그늘 굽기 → FBX/glb로 내보낸다.
+
+## 데크 타일 (바닥, 2026-10-10)
+섬 가운데 풀밭 격자(18 x 18 칸, 한 칸 0.6 m)와 마당 격자에 칸마다 까는 바닥. 용품과 따로 관리한다 (`Catalog.Tiles`, 저장 `floor`·`tileBag`).
+
+| id | 이름 | 9장 값(코인) | 발소리 |
+|---|---|---|---|
+| deck_honey | 원목 마루 | 90 | 나무 |
+| deck_white | 화이트 우드 | 110 | 나무 |
+| deck_walnut | 월넛 마루 | 130 | 나무 |
+| deck_basket | 바둑판 마루 | 160 | 나무 |
+| deck_sakura | 벚꽃 마루 | 150 | 나무 |
+| tile_mint | 민트 체크 타일 | 120 | 나무 |
+| tile_terracotta | 테라코타 타일 | 140 | 나무 |
+| stone_path | 징검돌 판 | 100 | 모래 |
+
+- 무늬: `IslandArt.PaintedTextures.Tile` (코드로 그림, 한 장 = 한 칸, 이음매 없음). 그리기: `World/FloorTiles.cs` (무늬마다 메시 하나, 세상 좌표 무늬, 덩어리 바깥에만 두께 1.2 cm).
+- 깔기: 꾸미기 → 데크 타일 '깔기' → `World/TileMode.cs` (깔기·걷기·화면 옮기기, 격자선). 처음에 원목 마루 9장을 준다.
+- 용품은 타일 위에 그대로 놓는다 (타일은 길찾기 장애물이 아님).
+- 점검: 시뮬레이터 `SIMCTL_CHILD_CATISLAND_TILESAMPLER=1` (8종을 3 x 3 씩), `CATISLAND_TILEMODE=1`, `CATISLAND_ZOOM=0`.

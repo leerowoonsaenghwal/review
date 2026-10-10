@@ -135,7 +135,13 @@ namespace CatIsland
                 Logic.Save(); WorldLink.Refresh();
             }
             if (Logic.S.cats.Count == 0 && OpenCatMakerIfEmpty) CatIsland.UI.CatMaker.Open(UI);
-            if (System.Environment.GetEnvironmentVariable("CATISLAND_TILEMODE") == "1") TileMode.Begin(this, null);   // (점검: 바닥 깔기 모드로 시작)
+            if (System.Environment.GetEnvironmentVariable("CATISLAND_TILEMODE") == "1") TileMode.Begin(this, null);
+            if (System.Environment.GetEnvironmentVariable("CATISLAND_TILESAMPLER") == "1")   // (점검: 데크 타일 8종을 3 x 3 씩 나란히)
+            {
+                Logic.S.floor.Clear(); Logic.AddCoins(5000); int k = 0;
+                foreach (var t in CatIsland.Game.Catalog.Tiles) { Logic.BuyTiles(t.id); int x0 = 1 + (k % 4) * 4, z0 = 4 + (k / 4) * 4; for (int z = 0; z < 3; z++) for (int x = 0; x < 3; x++) Logic.LayTile(t.id, CatIsland.Game.Zone.Indoor, x0 + x, z0 + z); k++; }
+                WorldLink.Refresh(); IslandCam.Manual = true; IslandCam.ManualDist = 14f; StartCoroutine(SamplerPan());
+            }   // (점검: 바닥 깔기 모드로 시작)
             SyncCats(); SyncGuest();
             Router.BeforeBowlFill = () =>
             {
@@ -165,6 +171,11 @@ namespace CatIsland
         }
 
         /// <summary>고양이 만들기 미리보기 (첫 고양이: 섬에 서 있는 미리보기 고양이를 고른 모습으로 바꾼다).</summary>
+        System.Collections.IEnumerator SamplerPan()
+        {
+            foreach (float x in new[] { 2.5f, 6.5f, 10.5f, 14.5f }) { IslandCam.ManualFocus = WorldSync.CellToWorld(CatIsland.Game.Zone.Indoor, x, 4f); yield return new WaitForSecondsRealtime(4f); }
+        }
+
         void ShowPreview(CatIsland.UI.PhotoCat p)
         {
             if (Logic == null || Logic.S.cats.Count > 0 || p == null) return;
