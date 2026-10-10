@@ -212,6 +212,16 @@ namespace CatIsland
             if (f.Enjoying) lastPetTime = Time.time;
             HandlePetFrame(f);
 
+            // 고양이 만들기 미리보기: 창이 열려 있는 동안 고른 고양이는 제자리에 앉아 집사를 본다 (돌아다니면 창 위 화면을 벗어난다)
+            if (Data == null && cam && !IsJumping() && CatIsland.UI.GameUI.Instance && CatIsland.UI.GameUI.Instance.SheetTop < .7f)
+            {
+                if (State != CatState.Idle) Enter(CatState.Idle);
+                Speed = 0f; idleDecide = 1f; faceDir = Flat(cam.position - transform.position);
+                if (Rig.Current == Posture.Stand && FacingAngle(faceDir) < 20f) Rig.Request(Posture.Sit);
+                ApplyFace(dt); ApplyHeight(dt); UpdateExpression(dt); Bubble.Hide();   // (말풍선은 위 숫자판에 가린다: 미리보기에서는 숨김)
+                return;
+            }
+
             switch (State)
             {
                 case CatState.Idle: TickIdle(dt); break;
@@ -603,7 +613,7 @@ namespace CatIsland
                 if (!o || o == this || !o.isActiveAndEnabled || o.OnTower) continue;
                 float g = Gap(this, o, out var dir); if (g >= -.03f) continue;
                 float share = Pinned(o) || (o.Speed < .05f && Speed >= .05f) ? 1f : .5f;
-                push += dir * (-g - .02f) * share;
+                push += dir * (-g) * share;   // (닿을 때까지 민다: 3 cm 문턱 근처에서 느려지지 않게)
             }
             if (push.sqrMagnitude < 1e-10f) return;
             float max = .5f * dt; if (push.magnitude > max) push = push.normalized * max;

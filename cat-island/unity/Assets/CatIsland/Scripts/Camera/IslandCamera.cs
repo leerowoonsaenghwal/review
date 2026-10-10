@@ -58,6 +58,7 @@ namespace CatIsland
         {
             // 가까이 볼 때만 고양이를 따라간다. 멀리 보면 섬 전체
             float w = !followOn ? 0f : zoomLevel == distances.Length - 1 ? 0.75f : 0.2f;
+            w = Mathf.Lerp(w, 1f, frameK);   // (고양이 만들기: 고른 고양이를 한가운데로)
             Vector3 f = Vector3.Lerp(home, new Vector3(p.x, 0.5f + p.y, p.z), w);
             return f;
         }
@@ -89,19 +90,25 @@ namespace CatIsland
                 return;
             }
             float dt = Time.deltaTime;
+            // 낮게 열린 창(고양이 만들기) 위로 고양이를 가까이 잡는다
+            float top = CatIsland.UI.GameUI.Instance ? CatIsland.UI.GameUI.Instance.SheetTop : 1f;
+            frameK = Mathf.Lerp(frameK, top < .7f ? 1f : 0f, 1f - Mathf.Exp(-5f * dt)); if (top < .7f) frameTop = top;
             // 회전 한계 밖이면 살짝 되돌아옴
             float clamped = Mathf.Clamp(yaw, -yawLimit, yawLimit);
             yaw = Mathf.SmoothDamp(yaw, clamped, ref yawVel, 0.15f);
-            dist = Mathf.Lerp(dist, distances[zoomLevel] * (Petting ? .82f : 1f), 1f - Mathf.Exp((Petting ? -1.2f : -6f) * dt));   // (쓰다듬을 때 천천히 가까이)
+            dist = Mathf.Lerp(dist, distances[zoomLevel] * (Petting ? .82f : 1f) * Mathf.Lerp(1f, .72f, frameK), 1f - Mathf.Exp((Petting ? -1.2f : -6f) * dt));   // (쓰다듬을 때 천천히 가까이)
             if (follow) focus = Vector3.Lerp(focus, FocusFor(follow.position), 1f - Mathf.Exp(-2.5f * dt));
             Apply();
         }
 
+        float frameK, frameTop = .57f;
         void Apply()
         {
             Quaternion rot = Quaternion.Euler(pitch, yaw, 0f);
             transform.rotation = rot;
-            transform.position = focus - rot * Vector3.forward * dist;
+            // (창 위 띠의 가운데(위 숫자판 아래)에 고양이가 오게: 시점을 화면 위쪽 방향의 반대로 옮긴다)
+            float above = ((frameTop + .9f) * .5f - .5f) * 2f * dist * Mathf.Tan(fov * .5f * Mathf.Deg2Rad) * frameK;
+            transform.position = focus - rot * Vector3.up * above - rot * Vector3.forward * dist;
             WorldStyle.Apply(focus, rot * Vector3.forward, dist);   // 둥근 세상 휨과 안개를 이 시점에 맞춘다
         }
     }

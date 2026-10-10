@@ -125,13 +125,18 @@ namespace CatIsland.UI
             CloseAll();
         }
 
-        public void Open(Func<RectTransform, string> build)
+        /// <summary>지금 열린 창의 윗변 (화면 높이 비율, 창이 없으면 1). 카메라가 창 위로 고양이를 잡는 데 쓴다 (IslandCamera).</summary>
+        public float SheetTop => SheetOpen ? sheetTop : 1f;
+        float sheetTop = .78f;
+        /// <param name="top">창 윗변 (화면 비율). 고양이 만들기는 낮게 열어 위로 3D 미리보기 고양이가 보이게 한다.</param>
+        public void Open(Func<RectTransform, string> build, float top = .78f)
         {
             CloseAll();
-            var shade = Kit.Box(SheetLayer, "Shade", Theme.Shade, 0); Kit.Fill(shade.rectTransform);
+            sheetTop = top;
+            var shade = Kit.Box(SheetLayer, "Shade", top < .7f ? new Color(Theme.Shade.r, Theme.Shade.g, Theme.Shade.b, Theme.Shade.a * .35f) : Theme.Shade, 0); Kit.Fill(shade.rectTransform);
             var sb = shade.gameObject.AddComponent<Button>(); sb.transition = Selectable.Transition.None; sb.onClick.AddListener(CloseAll);
             var card = Kit.Box(shade.transform, "Sheet", Theme.Cream, 24); var rt = card.rectTransform;
-            rt.anchorMin = new Vector2(0, 0); rt.anchorMax = new Vector2(1, .78f); rt.offsetMin = new Vector2(8, 8); rt.offsetMax = new Vector2(-8, 0);
+            rt.anchorMin = new Vector2(0, 0); rt.anchorMax = new Vector2(1, top); rt.offsetMin = new Vector2(8, 8); rt.offsetMax = new Vector2(-8, 0);
             card.gameObject.AddComponent<Button>().transition = Selectable.Transition.None;   // (카드 안을 눌러도 닫히지 않게)
             var body = Kit.Rect(rt, "Body"); Kit.Fill(body, 16, 62, 16, 16);
             string title = build(body);

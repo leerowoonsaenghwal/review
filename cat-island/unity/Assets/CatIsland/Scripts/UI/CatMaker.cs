@@ -17,11 +17,11 @@ namespace CatIsland.UI
         public static Action<PhotoCat> OnPreview;    // (3D 미리보기: 품종·눈·수염·털이 바뀔 때)
         static void Preview() => OnPreview?.Invoke(new PhotoCat { breed = breed, eyeStyle = eye, whiskerStyle = whisker, coatJson = coatJson });
 
-        public static void Open(GameUI ui) => ui.Open(b => Build(ui, b));
+        public static void Open(GameUI ui) => ui.Open(b => Build(ui, b), .57f);   // (창을 낮게: 위로 고른 고양이가 3D 로 보인다)
 
         static string Build(GameUI ui, RectTransform body)
         {
-            Kit.VList(body, 10); Kit.Scroll(body, out var list); Kit.Size(list.parent.GetComponent<RectTransform>(), -1, 480).flexibleHeight = 1;
+            Kit.VList(body, 10); Kit.Scroll(body, out var list); Kit.Size(list.parent.GetComponent<RectTransform>(), -1, 260).flexibleHeight = 1;
             // 사진으로
             var pr = Kit.Box(list, "PhotoRow", Theme.MilkTea, 14); Kit.Size(pr, -1, 92);
             var prIn = Kit.Rect(pr.transform, "In"); Kit.Fill(prIn, 12, 6, 10, 6); Kit.HList(prIn, 10).childAlignment = TextAnchor.MiddleLeft;
