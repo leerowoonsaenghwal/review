@@ -119,6 +119,8 @@ namespace CatIsland
             if (demo) { DayCycle.HourOverride = 14f; Day.Apply(14f); }   // (시연은 늘 낮)
             if (float.TryParse(System.Environment.GetEnvironmentVariable("CATISLAND_HOUR"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var hour)) { DayCycle.HourOverride = hour; Day.Apply(hour); }   // (점검: 아침·저녁·밤 화면)
             if (System.Environment.GetEnvironmentVariable("CATISLAND_TOUR") == "1") StartCoroutine(UI.Tour(4f));
+            if (System.Environment.GetEnvironmentVariable("CATISLAND_YARD") == "1")   // (점검: 마당을 열고 마당 화면으로)
+            { if (!Logic.S.zonesUnlocked.Contains(1)) Logic.S.zonesUnlocked.Add(1); IslandBuilder.OpenYardGate(world.Find("Island")); WorldLink.Refresh(); IslandCam.ShowZone(CatIsland.Game.Zone.Yard); IslandCam.zoomLevel = 0; IslandCam.SnapNow(); }
             if (System.Environment.GetEnvironmentVariable("CATISLAND_ZOOM") == "0") { IslandCam.zoomLevel = 0; IslandCam.SnapNow(); }   // (점검: 멀리 보기로 시작)   // (화면 차례로 열기: 시뮬레이터 점검)
             if (demo && Logic.S.cats.Count == 0)
             {
