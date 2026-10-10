@@ -50,6 +50,26 @@ namespace CatIsland.EditorTools
             var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(iconPath);
             if (icon != null) PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
             PlayerSettings.iOS.buildNumber = "1";
+            // 켜는 화면: 크림 바탕 가운데 둥근 앱 아이콘 (어두운 기본 화면·Unity 로고 대신, BRAND.md 크림 #FBF6E6)
+            const string launchPath = "Assets/CatIsland/Art/AppIcon/LaunchLogo.png";
+            var launchSrc = Path.GetFullPath(Path.Combine(Application.dataPath, "../../assets/app_icon/LaunchLogo.png"));
+            if (File.Exists(launchSrc) && (!File.Exists(launchPath) || new FileInfo(launchSrc).Length != new FileInfo(launchPath).Length))
+            { File.Copy(launchSrc, launchPath, true); AssetDatabase.ImportAsset(launchPath); }
+            if (AssetImporter.GetAtPath(launchPath) is TextureImporter li && (li.textureCompression != TextureImporterCompression.Uncompressed || li.mipmapEnabled))
+            { li.textureCompression = TextureImporterCompression.Uncompressed; li.mipmapEnabled = false; li.alphaIsTransparency = true; li.SaveAndReimport(); }   // (켜는 화면 그림은 압축하지 않는다)
+            var launch = AssetDatabase.LoadAssetAtPath<Texture2D>(launchPath);
+            var cream = new Color(251 / 255f, 246 / 255f, 230 / 255f);
+            PlayerSettings.SplashScreen.show = false; PlayerSettings.SplashScreen.showUnityLogo = false; PlayerSettings.SplashScreen.backgroundColor = cream;
+            if (launch != null)
+            {
+                PlayerSettings.iOS.SetiPhoneLaunchScreenType(iOSLaunchScreenType.ImageAndBackgroundRelative);
+                PlayerSettings.iOS.SetLaunchScreenImage(launch, iOSLaunchScreenImageType.iPhonePortraitImage);
+                PlayerSettings.iOS.SetLaunchScreenImage(launch, iOSLaunchScreenImageType.iPhoneLandscapeImage);   // (세로·가로 둘 다 있어야 쓰인다)
+                var pso = new SerializedObject(Unsupported.GetSerializedAssetInterfaceSingleton("PlayerSettings"));
+                var bg = pso.FindProperty("iOSLaunchScreenBackgroundColor"); if (bg != null) bg.colorValue = cream;
+                var fill = pso.FindProperty("iOSLaunchScreenFillPct"); if (fill != null) fill.floatValue = 34f;   // (아이콘이 화면 폭의 약 1/3)
+                pso.ApplyModifiedPropertiesWithoutUndo();
+            }
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
             PlayerSettings.allowedAutorotateToPortrait = true;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;

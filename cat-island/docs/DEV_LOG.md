@@ -113,3 +113,4 @@
 - 2026-10-10 실기 GC 폭주 고침: 출시 빌드의 DebugOverlay(OnGUI) 제거 → GC 5초 40번 → 0, 튄 프레임 80 ms → 17 ms, 메모리 증가 멈춤(PERF.md 표). 기기 측정용: PerfMonitor 에 KB/프레임·힙, CATISLAND_DISABLE. 실기 계측 테스트 AllocProbe(Explicit, 에디터).
 - 2026-10-10 심사 점검: 앱 개인정보 매니페스트(PrivacyInfo.xcprivacy)를 앱 본체에 넣음(이전엔 엔진 것만), 공유 화면 '이미지 저장'에 필요한 NSPhotoLibraryAddUsageDescription 추가(없으면 앱이 꺼짐). 실기 설치 확인.
 - 2026-10-10 젤리 상점 가격을 앱스토어가 알려 준 그 나라 가격(통화 포함)으로 표시(받기 전엔 원화 기준). 코드에 박힌 원화만 보이면 다른 나라에서 가격이 틀려 심사 사유.
+- 2026-10-10 켜는 화면: Unity 로고 스플래시(어두운 회색) 끔, iOS 켜는 화면을 크림 바탕 + 둥근 앱 아이콘(assets/app_icon/LaunchLogo.png, 세로·가로 둘 다 있어야 쓰임, 압축 안 함). 켠 뒤 약 1초에 게임 화면.
