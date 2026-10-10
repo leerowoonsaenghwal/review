@@ -62,6 +62,9 @@ namespace CatIsland.Tests
             // 2. 꾸미기: 방석·숨숨집·화분을 놓으면 바로 써 본다
             foreach (var (id, x, z) in new[] { ("cushion", 7, 9), ("hideout", 10, 6), ("plant_pot", 5, 6), ("mouse_toy", 8, 11) })
                 if (g.Buy(id)) g.Place(id, CatIsland.Game.Zone.Indoor, x, z, 2);
+            // (데크 타일: 가운데 원목 마루, 앞으로 징검돌 - 섬마다 다른 바닥)
+            void Lay(string tile, int x0, int z0, int x1, int z1) { for (int z = z0; z <= z1; z++) for (int x = x0; x <= x1; x++) { if (g.Tiles(tile) <= 0) g.BuyTiles(tile); g.LayTile(tile, CatIsland.Game.Zone.Indoor, x, z); } }
+            g.AddCoins(5000); Lay("deck_honey", 4, 5, 13, 12); Lay("stone_path", 8, 1, 9, 4); Lay("tile_mint", 1, 6, 3, 8);
             game.WorldLink.Refresh();
             Time.timeScale = 3f;
             for (float t = 0; t < 25f && Cat.State != CatState.UseItem; t += Time.deltaTime) yield return null;

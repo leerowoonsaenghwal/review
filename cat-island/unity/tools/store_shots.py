@@ -9,7 +9,7 @@ FONT = HERE / "Assets" / "CatIsland" / "Resources" / "Fonts" / "Jua.ttf"
 CREAM, COCOA, STRAW = (0xFB, 0xF6, 0xE6), (0x6F, 0x5A, 0x40), (0xFF, 0x9A, 0xB3)
 CAPTIONS = {
     "1_petting": ("살살 쓰다듬으면", "골골송"),
-    "2_decorate": ("놓으면 바로", "써 봐요"),
+    "2_decorate": ("바닥도 꾸미고", "놓으면 바로 써 봐요"),
     "3_tower": ("한 층씩", "폴짝!"),
     "4_breeds": ("33가지 품종 +", "우리 집 고양이"),
     "5_guest": ("오늘의 손님,", "산책 선물"),
