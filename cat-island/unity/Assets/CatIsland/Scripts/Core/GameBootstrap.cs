@@ -121,6 +121,10 @@ namespace CatIsland
             if (System.Environment.GetEnvironmentVariable("CATISLAND_TOUR") == "1") StartCoroutine(UI.Tour(4f));
             if (System.Environment.GetEnvironmentVariable("CATISLAND_YARD") == "1")   // (점검: 마당을 열고 마당 화면으로)
             { if (!Logic.S.zonesUnlocked.Contains(1)) Logic.S.zonesUnlocked.Add(1); IslandBuilder.OpenYardGate(world.Find("Island")); WorldLink.Refresh(); IslandCam.ShowZone(CatIsland.Game.Zone.Yard); IslandCam.zoomLevel = 0; IslandCam.SnapNow(); }
+            var look = System.Environment.GetEnvironmentVariable("CATISLAND_LOOK")?.Split(',');   // (점검: "x,z,거리" 를 고정 시점으로 본다)
+            if (look != null && look.Length == 3 && float.TryParse(look[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lx)
+                && float.TryParse(look[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lz) && float.TryParse(look[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ld))
+            { IslandCam.Manual = true; IslandCam.ManualFocus = new Vector3(lx, .3f, lz); IslandCam.ManualDist = ld; }
             if (System.Environment.GetEnvironmentVariable("CATISLAND_ZOOM") == "0") { IslandCam.zoomLevel = 0; IslandCam.SnapNow(); }   // (점검: 멀리 보기로 시작)   // (화면 차례로 열기: 시뮬레이터 점검)
             if (demo && Logic.S.cats.Count == 0)
             {

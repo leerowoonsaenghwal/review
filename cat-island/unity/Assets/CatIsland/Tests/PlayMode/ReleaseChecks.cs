@@ -226,7 +226,12 @@ namespace CatIsland.Tests
                     // (순간이동: 걷기·달리기로는 한 프레임에 0.2 m 도 못 간다 - 점프·캣타워·산책 나가고 들어오기는 빼고)
                     string ks = k.State.ToString();
                     if (!k.OnTower && !ks.Contains("Jump") && !ks.Contains("Tower") && !ks.Contains("Walk"))
-                    { float step = Vector3.Distance(new Vector3(k.transform.position.x, 0, k.transform.position.z), new Vector3(prevPos[k].x, 0, prevPos[k].z)); if (step > maxStep) { maxStep = step; stepWhat = $"{k.name} {prevState[k]}->{ks} {prevPos[k]}->{k.transform.position} t {t:F1}"; } }
+                    {
+                        // (그 프레임 동안 가장 빠른 달리기로 갈 수 있는 거리를 뺀 나머지: 긴 프레임에서 정상으로 달린 것은 순간이동이 아니다)
+                        float step = Vector3.Distance(new Vector3(k.transform.position.x, 0, k.transform.position.z), new Vector3(prevPos[k].x, 0, prevPos[k].z));
+                        float extra = step - GameConfig.RunSpeed * 1.6f * Time.deltaTime;
+                        if (extra > maxStep) { maxStep = extra; stepWhat = $"{k.name} {prevState[k]}->{ks} {prevPos[k]}->{k.transform.position} step {step * 1000:F0} mm dt {Time.deltaTime * 1000:F0} ms t {t:F1}"; }
+                    }
                     bool up = k.OnTower || k.State.ToString().Contains("Jump") || k.State.ToString().Contains("Tower") || k.State == CatState.UseItem || k.State == CatState.GoToItem;
                     bool onCushion = k.transform.position.y > .05f;   // (방석 위에 올라서 있음: 방석 '안'이 아니다)
                     foreach (var o in game.Nav.obstacles.Where(o => o.owner == null && !(up && o.item == game.Tower.transform)))
@@ -249,8 +254,8 @@ namespace CatIsland.Tests
             Time.timeScale = 1f;
             Debug.Log($"[Soak] worst item {worst * 1000:F0} mm {what}; closest cats {pair}; longest overlap {longest:F2} s {longPair}");
             // (용품 막힘은 격자 칸 크기 상자(한 칸 0.54 m)로 잰다: 대부분 용품은 그보다 작아 8 cm 안쪽까지는 실제로 닿지 않는다)
-            Debug.Log($"[Soak] biggest step {maxStep * 1000:F0} mm {stepWhat}");
-            Assert.Less(maxStep, .3f, "순간이동: " + stepWhat);
+            Debug.Log($"[Soak] biggest step beyond running {maxStep * 1000:F0} mm {stepWhat}");
+            Assert.Less(maxStep, .15f, "순간이동: " + stepWhat);
             Assert.Greater(worst, -0.08f, what);
             // (머리·몸통 모양 사이 틈: 3 cm 넘게 겹친 채로는 0.25초를 넘기지 않는다 - 곧 비켜 선다. 제자리에서 몸을 돌리다 엉덩이가
             //  지나가는 고양이를 스치는 순간은 위치로 막을 수 없어 깊이는 15 cm 까지 본다)

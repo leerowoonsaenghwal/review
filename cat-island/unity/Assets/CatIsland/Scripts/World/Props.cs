@@ -324,6 +324,19 @@ namespace CatIsland
                 }
             }
 
+            // 섬 가장자리 둘레: 동그란 덤불과 납작한 바위 (가운데 꾸미는 격자·카메라 앞은 비운다, 뒤쪽은 언덕)
+            var edge = new (float deg, float r, bool bush)[]
+            {
+                // (나무·꽃 무리·모래밭에서 0.9 m 넘게 떨어진 자리)
+                (-178f, 8.5f, false), (-150f, 8.4f, true), (-122f, 8.2f, false), (-58f, 8.2f, false), (-30f, 8.5f, true),
+                (-12f, 8.4f, false), (2f, 8.6f, true), (18f, 8.6f, false), (150f, 8.5f, true), (166f, 8.4f, false),
+            };
+            foreach (var (deg, r, bush) in edge)
+            {
+                float a = deg * Mathf.Deg2Rad; var p = new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r);
+                if (bush) Bush(root, "Bush" + Mathf.RoundToInt(deg), p, .9f + (float)rng.NextDouble() * .3f, rng); else Rock(root, "Rock" + Mathf.RoundToInt(deg), p, .8f + (float)rng.NextDouble() * .4f, rng);
+            }
+
             var ground = Shapes.Pivot(root, "GroundCollider", new Vector3(0f, -0.05f, 0f));
             var gc = ground.gameObject.AddComponent<BoxCollider>();
             gc.size = new Vector3(D, 0.1f, D);
@@ -426,6 +439,25 @@ namespace CatIsland
         }
 
         /// <summary>튤립 한 송이: 줄기 + 달걀꼴 꽃 + 잎 둘 (시안 크기 × 2.56).</summary>
+        /// <summary>동그란 덤불: 잎 공 셋(크기·초록을 조금씩 다르게), 고양이는 돌아간다.</summary>
+        static void Bush(Transform root, string name, Vector3 pos, float size, System.Random rng)
+        {
+            var b = Shapes.Pivot(root, name, pos, new Vector3(0f, (float)rng.NextDouble() * 360f, 0f)); var sphere = MeshFactory.Sphere();
+            Color[] greens = { Palette.Hex("4aa845"), Palette.Hex("58b44f"), Palette.Hex("3f9a3e") };
+            var parts = new (Vector3 at, float r)[] { (new Vector3(0f, .22f, 0f), .3f), (new Vector3(.26f, .15f, .08f), .22f), (new Vector3(-.22f, .14f, -.06f), .2f) };
+            for (int i = 0; i < parts.Length; i++) Shapes.Make(b, "Leaf" + i, sphere, greens[(i + rng.Next(3)) % 3], parts[i].at * size, Vector3.one * parts[i].r * 2f * size);
+            Solids.Add((name, new Vector3(pos.x, 0f, pos.z), .42f * size));
+        }
+
+        /// <summary>납작한 바위: 둥근 돌 하나와 작은 돌 하나.</summary>
+        static void Rock(Transform root, string name, Vector3 pos, float size, System.Random rng)
+        {
+            var b = Shapes.Pivot(root, name, pos, new Vector3(0f, (float)rng.NextDouble() * 360f, 0f)); var sphere = MeshFactory.Sphere();
+            Shapes.Make(b, "Stone", sphere, Palette.Hex("c9c4ba"), new Vector3(0f, .06f, 0f) * size, new Vector3(.5f, .2f, .38f) * size);
+            Shapes.Make(b, "Pebble", sphere, Palette.Hex("d9d4ca"), new Vector3(.3f, .03f, .15f) * size, new Vector3(.18f, .09f, .15f) * size);
+            Solids.Add((name, new Vector3(pos.x, 0f, pos.z), .3f * size));
+        }
+
         static void Tulip(Transform parent, string name, Vector3 at, Color c, float size)
         {
             float s = MockScale * size;

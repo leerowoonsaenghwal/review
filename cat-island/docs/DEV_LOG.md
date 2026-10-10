@@ -121,3 +121,4 @@
   - 확인: 시뮬레이터 화면(docs/images/checks/island_wide_far.png, deck_tiles_close.png, tile_mode.png), 테스트 DeckTiles_BuyLaySwapLift, SaveV1_IndoorPlacements_ShiftToWiderGrid, DeckTiles_PaintLine_Lift_AndFinish, HintCard_ShowsItsText. EditMode 45, PlayMode 38.
 - 2026-10-10 앱스토어 스크린샷 다시 찍음(넓어진 섬, 데크 타일: 원목 마루·징검돌·민트 체크), 2번 문구 '바닥도 꾸미고 / 놓으면 바로 써 봐요'.
 - 2026-10-10 데크 타일 위 높이: 고양이·용품·방석·숨숨집 쓰는 자리가 타일 윗면(1.2 cm) 위로(FloorTiles.HeightAt), 타일을 깔고 걷으면 놓인 용품 높이도 다시 맞춤. 시뮬레이터 확인.
+- 2026-10-10 넓어진 섬 가장자리에 덤불 5·바위 5(나무·꽃·모래밭에서 0.9 m 넘게, 길찾기 장애물), 점검용 고정 시점 CATISLAND_LOOK="x,z,거리"(docs/images/checks/island_edges.png). 순간이동 검사를 '그 프레임 동안 달리기로 갈 수 있는 거리'를 넘는 양으로(에디터 긴 프레임 오탐), 3회 0 mm. EditMode 45, PlayMode 38.
