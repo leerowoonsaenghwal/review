@@ -239,6 +239,22 @@ namespace CatIsland.Tests
             Assert.IsFalse(Cat.Rig.Yawning, "2초면 끝"); Assert.Less(face.GetBlendShapeWeight(mi), 25f, "입을 다문다");
         }
 
+        /// <summary>자는 고양이를 톡: 깨지 않고(울지도 않고) 귀만 파닥, 'zz'.</summary>
+        [UnityTest]
+        public IEnumerator SleepingCat_Tap_EarFlick_StaysAsleep()
+        {
+            Cat.ForceState(CatState.Sleep); for (float t = 0; t < 3f; t += Time.deltaTime) yield return null;
+            Assert.AreEqual(Posture.Sleep, Cat.Rig.Current);
+            var ears = Cat.Rig.GetComponentsInChildren<Transform>().Where(t => t.name == "Ear_L" || t.name == "Ear_R").ToArray();
+            Quaternion Rel(Transform e) => Quaternion.Inverse(Cat.Rig.Head.rotation) * e.rotation;
+            var before = ears.Select(Rel).ToArray(); int played = Cat.audioOut ? Cat.audioOut.PlayedCount : 0; float flick = 0f;
+            Cat.OnTapCat();
+            for (float t = 0; t < .6f; t += Time.deltaTime) { yield return null; for (int i = 0; i < ears.Length; i++) flick = Mathf.Max(flick, Quaternion.Angle(before[i], Rel(ears[i]))); }
+            Debug.Log($"[SleepTap] ear flick {flick:F1}°");
+            Assert.AreEqual(CatState.Sleep, Cat.State, "깨지 않는다"); Assert.Greater(flick, 6f, "귀가 파닥");
+            if (Cat.audioOut) Assert.AreEqual(played, Cat.audioOut.PlayedCount, "울지 않는다");
+        }
+
         /// <summary>오랜만에 돌아오면: 깨어 있는 고양이가 카메라 앞으로 와서 반긴다(야옹·하트), 자는 고양이는 깨우지 않는다.</summary>
         [UnityTest]
         public IEnumerator WelcomeBack_AwakeCatsGreet_SleepersKeepSleeping()

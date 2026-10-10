@@ -64,6 +64,13 @@ namespace CatIsland
         /// <summary>하품: 입을 크게 벌리고 눈을 감으며 고개를 젖혔다 돌아온다 (2초, 동작 파일 없이 얼굴·고개만).</summary>
         public void Yawn() { if (yawnT < 0f) yawnT = 0f; }
         public bool Yawning => yawnT >= 0f;
+
+        /// <summary>귀 한쪽을 파닥 (자다가 건드리면): 귀 스프링에 빠르게 한 번 튕김을 준다.</summary>
+        public void EarFlick()
+        {
+            if (ears.Count == 0) return; int i = UnityEngine.Random.Range(0, ears.Count); var e = ears[i];
+            foreach (var sp in springs) if (sp.b == e && sp.init) { sp.w += (transform.forward * (i == 0 ? 1f : -1f) + transform.right * -.6f).normalized * 11f; break; }
+        }
         Vector2 look;
 
         [Serializable] public class RootCurve { public string clip; public float fps; public float[] forward; public float[] up; }

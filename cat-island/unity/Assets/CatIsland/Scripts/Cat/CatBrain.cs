@@ -147,7 +147,11 @@ namespace CatIsland
         public void OnTapCat()
         {
             NoteUserActivity();
-            if (State == CatState.Sleep) return; // 자는 고양이는 깨우지 않는다
+            if (State == CatState.Sleep)   // 자는 고양이는 깨우지 않는다: 귀만 파닥, 꼬리 끝 살짝, 'zz'
+            {
+                if (Time.time - lastSleepTap > .6f) { lastSleepTap = Time.time; Rig.EarFlick(); sleepTwitchUntil = Time.time + .8f; FxPool.Instance?.Burst(Icon.Sleep, Rig.BubbleAnchor.position, 1, 0.1f, 0.22f); Haptics.Impact(ImpactStyle.Soft, 0.3f); }
+                return;
+            }
             if (Time.time - lastTapMeow > 2f) { lastTapMeow = Time.time; Vocalize(true); }   // (연달아 눌러도 2초에 한 번만 운다)
             tapTiltUntil = Time.time + 1.2f; tapTiltSign = UnityEngine.Random.value < .5f ? -1f : 1f;   // (톡 하면 고개를 갸웃: 귀도 따라 흔들린다)
             Haptics.Impact(ImpactStyle.Soft, 0.6f);
@@ -167,6 +171,10 @@ namespace CatIsland
             lastAnyVocal = Time.time;
             audioOut?.Meow(); Rig.mouthOpen = 1f; CancelInvoke(nameof(CloseMouth)); Invoke(nameof(CloseMouth), 0.4f);
         }
+        float yawnSoundAt = -1f, lastSleepTap = -9f, sleepTwitchUntil = -9f;
+        /// <summary>하품 (얼굴·고개는 CatRig), 반쯤은 끝에 작은 '아이~' 소리.</summary>
+        void DoYawn() { if (Rig.Yawning) return; Rig.Yawn(); if (UnityEngine.Random.value < .5f) yawnSoundAt = Time.time + 1.25f; }
+
         void TickVocal()
         {
             if (nextVocal < 0f) nextVocal = Time.time + UnityEngine.Random.Range(8f, 30f);
@@ -291,6 +299,7 @@ namespace CatIsland
 
             Separate(dt);
             TickVocal();
+            if (yawnSoundAt > 0f && Time.time >= yawnSoundAt) { yawnSoundAt = -1f; if (Rig.Yawning) audioOut?.Yawn(); }
             // 방금 쓰고 나온 용품을 지나가도 되는 것은 아직 그 안에 있을 때만: 밖으로 다 나오면 바로 끝 (그 뒤 12초 동안 다시 가로질러 들어가던 것)
             if (LeftItem && nav != null && (Time.frameCount + GetInstanceID()) % 5 == 0)
             {
@@ -815,7 +824,7 @@ namespace CatIsland
         {
             Speed = 0f;
             stateTimer -= dt;
-            if (yawnAt > 0f && StateTime >= yawnAt && Rig.Current == Posture.Sit && !Rig.Busy) { yawnAt = -1f; Rig.Yawn(); stateTimer = Mathf.Max(stateTimer, 2.2f); }
+            if (yawnAt > 0f && StateTime >= yawnAt && Rig.Current == Posture.Sit && !Rig.Busy) { yawnAt = -1f; DoYawn(); stateTimer = Mathf.Max(stateTimer, 2.2f); }
             if (stateTimer <= 0f) Enter(CatState.Idle);
         }
 
@@ -851,7 +860,7 @@ namespace CatIsland
                 else if (StateTime > 4f) Enter(CatState.Idle);
                 return;
             }
-            if (Rig.ActionClip == null) { if (UnityEngine.Random.value < .6f) Rig.Yawn(); Enter(CatState.Idle); idleDecide = Mathf.Max(idleDecide, Rig.Yawning ? 2.1f : 0f); }   // (기지개 뒤 하품, 다 하고 걷는다)
+            if (Rig.ActionClip == null) { if (UnityEngine.Random.value < .6f) DoYawn(); Enter(CatState.Idle); idleDecide = Mathf.Max(idleDecide, Rig.Yawning ? 2.1f : 0f); }   // (기지개 뒤 하품, 다 하고 걷는다)
         }
 
         /// <summary>졸린 편 (하품이 잦다): 기운이 낮거나 밤.</summary>
@@ -952,7 +961,7 @@ namespace CatIsland
         void TickLieDown(float dt)
         {
             Speed = 0f;
-            if (!actionStarted && Rig.Current == Posture.Loaf && !Rig.InTransition) { actionStarted = true; if (UnityEngine.Random.value < .7f) Rig.Yawn(); }   // (식빵 자세가 되면 눕기 전 하품)
+            if (!actionStarted && Rig.Current == Posture.Loaf && !Rig.InTransition) { actionStarted = true; if (UnityEngine.Random.value < .7f) DoYawn(); }   // (식빵 자세가 되면 눕기 전 하품)
             Rig.Request(StateTime > 2.5f && !Rig.Yawning ? Posture.Sleep : Posture.Loaf);
             if (Rig.Current == Posture.Sleep) Enter(CatState.Sleep);
         }
@@ -1445,6 +1454,7 @@ namespace CatIsland
             // 천천히 깜빡이기: 0.35초 감았다가 0.35초에 걸쳐 뜬다
             float sb = Time.time - slowBlinkAt; if (!sleep && sb > 0f && sb < .9f) r.eyeOpen = Mathf.Min(r.eyeOpen, sb < .35f ? 1f - sb / .35f * .9f : sb < .55f ? .1f : .1f + (sb - .55f) / .35f * .9f);
             r.tailWag = State == CatState.Nip ? 1f : p * 0.5f + (touchingCat && p > .2f ? .25f : 0f);
+            if (Time.time < sleepTwitchUntil) r.tailWag = Mathf.Max(r.tailWag, .8f);   // (자다가 건드리면 꼬리 끝 살짝)
             // 웃는 얼굴: 좋아하기 시작하면 눈을 감은 채 입을 살짝 벌려 웃는다, 발라당 누워서도 (자는 중은 아님)
             r.smile = sleep ? 0f : State == CatState.BellyUp ? .35f : (touchingCat || State == CatState.Petted) && p > .15f ? Mathf.Lerp(.15f, .35f, Mathf.InverseLerp(.15f, .7f, p)) : 0f;
             if (touchingCat) petPeak = Mathf.Max(petPeak, p);

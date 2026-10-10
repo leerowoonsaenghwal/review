@@ -19,7 +19,7 @@ namespace CatIsland
 
         AudioSource purrSrc, sfx, stepSrc;
         AudioClip purr, pop, kibble;
-        AudioClip[] chirps, nips;
+        AudioClip[] chirps, nips; AudioClip yawn;
         public bool UsingRecordings { get; private set; }
         public int MeowCount => meows.Length;
         public string LastMeow { get; private set; }
@@ -62,6 +62,7 @@ namespace CatIsland
                 for (int v = 0; v < 4; v++) steps[s][v] = Clip($"step{s}_{v}", Synth.Step((Surface)s, v));
             }
             chirps = new[] { Clip("chirp", Synth.Chirp()) };
+            yawn = Clip("yawn", Synth.Cry(560f, 820f, 1180f, 0.34f, 0.72f, new[] { Synth.VA, Synth.VI }, 0.006f, 11));   // (하품 끝의 작은 '아이~')
             nips = new[] { Clip("nip", Synth.Meow(820f, 0.2f)) };
             if (Pick("meow_").Length > 0) { meows = Pick("meow_"); UsingRecordings = true; }
             if (Pick("chirp_").Length > 0) chirps = Pick("chirp_");
@@ -116,6 +117,7 @@ namespace CatIsland
         public void Nip() => Play(nips[Random.Range(0, nips.Length)], 0.75f, Random.Range(1.0f, 1.08f));
         public void Kibble() => Play(kibble, 0.55f, 1f);
         public void Crunch() => Play(noms[Random.Range(0, noms.Length)], 0.35f, Random.Range(0.96f, 1.05f));
+        public void Yawn() => Play(yawn, 0.28f, Random.Range(.94f, 1.08f));
         public void Chirp() => Play(chirps[Random.Range(0, chirps.Length)], 0.6f, Random.Range(1.02f, 1.12f));
 
         void Play(AudioClip c, float vol, float pitch)
@@ -173,7 +175,7 @@ namespace CatIsland
             }
 
             // 모음 공명 (F1, F2). 작은 고양이의 목이라 사람보다 높다
-            static readonly Vector2 VI = new Vector2(420f, 2500f), VA = new Vector2(1050f, 1750f), VO = new Vector2(700f, 1150f), VU = new Vector2(480f, 1000f), VM = new Vector2(320f, 1400f);
+            internal static readonly Vector2 VI = new Vector2(420f, 2500f), VA = new Vector2(1050f, 1750f), VO = new Vector2(700f, 1150f), VU = new Vector2(480f, 1000f), VM = new Vector2(320f, 1400f);
 
             /// <summary>
             /// 고양이 울음 한 번: "ㅁ"(입 다문 콧소리)로 시작해 모음을 지나며(이→아→오 등) 음높이가 올라갔다 내려온다.
