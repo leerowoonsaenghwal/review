@@ -71,6 +71,8 @@ namespace CatIsland.Game
     }
 
     [Serializable] public class Placement { public string item; public Zone zone; public int x, z, rot; public long placedAt; }
+    /// <summary>깔린 데크 타일 한 장 (구역, 칸, 무늬).</summary>
+    [Serializable] public class FloorTile { public string id; public Zone zone; public int x, z; }
     [Serializable] public class TaskState { public string id; public int progress; public bool claimed; }
     [Serializable] public class Plot { public string seed = ""; public long plantedAt; }
     [Serializable] public class StarCard { public string catUid, memo, favorite; public long createdAt; public List<string> letters = new List<string>(); public List<string> decor = new List<string>(); }
@@ -79,13 +81,15 @@ namespace CatIsland.Game
     [Serializable]
     public class GameState
     {
-        public int version = 1;
+        public int version = 2;   // 2: 섬 가운데 격자 12 → 18 칸 (Game.Repair 가 옮긴다), 데크 타일
         public long createdAt, savedAt, lastSeenAt, lastIdleAt;   // lastSeenAt: 지금까지 본 가장 늦은 시각 (시계 되돌리기 방지)
         public long saveCounter;                                  // (기기 저장과 iCloud 중 더 앞선 것을 고르는 기준)
         public int coins = 300, jelly = 10;
         public List<Count> materials = new List<Count>();
         public List<Count> inventory = new List<Count>();         // 가방 (아직 놓지 않은 용품, 소모품)
         public List<Placement> placed = new List<Placement>();
+        public List<FloorTile> floor = new List<FloorTile>();         // 깔린 데크 타일
+        public List<Count> tileBag = new List<Count>();           // 아직 깔지 않은 데크 타일
         public List<CatData> cats = new List<CatData>();
         public int catSlots = Catalog.FirstCatSlots;
         public List<int> zonesUnlocked = new List<int> { 0 };

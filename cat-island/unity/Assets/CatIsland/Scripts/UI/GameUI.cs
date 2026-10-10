@@ -111,7 +111,7 @@ namespace CatIsland.UI
             zoneBtn.gameObject.SetActive(G.S.zonesUnlocked.Contains(1) || G.S.onboardingStep >= 7);
             tasksBadge.enabled = G.S.tasks.Any(t => !t.claimed && t.progress >= Catalog.DailyTasks.First(d => d.id == t.id).goal) || G.CanAttend;
             catsBadge.enabled = G.S.cats.Any(c => c.status == "home" && (c.hunger < .25f || c.thirst < .25f));
-            string hint = Str.Hint(G.OnboardingHint()); hintCard.gameObject.SetActive(!string.IsNullOrEmpty(hint) && !SheetOpen); hintText.text = hint;
+            string hint = Str.Hint(G.OnboardingHint()); hintCard.gameObject.SetActive(!string.IsNullOrEmpty(hint) && !SheetOpen && !TileMode.Active); hintText.text = hint;   // (바닥 깔기 막대와 겹치지 않게)
         }
 
         // ================================================================ 창 (아래에서 올라오는 카드)
@@ -120,6 +120,7 @@ namespace CatIsland.UI
         {
             Func<RectTransform, string>[] screens = { BuildIdle, BuildShop, BuildOdds, BuildJellyShop, BuildBag, BuildTasks, BuildCats, BuildSettings };
             foreach (var b in screens) { Open(b); yield return new WaitForSecondsRealtime(each); }
+            shopTab = "floor"; Open(BuildShop); yield return new WaitForSecondsRealtime(each); shopTab = "all";   // (상점 바닥 탭: 데크 타일)
             CatMaker.Open(this); yield return new WaitForSecondsRealtime(each);
             StarLandUI.Open(this); yield return new WaitForSecondsRealtime(each);
             CloseAll();
@@ -196,10 +197,21 @@ namespace CatIsland.UI
         {
             Kit.VList(body, 10);
             var tabs = Kit.Rect(body, "Tabs"); Kit.HList(tabs, 6); Kit.Size(tabs, -1, 50);
-            foreach (var (id, ko) in new[] { ("all", "전체"), ("food", "먹이"), ("toy", "장난감"), ("furn", "가구"), ("yard", "마당"), ("season", "계절") })
-                Kit.Size(Kit.Btn(tabs, ko, () => { shopTab = id; Open(BuildShop); }, shopTab == id ? Kit.Style.Primary : Kit.Style.Secondary), 54, 46);
+            foreach (var (id, ko) in new[] { ("all", "전체"), ("food", "먹이"), ("toy", "장난감"), ("furn", "가구"), ("floor", "바닥"), ("yard", "마당"), ("season", "계절") })
+            { var tb = Kit.Btn(tabs, ko, () => { shopTab = id; Open(BuildShop); }, shopTab == id ? Kit.Style.Primary : Kit.Style.Secondary); tb.GetComponentInChildren<Text>().fontSize = Theme.Caption; Kit.Size(tb, 46, 46); }
             Kit.Scroll(body, out var list); Kit.Size(list.parent.GetComponent<RectTransform>(), -1, 420).flexibleHeight = 1;
-            foreach (var d in Catalog.Items.Where(d => G.InShop(d) && TabHas(d)).OrderBy(d => d.limited ? 0 : 1).ThenBy(d => d.price))
+            // 데크 타일 (바닥 탭): 9장 묶음
+            if (shopTab == "floor")
+                foreach (var t in Catalog.Tiles)
+                {
+                    var r = Row(list, 66); Kit.Size(TileIcon(r, t.id, 44), 44, 44);
+                    RowText(r, $"{t.ko}  · {t.pack}장");
+                    int own = G.Tiles(t.id) + G.S.floor.Count(f => f.id == t.id);
+                    if (own > 0) RowText(r, $"{own}장", Theme.Caption, 0, Theme.Latte);
+                    var tile = t;
+                    Kit.Size(Kit.Btn(r, Str.Price(t.price, false), () => { if (G.BuyTiles(tile.id)) { Toast($"{Josa.EulReul(tile.ko)} {tile.pack}장 샀어요. 꾸미기에서 깔아 봐요"); Open(BuildShop); } else Toast("코인이 조금 모자라요"); }, Kit.Style.Primary, UIIcon.Coin), 108, 46);
+                }
+            foreach (var d in Catalog.Items.Where(d => shopTab != "floor" && G.InShop(d) && TabHas(d)).OrderBy(d => d.limited ? 0 : 1).ThenBy(d => d.price))
             {
                 var r = Row(list, 66);
                 Kit.Size(ItemIcon(r, d, 44), 44, 44);
@@ -266,6 +278,18 @@ namespace CatIsland.UI
             {
                 var d = Catalog.Item(c.id); var r = Row(list, 64); Kit.Size(ItemIcon(r, d, 42), 42, 42); RowText(r, $"{d.ko}  ×{c.n}");
                 var id = c.id; Kit.Size(Kit.Btn(r, Str.Place, () => { CloseAll(); PlaceFromBag(id); }), 90, 46);
+            }
+            // 데크 타일: 가진 무늬마다 '깔기' (바닥 깔기 모드)
+            var tiles = Catalog.Tiles.Where(t => G.Tiles(t.id) > 0 || G.S.floor.Any(f => f.id == t.id)).ToList();
+            if (tiles.Count > 0)
+            {
+                Kit.Size(Kit.Label(list, "데크 타일", Theme.Caption, Theme.Latte, TextAnchor.MiddleLeft), -1, 24);
+                foreach (var t in tiles)
+                {
+                    var r = Row(list, 60); Kit.Size(TileIcon(r, t.id, 40), 40, 40);
+                    RowText(r, $"{t.ko}  ×{G.Tiles(t.id)}" + (G.S.floor.Any(f => f.id == t.id) ? $" · 깐 {G.S.floor.Count(f => f.id == t.id)}" : ""));
+                    var tid = t.id; Kit.Size(Kit.Btn(r, "깔기", () => { CloseAll(); if (GameBootstrap.Instance) TileMode.Begin(GameBootstrap.Instance, tid, Refresh); }), 90, 46);
+                }
             }
             if (G.S.placed.Count > 0) Kit.Size(Kit.Label(list, "섬에 놓인 것", Theme.Caption, Theme.Latte, TextAnchor.MiddleLeft), -1, 24);
             for (int i = 0; i < G.S.placed.Count; i++)
@@ -460,6 +484,15 @@ namespace CatIsland.UI
         }
 
         /// <summary>고양이 얼굴 그림 (Resources/CatIcons, CatIconBake). 아직 못 만난 품종은 어두운 실루엣.</summary>
+        /// <summary>데크 타일 그림 (무늬 한 장을 둥근 네모로).</summary>
+        public static Graphic TileIcon(Transform parent, string id, float size)
+        {
+            // (Mask 없이: 무늬 한 장 + 얇은 코코아 테두리. 스텐실 마스크는 창을 닫은 뒤 다른 글자를 가리는 일이 있었다)
+            var frame = Kit.Box(parent, "TileIcon_" + id, Theme.Cocoa, Mathf.Max(2, (int)(size * .12f))); frame.raycastTarget = false;
+            var ri = new GameObject("Tex", typeof(RectTransform)); ri.transform.SetParent(frame.transform, false); var raw = ri.AddComponent<RawImage>(); raw.texture = PaintedTextures.Tile(id); raw.raycastTarget = false;
+            Kit.Fill(raw.rectTransform, 2, 2, 2, 2);
+            return frame;
+        }
         public static Graphic CatIcon(Transform parent, string breed, float size, bool silhouette = false)
         {
             var tex = Resources.Load<Texture2D>("CatIcons/" + breed);

@@ -594,10 +594,10 @@ namespace CatIsland
         /// 뿌리 사이 거리만 보면 마주 선 큰 머리가 옆 고양이 몸에 파고든다: 머리(원)·몸통(선분+반지름)을 위에서 본 모양으로 잰다.</summary>
         Vector3 KeepApart(Vector3 next)
         {
-            var shift = Flat(next - transform.position);
+            var start = next; var shift = Flat(next - transform.position);
             foreach (var o in All)
             {
-                if (!o || o == this || !o.isActiveAndEnabled || o.OnTower) continue;
+                if (!o || o == this || !o.isActiveAndEnabled || o.OnTower || o.IsJumping()) continue;   // (점프 중인 고양이는 공중: 위에서 본 모양으로 재면 겹쳐 보인다)
                 var away = Flat(next - o.transform.position); float d = away.magnitude;
                 if (d < .34f && d > 1e-4f) next += away / d * (.34f - d) * .5f;
                 float gap = Gap(this, o, out var dir, shift);
@@ -607,6 +607,9 @@ namespace CatIsland
                     if (!IntoScenery(next, pushed)) { next = pushed; shift = Flat(next - transform.position); }
                 }
             }
+            // (한 걸음에 비키는 양은 걸음 크기 정도까지: 크게 겹친 채 만나도 미끄러지듯 튀지 않고 몇 걸음에 걸쳐 비킨다)
+            var push = Flat(next - start); float cap = Mathf.Max(.04f, Speed * Time.deltaTime * 1.5f);
+            if (push.magnitude > cap) next = start + push.normalized * cap;
             return next;
         }
 
@@ -620,7 +623,7 @@ namespace CatIsland
             Vector3 push = Vector3.zero;
             foreach (var o in All)
             {
-                if (!o || o == this || !o.isActiveAndEnabled || o.OnTower) continue;
+                if (!o || o == this || !o.isActiveAndEnabled || o.OnTower || o.IsJumping()) continue;
                 float g = Gap(this, o, out var dir); if (g >= -.03f) continue;
                 float share = Pinned(o) || (o.Speed < .05f && Speed >= .05f) ? 1f : .5f;
                 push += dir * (-g) * share;   // (닿을 때까지 민다: 3 cm 문턱 근처에서 느려지지 않게)

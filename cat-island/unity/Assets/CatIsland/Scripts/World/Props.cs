@@ -233,15 +233,13 @@ namespace CatIsland
     /// </summary>
     public static class IslandBuilder
     {
-        public const float Radius = 6.6f;
-        // 바닥 구역 (발소리 재질): 마루, 러그, 모래밭. 나머지는 풀밭
+        public const float Radius = 9.6f;
+        // 섬 가운데 풀밭 = 꾸미는 격자(18 x 18 칸)의 가운데. 바닥은 풀밭이고, 산 데크 타일을 칸마다 깐다 (FloorTiles)
         public static readonly Vector3 DeckCenter = new Vector3(0f, 0f, 0.5f);
-        public const float DeckRadius = 3.8f;
-        public static readonly Vector3 RugCenter = new Vector3(0f, 0f, -0.5f);
-        public const float RugRadius = 1.7f;
-        public static readonly Vector3 SandCenter = new Vector3(-3.4f, 0f, -3.2f);
+        public static readonly Vector3 SandCenter = new Vector3(-6.2f, 0f, -5.0f);
         // 마당 (섬 구역 2): 섬 오른쪽에 이어진 풀밭. 열리기 전에는 나무 울타리로 막혀 있다
-        public static readonly Vector3 YardCenter = new Vector3(9.4f, 0f, 0.2f);
+        public static readonly Vector3 YardCenter = new Vector3(12.4f, 0f, 0.2f);
+        public static readonly Vector3 GatePos = new Vector3(8.8f, 0f, 0.3f);
         public const float YardRadius = 4.4f;
         public const float SandRadius = 1.2f;
 
@@ -252,14 +250,13 @@ namespace CatIsland
 
         public static Surface SurfaceAt(Vector3 p)
         {
-            if (Flat(p, RugCenter) < RugRadius) return Surface.Rug;
-            if (Flat(p, DeckCenter) < DeckRadius) return Surface.Wood;
+            var tile = FloorTiles.SurfaceAt(p); if (tile.HasValue) return tile.Value;
             if (Flat(p, SandCenter) < SandRadius) return Surface.Sand;
             return Surface.Grass;
         }
 
         // 언덕 층: 섬 뒤쪽 호 (각도는 +x 에서 반시계, +z 가 뒤)
-        public const float TierInner = 5.4f, TierOuter = 6.75f, TierHeight = 0.8f, TierEdge = 0.18f;
+        public const float TierInner = 8.4f, TierOuter = 9.75f, TierHeight = 0.8f, TierEdge = 0.18f;
         public const float TierFrom = 32f, TierTo = 148f;
         const float MockScale = 2.56f;   // 시안 1 m = 게임 2.56 단위 (고양이 크기 비율)
 
@@ -277,17 +274,15 @@ namespace CatIsland
             Shapes.Make(root, "Grass", MeshFactory.IslandTop(), grass, Vector3.zero, new Vector3(D, 1.4f, D), default, false);
             Shapes.Make(root, "Soil", MeshFactory.IslandSoil(), Palette.Hex("e6cf93"), new Vector3(0f, -0.07f, 0f), new Vector3(D - 0.1f, 2.6f, D - 0.1f), default, false);
             Shapes.Make(root, "Beach", MeshFactory.Lathe("beach", new List<Vector2> {
-                new Vector2(9.0f, -0.42f), new Vector2(8.2f, -0.26f), new Vector2(7.5f, -0.13f), new Vector2(7.0f, -0.06f), new Vector2(6.6f, -0.03f), new Vector2(6.2f, -0.02f) }, 96),
+                new Vector2(12.0f, -0.42f), new Vector2(11.2f, -0.26f), new Vector2(10.5f, -0.13f), new Vector2(10.0f, -0.06f), new Vector2(9.6f, -0.03f), new Vector2(9.2f, -0.02f) }, 128),
                 sand, Vector3.zero, Vector3.one, default, false);
             // 물: 얕은 물 띠(밝은 청록) → 바다(청록). 반짝임은 약하게
             var shallow = Materials.Painted("Shallow", Texture2D.whiteTexture, Vector2.one, false, 0.12f, Palette.Hex("8ee6e4"));
             var sea = Materials.Painted("Sea", Texture2D.whiteTexture, Vector2.one, false, 0.12f, Palette.Hex("3fc4dc"));
-            Shapes.Make(root, "Shallow", MeshFactory.Lathe("shallow", new List<Vector2> { new Vector2(8.9f, -0.115f), new Vector2(6.9f, -0.115f) }, 96), shallow, Vector3.zero, Vector3.one, default, false);
-            Shapes.Make(root, "Sea", MeshFactory.Lathe("sea", new List<Vector2> { new Vector2(90f, -0.12f), new Vector2(40f, -0.12f), new Vector2(20f, -0.12f), new Vector2(12f, -0.12f), new Vector2(8.85f, -0.12f) }, 96), sea, Vector3.zero, Vector3.one, default, false);
+            Shapes.Make(root, "Shallow", MeshFactory.Lathe("shallow", new List<Vector2> { new Vector2(11.9f, -0.115f), new Vector2(9.9f, -0.115f) }, 128), shallow, Vector3.zero, Vector3.one, default, false);
+            Shapes.Make(root, "Sea", MeshFactory.Lathe("sea", new List<Vector2> { new Vector2(90f, -0.12f), new Vector2(40f, -0.12f), new Vector2(20f, -0.12f), new Vector2(15f, -0.12f), new Vector2(11.85f, -0.12f) }, 128), sea, Vector3.zero, Vector3.one, default, false);
 
-            // 마루 (집 안 자리): 나무 판자 / 러그: 짜임 무늬
-            Shapes.Make(root, "Deck", MeshFactory.RoundedCylinder(0.04f), Materials.Painted("Planks", PaintedTextures.Planks(), Vector2.one / 2f, true), DeckCenter + new Vector3(0f, -0.046f, 0f), new Vector3(DeckRadius * 2f, 0.05f, DeckRadius * 2f));
-            Shapes.Make(root, "Rug", MeshFactory.RoundedCylinder(0.06f), Materials.Painted("Weave", PaintedTextures.Weave(), Vector2.one, true), RugCenter + new Vector3(0f, -0.028f, 0f), new Vector3(RugRadius * 2f, 0.04f, RugRadius * 2f), default, false);
+            // (가운데는 풀밭: 예전 둥근 마루·러그 대신 이용자가 산 데크 타일을 칸마다 깐다 - FloorTiles)
             // 모래밭: 섬 앞 왼쪽 가장자리. 조개 두 개와 조약돌
             Shapes.Make(root, "Sand", MeshFactory.RoundedCylinder(0.08f), sand, SandCenter + new Vector3(0f, -0.04f, 0f), new Vector3(SandRadius * 2f, 0.05f, SandRadius * 2f), default, false);
             Shapes.Make(root, "Shell1", sphere, Palette.Hex("ff9f8a"), SandCenter + new Vector3(0.45f, 0.02f, -0.3f), new Vector3(0.14f, 0.06f, 0.12f), new Vector3(0f, 30f, 0f), false);
@@ -300,19 +295,22 @@ namespace CatIsland
             // 뭉툭한 나무: 언덕 위 셋, 땅 위 둘 (나무마다 크기·색을 조금씩 다르게)
             var rng = new System.Random(21);
             Vector3 OnTier(float deg, float r) { float a = deg * Mathf.Deg2Rad; return new Vector3(Mathf.Cos(a) * r, TierHeight + 0.07f, Mathf.Sin(a) * r); }
-            Tree(root, "Tree0", OnTier(58f, 6.05f), 0.8f, Palette.Hex("3f9a3e"), rng);
-            Tree(root, "Tree1", OnTier(94f, 6.15f), 0.7f, Palette.Hex("4aa845"), rng);
-            Tree(root, "Tree2", OnTier(126f, 6.0f), 0.78f, Palette.Hex("3f9a3e"), rng);
-            Tree(root, "Tree3", new Vector3(-4.6f, 0f, -2.0f), 0.75f, Palette.Hex("3f9a3e"), rng, true);
-            Tree(root, "Tree4", new Vector3(4.6f, 0f, -2.2f), 0.7f, Palette.Hex("4aa845"), rng, true);
+            Tree(root, "Tree0", OnTier(50f, 9.05f), 0.8f, Palette.Hex("3f9a3e"), rng);
+            Tree(root, "Tree1", OnTier(76f, 9.15f), 0.72f, Palette.Hex("4aa845"), rng);
+            Tree(root, "Tree2", OnTier(104f, 9.0f), 0.78f, Palette.Hex("3f9a3e"), rng);
+            Tree(root, "Tree5", OnTier(132f, 9.1f), 0.7f, Palette.Hex("4aa845"), rng);
+            Tree(root, "Tree3", new Vector3(-7.4f, 0f, -2.6f), 0.75f, Palette.Hex("3f9a3e"), rng, true);
+            Tree(root, "Tree4", new Vector3(7.3f, 0f, -3.0f), 0.7f, Palette.Hex("4aa845"), rng, true);
+            Tree(root, "Tree6", new Vector3(-6.9f, 0f, 3.4f), 0.62f, Palette.Hex("3f9a3e"), rng, true);
 
             // 튤립 무리 (빨강·노랑·하양, 3~4송이씩). 카메라 앞은 비워 둔다
             Color red = Palette.Hex("ff5d6c"), yellow = Palette.Hex("ffd23f"), white = Palette.Hex("ffffff");
             var clumps = new (Vector3 pos, Color c, int n)[]
             {
-                (new Vector3(-4.6f, 0f, 1.4f), red, 4), (new Vector3(4.5f, 0f, 1.0f), yellow, 4), (new Vector3(-2.6f, 0f, 4.0f), white, 3),
-                (new Vector3(2.9f, 0f, 3.6f), red, 4), (new Vector3(3.6f, 0f, -2.6f), yellow, 3), (new Vector3(-4.3f, 0f, -0.5f), white, 4),
-                (OnTier(76f, 6.0f), yellow, 3), (OnTier(110f, 5.95f), red, 4), (OnTier(40f, 6.1f), white, 3),
+                // (꾸미는 격자(가운데 18 x 18 칸) 밖, 섬 가장자리 둘레에만: 타일을 어디든 깔 수 있게)
+                (new Vector3(-7.2f, 0f, 1.0f), red, 4), (new Vector3(7.1f, 0f, 1.2f), yellow, 4), (new Vector3(6.4f, 0f, 4.4f), white, 3),
+                (new Vector3(-6.3f, 0f, -5.8f), yellow, 3), (new Vector3(6.2f, 0f, -5.2f), red, 4), (new Vector3(-7.5f, 0f, -1.2f), white, 4),
+                (OnTier(64f, 8.95f), yellow, 3), (OnTier(118f, 8.9f), red, 4), (OnTier(40f, 9.1f), white, 3), (OnTier(90f, 9.0f), white, 3),
             };
             for (int i = 0; i < clumps.Length; i++)
             {
@@ -391,8 +389,8 @@ namespace CatIsland
             Shapes.Make(y, "YardGrass", MeshFactory.IslandTop(), grass, Vector3.zero, new Vector3(D, 1.4f, D), default, false);
             Shapes.Make(y, "YardSoil", MeshFactory.IslandSoil(), Palette.Hex("e6cf93"), new Vector3(0f, -0.07f, 0f), new Vector3(D - 0.1f, 2.6f, D - 0.1f), default, false);
             Shapes.Make(y, "YardBeach", MeshFactory.Lathe("yardbeach", new List<Vector2> { new Vector2(6.6f, -0.42f), new Vector2(5.6f, -0.2f), new Vector2(4.8f, -0.06f), new Vector2(4.4f, -0.03f), new Vector2(4.0f, -0.02f) }, 96), sand, Vector3.zero, Vector3.one, default, false);
-            // 울타리: 두 섬이 만나는 곳 (x ≈ 6), 가운데 문
-            var gate = Shapes.Pivot(root, "YardGate", new Vector3(5.9f, 0f, 0.3f), new Vector3(0, 90, 0));
+            // 울타리: 두 섬이 만나는 곳, 가운데 문
+            var gate = Shapes.Pivot(root, "YardGate", GatePos, new Vector3(0, 90, 0));
             var wood = Palette.Hex("e2b483");
             for (int i = -3; i <= 3; i++)
             {
@@ -403,7 +401,7 @@ namespace CatIsland
             Shapes.Make(gate, "RailR", MeshFactory.Capsule(.04f), wood, new Vector3(.84f, .42f, 0), new Vector3(.08f, 1.3f, .08f), new Vector3(0, 0, 90));
             var door = Shapes.Pivot(gate, "Door", new Vector3(-.21f, 0, 0));
             Shapes.Make(door, "Board", MeshFactory.RoundedCylinder(.03f), Palette.Hex("c99a6b"), new Vector3(.21f, .3f, 0), new Vector3(.4f, .55f, .06f));
-            Solids.Add(("YardFence", new Vector3(5.9f, 0f, 0.3f), 0.5f));
+            Solids.Add(("YardFence", GatePos, 0.5f));
         }
 
         /// <summary>마당이 열리면 울타리 문이 열린다.</summary>

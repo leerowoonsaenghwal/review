@@ -60,7 +60,7 @@ namespace CatIsland.Tests
             game.IslandCam.EndPhoto(); game.IslandCam.follow = Cat.transform; Object.Destroy(headFocus.gameObject);
 
             // 2. 꾸미기: 방석·숨숨집·화분을 놓으면 바로 써 본다
-            foreach (var (id, x, z) in new[] { ("cushion", 4, 6), ("hideout", 7, 3), ("plant_pot", 2, 3), ("mouse_toy", 5, 8) })
+            foreach (var (id, x, z) in new[] { ("cushion", 7, 9), ("hideout", 10, 6), ("plant_pot", 5, 6), ("mouse_toy", 8, 11) })
                 if (g.Buy(id)) g.Place(id, CatIsland.Game.Zone.Indoor, x, z, 2);
             game.WorldLink.Refresh();
             Time.timeScale = 3f;
@@ -70,7 +70,7 @@ namespace CatIsland.Tests
             Capture("2_decorate");
 
             // 3. 캣타워: 꼭대기
-            if (g.Buy("tower_tall") && g.Place("tower_tall", CatIsland.Game.Zone.Indoor, 3, 2, 2))
+            if (g.Buy("tower_tall") && g.Place("tower_tall", CatIsland.Game.Zone.Indoor, 6, 5, 2))
             {
                 game.WorldLink.Refresh(); yield return null;
                 var tall = CatTower.All.FirstOrDefault(t => t.Id == "tower_tall");

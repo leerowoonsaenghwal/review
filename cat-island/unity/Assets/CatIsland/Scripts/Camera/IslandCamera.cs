@@ -16,7 +16,7 @@ namespace CatIsland
         bool followOn = true;
         public float pitch = 40f;
         public float fov = 28f;
-        public float[] distances = { 17f, 8.5f };   // 0 = 멀리, 1 = 가까이
+        public float[] distances = { 24f, 8.5f };   // 0 = 멀리(넓어진 섬 전체), 1 = 가까이
         public bool Petting;
         public int zoomLevel = 1;
         public float yawLimit = 45f;
@@ -26,6 +26,15 @@ namespace CatIsland
         Camera cam;
 
         public float Yaw => yaw;
+        /// <summary>바닥 깔기 모드: 정한 곳(ManualFocus)을 정한 거리에서 본다. 끄면 다시 고양이를 따라간다.</summary>
+        public bool Manual; public Vector3 ManualFocus; public float ManualDist = 11f;
+        /// <summary>화면의 한 점 아래 땅 (높이 0) 의 세상 좌표.</summary>
+        public bool GroundAt(Vector2 screen, out Vector3 p)
+        {
+            var ray = GetComponent<Camera>().ScreenPointToRay(screen); p = default;
+            if (!new Plane(Vector3.up, Vector3.zero).Raycast(ray, out float t)) return false;
+            p = ray.GetPoint(t); return true;
+        }
 
         void Awake()
         {
@@ -90,6 +99,12 @@ namespace CatIsland
                 return;
             }
             float dt = Time.deltaTime;
+            if (Manual)
+            {
+                // (바닥 깔기: 고양이를 따라가지 않고 이용자가 옮기는 곳을 본다)
+                focus = Vector3.Lerp(focus, ManualFocus, 1f - Mathf.Exp(-10f * dt)); dist = Mathf.Lerp(dist, ManualDist, 1f - Mathf.Exp(-6f * dt));
+                yaw = Mathf.SmoothDamp(yaw, 0f, ref yawVel, .2f); frameK = Mathf.Lerp(frameK, 0f, 1f - Mathf.Exp(-5f * dt)); Apply(); return;
+            }
             // 낮게 열린 창(고양이 만들기) 위로 고양이를 가까이 잡는다
             float top = CatIsland.UI.GameUI.Instance ? CatIsland.UI.GameUI.Instance.SheetTop : 1f;
             frameK = Mathf.Lerp(frameK, top < .7f ? 1f : 0f, 1f - Mathf.Exp(-5f * dt)); if (top < .7f) frameTop = top;

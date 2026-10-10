@@ -46,7 +46,7 @@ namespace CatIsland
             SetupLighting();
 
             var world = new GameObject("World").transform;
-            IslandBuilder.Build(world);
+            IslandBuilder.Build(world); FloorTiles.Create(world);   // (섬 + 깔린 데크 타일)
 
             // 배치: 그릇은 오른쪽, 방석은 왼쪽 뒤, 캣타워는 오른쪽 뒤 (점프가 옆모습으로 보이게 -X 방향으로 오른다)
             Bowl = FoodBowl.Create(world, new Vector3(1.9f, 0.004f, 0.6f));
@@ -118,7 +118,8 @@ namespace CatIsland
             bool demo = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-catisland-demo") >= 0 || System.Environment.GetEnvironmentVariable("CATISLAND_DEMO") == "1";
             if (demo) { DayCycle.HourOverride = 14f; Day.Apply(14f); }   // (시연은 늘 낮)
             if (float.TryParse(System.Environment.GetEnvironmentVariable("CATISLAND_HOUR"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var hour)) { DayCycle.HourOverride = hour; Day.Apply(hour); }   // (점검: 아침·저녁·밤 화면)
-            if (System.Environment.GetEnvironmentVariable("CATISLAND_TOUR") == "1") StartCoroutine(UI.Tour(4f));   // (화면 차례로 열기: 시뮬레이터 점검)
+            if (System.Environment.GetEnvironmentVariable("CATISLAND_TOUR") == "1") StartCoroutine(UI.Tour(4f));
+            if (System.Environment.GetEnvironmentVariable("CATISLAND_ZOOM") == "0") { IslandCam.zoomLevel = 0; IslandCam.SnapNow(); }   // (점검: 멀리 보기로 시작)   // (화면 차례로 열기: 시뮬레이터 점검)
             if (demo && Logic.S.cats.Count == 0)
             {
                 Logic.S.catSlots = 4; Logic.AddCoins(20000); Logic.AddJelly(200);
@@ -126,11 +127,15 @@ namespace CatIsland
                 Logic.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Playful);
                 Logic.AddCat("persian", "보리", CatIsland.Game.Personality.Easygoing);
                 Logic.AddCat("siamese", "달이", CatIsland.Game.Personality.Playful);
-                foreach (var (id, x, z) in new[] { ("cushion", 4, 6), ("hideout", 7, 3), ("mouse_toy", 5, 8), ("plant_pot", 2, 3) })
+                foreach (var (id, x, z) in new[] { ("cushion", 7, 9), ("hideout", 10, 6), ("mouse_toy", 8, 11), ("plant_pot", 5, 6) })
                     if (Logic.Buy(id)) Logic.Place(id, CatIsland.Game.Zone.Indoor, x, z, 2);
+                // 데크 타일: 가운데 원목 마루 10 x 8, 앞으로 이어진 징검돌, 화분 옆 테라코타
+                void Lay(string tile, int x0, int z0, int x1, int z1) { for (int z = z0; z <= z1; z++) for (int x = x0; x <= x1; x++) { if (Logic.Tiles(tile) <= 0) Logic.BuyTiles(tile); Logic.LayTile(tile, CatIsland.Game.Zone.Indoor, x, z); } }
+                Lay("deck_honey", 4, 5, 13, 12); Lay("stone_path", 8, 1, 9, 4); Lay("tile_terracotta", 1, 5, 3, 7);
                 Logic.Save(); WorldLink.Refresh();
             }
             if (Logic.S.cats.Count == 0 && OpenCatMakerIfEmpty) CatIsland.UI.CatMaker.Open(UI);
+            if (System.Environment.GetEnvironmentVariable("CATISLAND_TILEMODE") == "1") TileMode.Begin(this, null);   // (점검: 바닥 깔기 모드로 시작)
             SyncCats(); SyncGuest();
             Router.BeforeBowlFill = () =>
             {

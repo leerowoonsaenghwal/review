@@ -30,6 +30,8 @@ namespace CatIsland.Game
         public string ToString2() => $"{id}({price}{(currency == Currency.Coin ? "c" : "j")})";
     }
 
+    /// <summary>데크 타일: 섬 풀밭 격자 한 칸(0.6 m)에 까는 바닥. 9장 묶음으로 산다. surface: 고양이 발소리 (0 나무, 1 러그, 3 모래 - CatAudio.Surface).</summary>
+    [Serializable] public class TileDef { public string id, ko; public int price, pack = 9, surface; }
     [Serializable] public class BreedDef { public string id, ko; public int rarity; }   // rarity 1 흔함 .. 3 드묾 (손님으로 오는 확률)
     [Serializable] public class SeedDef { public string id, ko, yields; public int hours, price, amount; }
     [Serializable] public class RecipeDef { public string id, item; public string[] needs; public int[] counts; }
@@ -69,6 +71,21 @@ namespace CatIsland.Game
         // ---------------------------------------------------------------- 용품 60
         // (fills: 고양이가 쓰면 채워지는 상태. 테마 같은 용품 3개 이상 → 방치 보상 +5%, 최대 +15%)
         public static readonly ItemDef[] Items = BuildItems();
+
+        /// <summary>데크 타일 8가지 (무늬는 IslandArt.PaintedTextures.Tile, 그리기는 FloorTiles).</summary>
+        public static readonly TileDef[] Tiles =
+        {
+            new TileDef { id = "deck_honey", ko = "원목 마루", price = 90, surface = 0 },
+            new TileDef { id = "deck_white", ko = "화이트 우드", price = 110, surface = 0 },
+            new TileDef { id = "deck_walnut", ko = "월넛 마루", price = 130, surface = 0 },
+            new TileDef { id = "deck_basket", ko = "바둑판 마루", price = 160, surface = 0 },
+            new TileDef { id = "deck_sakura", ko = "벚꽃 마루", price = 150, surface = 0 },
+            new TileDef { id = "tile_mint", ko = "민트 체크 타일", price = 120, surface = 0 },
+            new TileDef { id = "tile_terracotta", ko = "테라코타 타일", price = 140, surface = 0 },
+            new TileDef { id = "stone_path", ko = "징검돌 판", price = 100, surface = 3 },
+        };
+        public static TileDef Tile(string id) { foreach (var t in Tiles) if (t.id == id) return t; return null; }
+        public const string StarterTile = "deck_honey"; public const int StarterTiles = 9;
 
         static ItemDef[] BuildItems()
         {

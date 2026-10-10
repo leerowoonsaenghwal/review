@@ -66,6 +66,40 @@ namespace CatIsland.Tests
             Assert.IsFalse(Catalog.Products.Any(p => p.id.Contains("noads") || p.id.Contains("pass")));
         }
 
+        /// <summary>데크 타일: 첫 선물 9장, 묶음 사기, 깔기·바꿔 깔기·걷기에서 장 수가 맞고, 격자 밖·잠긴 마당은 거부, 저장·불러오기.</summary>
+        [Test]
+        public void DeckTiles_BuyLaySwapLift_CountsAndSave()
+        {
+            Assert.AreEqual(Catalog.StarterTiles, g.Tiles(Catalog.StarterTile), "첫 선물");
+            Assert.AreEqual(8, Catalog.Tiles.Length); Assert.AreEqual(8, Catalog.Tiles.Select(t => t.id).Distinct().Count());
+            Assert.IsTrue(g.LayTile("deck_honey", Zone.Indoor, 0, 0)); Assert.IsTrue(g.LayTile("deck_honey", Zone.Indoor, 17, 17));
+            Assert.IsFalse(g.LayTile("deck_honey", Zone.Indoor, 17, 17), "같은 무늬 다시 안 깐다");
+            Assert.IsFalse(g.LayTile("deck_honey", Zone.Indoor, 18, 0), "격자 밖");
+            Assert.IsFalse(g.LayTile("deck_honey", Zone.Yard, 0, 0), "잠긴 마당");
+            Assert.IsFalse(g.LayTile("tile_mint", Zone.Indoor, 1, 1), "안 산 무늬");
+            Assert.AreEqual(7, g.Tiles("deck_honey"));
+            g.AddCoins(1000); int coins = g.S.coins;
+            Assert.IsTrue(g.BuyTiles("tile_mint")); Assert.AreEqual(9, g.Tiles("tile_mint")); Assert.AreEqual(coins - Catalog.Tile("tile_mint").price, g.S.coins);
+            Assert.IsTrue(g.LayTile("tile_mint", Zone.Indoor, 0, 0), "다른 무늬로 바꿔 깔기");
+            Assert.AreEqual("tile_mint", g.TileAt(Zone.Indoor, 0, 0).id); Assert.AreEqual(8, g.Tiles("deck_honey"), "바꾼 타일은 가방으로"); Assert.AreEqual(8, g.Tiles("tile_mint"));
+            Assert.IsTrue(g.LiftTile(Zone.Indoor, 17, 17)); Assert.IsFalse(g.LiftTile(Zone.Indoor, 17, 17)); Assert.AreEqual(9, g.Tiles("deck_honey"));
+            Assert.AreEqual(1, g.S.floor.Count);
+            g.Save(); var g2 = New(); g2.LoadOrNew();
+            Assert.AreEqual(1, g2.S.floor.Count); Assert.AreEqual("tile_mint", g2.TileAt(Zone.Indoor, 0, 0).id); Assert.AreEqual(9, g2.Tiles("deck_honey"));
+        }
+
+        /// <summary>섬이 넓어져 격자가 12 → 18 칸: 버전 1 저장의 집 안 용품은 3칸씩 옮겨 세상에서 같은 자리에 있다.</summary>
+        [Test]
+        public void SaveV1_IndoorPlacements_ShiftToWiderGrid()
+        {
+            g.S.version = 1; foreach (var p in g.S.placed) { p.x -= 3; p.z -= 3; }
+            var before = g.S.placed.Select(p => (p.item, p.x, p.z)).ToList();
+            g.Save(); var g2 = New(); g2.LoadOrNew();
+            Assert.AreEqual(2, g2.S.version);
+            for (int i = 0; i < before.Count; i++) { Assert.AreEqual(before[i].x + 3, g2.S.placed[i].x); Assert.AreEqual(before[i].z + 3, g2.S.placed[i].z); }
+            Assert.AreEqual((18, 18), CatIsland.Game.Game.GridSize(Zone.Indoor));
+        }
+
         [Test]
         public void NewGame_StartsWithBowlsPlaced_AndNoNegativeMoney()
         {
@@ -124,7 +158,7 @@ namespace CatIsland.Tests
         public void Grid_KeepsUseSpotsFree_AndBounds()
         {
             g.AddCoins(5000); Assert.IsTrue(g.Buy("cushion")); Assert.IsTrue(g.Buy("cat_tower_1"));
-            Assert.IsFalse(g.CanPlace("cushion", Zone.Indoor, 11, 11, 0), "격자 밖");
+            Assert.IsFalse(g.CanPlace("cushion", Zone.Indoor, CatIsland.Game.Game.GridSize(Zone.Indoor).w - 1, CatIsland.Game.Game.GridSize(Zone.Indoor).h - 1, 0), "격자 밖");
             Assert.IsTrue(g.Place("cushion", Zone.Indoor, 2, 2, 0));
             Assert.IsFalse(g.CanPlace("cat_tower_1", Zone.Indoor, 2, 2, 0), "겹침");
             Assert.IsFalse(g.CanPlace("cat_tower_1", Zone.Indoor, 2, 0, 0), "방석 앞(쓰는 자리)을 막음");

@@ -79,8 +79,9 @@ namespace CatIsland.Game
             for (int i = 0; i < Catalog.GardenPlots; i++) S.plots.Add(new Plot());
             Bag.Add(S.inventory, "food_bowl", 1); Bag.Add(S.inventory, "water_bowl", 1);
             Bag.Add(S.inventory, "kibble_bag", 3);
+            Bag.Add(S.tileBag, Catalog.StarterTile, Catalog.StarterTiles);   // (첫 데크 타일 선물: 풀밭에 깔아 보기)
             // 처음 섬: 그릇과 물그릇은 놓여 있다 (첫 10분: 고양이 만들기 → 밥 → 쓰다듬기 → 방석)
-            Place("food_bowl", Zone.Indoor, 9, 6, 0); Place("water_bowl", Zone.Indoor, 9, 4, 0);
+            Place("food_bowl", Zone.Indoor, 12, 9, 0); Place("water_bowl", Zone.Indoor, 12, 7, 0);
         }
 
         /// <summary>저장 파일 정리: 범위를 벗어난 값, 빠진 목록 (이전 버전이나 손상)을 고친다.</summary>
@@ -94,6 +95,11 @@ namespace CatIsland.Game
             foreach (var c in S.cats) { c.hunger = Mathf.Clamp01(c.hunger); c.thirst = Mathf.Clamp01(c.thirst); c.play = Mathf.Clamp01(c.play); c.clean = Mathf.Clamp01(c.clean); c.affection = Mathf.Max(0, c.affection); }
             S.catSlots = Mathf.Clamp(S.catSlots, Catalog.FirstCatSlots, Catalog.MaxCatSlots);
             if (S.zonesUnlocked == null || S.zonesUnlocked.Count == 0) S.zonesUnlocked = new List<int> { 0 };
+            S.floor ??= new List<FloorTile>(); S.tileBag ??= new List<Count>();
+            S.tileBag.RemoveAll(c => c.n <= 0 || Catalog.Tile(c.id) == null);
+            S.floor.RemoveAll(t => Catalog.Tile(t.id) == null || !InGrid(t.zone, t.x, t.z));
+            // 버전 1 → 2: 섬이 넓어져 가운데 격자가 12 → 18 칸 (가운데는 같은 자리). 놓인 용품이 세상에서 같은 자리에 있게 3칸씩 옮긴다
+            if (S.version < 2) { foreach (var p in S.placed) if (p.zone == Zone.Indoor) { p.x += 3; p.z += 3; } S.version = 2; }
         }
 
         // ================================================================ 접속 · 시간 흐름
@@ -312,6 +318,33 @@ namespace CatIsland.Game
             if (d.zone == Zone.Yard && !S.zonesUnlocked.Contains(1)) return false;
             return true;
         }
+        // ================================================================ 데크 타일 (풀밭 격자 칸마다 까는 바닥)
+        static bool InGrid(Zone zone, int x, int z) { var (w, h) = GridSize(zone); return x >= 0 && z >= 0 && x < w && z < h; }
+        public FloorTile TileAt(Zone zone, int x, int z) { foreach (var t in S.floor) if (t.zone == zone && t.x == x && t.z == z) return t; return null; }
+        public int Tiles(string id) => Bag.Get(S.tileBag, id);
+        /// <summary>데크 타일 한 묶음(9장)을 코인으로 산다.</summary>
+        public bool BuyTiles(string id)
+        {
+            var t = Catalog.Tile(id); if (t == null || !Spend(Currency.Coin, t.price)) return false;
+            Bag.Add(S.tileBag, id, t.pack); Save(); return true;
+        }
+        /// <summary>칸에 타일을 깐다 (가방에서 한 장). 다른 무늬가 깔려 있으면 바꾸고 그 타일은 가방으로. 저장은 깔기 모드가 끝날 때.</summary>
+        public bool LayTile(string id, Zone zone, int x, int z)
+        {
+            if (Catalog.Tile(id) == null || !InGrid(zone, x, z) || (zone == Zone.Yard && !S.zonesUnlocked.Contains(1)) || Tiles(id) <= 0) return false;
+            var old = TileAt(zone, x, z); if (old != null && old.id == id) return false;
+            if (old != null) { Bag.Add(S.tileBag, old.id, 1); S.floor.Remove(old); }
+            Bag.Add(S.tileBag, id, -1); S.tileBag.RemoveAll(c => c.n <= 0);
+            S.floor.Add(new FloorTile { id = id, zone = zone, x = x, z = z }); Count("tile");
+            return true;
+        }
+        /// <summary>깔린 타일을 걷어 가방으로.</summary>
+        public bool LiftTile(Zone zone, int x, int z)
+        {
+            var t = TileAt(zone, x, z); if (t == null) return false;
+            S.floor.Remove(t); Bag.Add(S.tileBag, t.id, 1); return true;
+        }
+
         public bool Buy(string id, int n = 1)
         {
             var d = Catalog.Item(id); if (d == null || n <= 0 || !InShop(d)) return false;
@@ -320,7 +353,7 @@ namespace CatIsland.Game
         }
 
         // 격자: 칸 0.6 m. 집 안 12×12, 마당 12×8. 용품 앞 한 칸은 고양이가 쓰는 자리라 비워 둔다.
-        public static (int w, int h) GridSize(Zone z) => z == Zone.Indoor ? (12, 12) : (12, 8);
+        public static (int w, int h) GridSize(Zone z) => z == Zone.Indoor ? (18, 18) : (12, 8);   // (섬 가운데 풀밭 18 x 18 칸 = 10.8 m)
         static (int x0, int z0, int x1, int z1) Footprint(Placement p, bool withUseSpot)
         {
             var d = Catalog.Item(p.item); int w = d.w, h = d.h; if (p.rot % 2 == 1) (w, h) = (h, w);
@@ -334,7 +367,8 @@ namespace CatIsland.Game
         {
             var (w, h) = GridSize(zone); if (x < 0 || z < 0 || x >= w || z >= h) return false;
             if (zone == Zone.Yard) return true;
-            float dx = x + .5f - w / 2f, dz = z + .5f - h / 2f; return dx * dx + dz * dz <= 5.6f * 5.6f;
+            // (섬 가운데 풀밭: 고양이가 걸어가 쓸 수 있는 곳 - 섬 가운데에서 7.3 m 안. 격자 가운데는 섬 가운데보다 0.5 m 뒤)
+            float dx = x + .5f - w / 2f, dz = z + .5f - h / 2f + .5f / .6f; return dx * dx + dz * dz <= 12.1f * 12.1f;
         }
         public bool CanPlace(string item, Zone zone, int x, int z, int rot, Placement ignore = null)
         {

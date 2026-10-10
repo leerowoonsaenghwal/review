@@ -295,6 +295,10 @@ namespace CatIsland.Tests
             Cat.Needs.SetForTest(1f, 1f);
             Time.timeScale = 2f;
             var seen = new System.Collections.Generic.HashSet<Surface>();
+            // (마루 자리: 데크 타일 3 x 3 을 깔고 그 위로 - 예전 둥근 마루 대신)
+            var gl = game.Logic; FloorTiles.CellAt(new Vector3(0.8f, 0f, 1.8f), out var tz, out int tx, out int tzz);
+            for (int dz = -1; dz <= 1; dz++) for (int dx = -1; dx <= 1; dx++) { if (gl.Tiles("deck_honey") <= 0) { gl.AddCoins(500); gl.BuyTiles("deck_honey"); } gl.LayTile("deck_honey", tz, tx + dx, tzz + dz); }
+            game.WorldLink.Refresh(); yield return null;
             foreach (var (want, expect) in new[] { (new Vector3(0.8f, 0f, 1.8f), Surface.Wood), (new Vector3(4.2f, 0f, -1.2f), Surface.Grass), (IslandBuilder.SandCenter, Surface.Sand) })
             {
                 var spot = game.Nav.NearestFree(want);   // (꽃·덤불 근처면 길찾기가 옮기는 자리)
@@ -802,7 +806,7 @@ namespace CatIsland.Tests
         {
             var g = game.Logic; var c = g.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Aloof); g.AddCoins(5000);
             Assert.IsTrue(g.Buy("tower_tall"));
-            Assert.IsTrue(g.Place("tower_tall", CatIsland.Game.Zone.Indoor, 3, 2, 2));
+            Assert.IsTrue(g.Place("tower_tall", CatIsland.Game.Zone.Indoor, 6, 5, 2));
             game.WorldLink.Refresh(); yield return null;
             var tall = CatTower.All.FirstOrDefault(t => t.Id == "tower_tall"); Assert.NotNull(tall, "tall tower on the island with its decks");
             Assert.AreEqual(5, tall.Decks.Count);
@@ -841,7 +845,7 @@ namespace CatIsland.Tests
             var cat = Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).First(b => b.Data == c);
             cat.Needs.SetForTest(1f, 1f); c.hunger = 1f;
             Time.timeScale = 3f;
-            foreach (var (id, x, z) in new[] { ("mouse_toy", 3, 8), ("scratcher", 2, 4), ("litter_box", 8, 8), ("hideout", 7, 2) })
+            foreach (var (id, x, z) in new[] { ("mouse_toy", 6, 11), ("scratcher", 5, 7), ("litter_box", 11, 11), ("hideout", 10, 5) })
             {
                 Assert.IsTrue(g.Buy(id), id); Assert.IsTrue(g.Place(id, CatIsland.Game.Zone.Indoor, x, z, 2), id + " placed");
                 int playBefore = CatIsland.Game.Bag.Get(g.S.counters, "play");

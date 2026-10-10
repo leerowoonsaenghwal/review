@@ -73,6 +73,84 @@ namespace CatIsland
                 }
         });
 
+        /// <summary>
+        /// 데크 타일 무늬: 한 장 = 격자 한 칸(0.6 m). 이어 붙여도 이음매가 없어 깔린 타일끼리 한 바닥처럼 이어진다 (FloorTiles, 세상 좌표 무늬).
+        /// </summary>
+        public static Texture2D Tile(string id) => Get("tile_" + id, 256, p =>
+        {
+            switch (id)
+            {
+                case "deck_white": Boards(p, Palette.Hex("f4ecdc"), Palette.Hex("e6dcc8"), Palette.Hex("cfc2a8"), Palette.Hex("faf4e8"), Palette.Hex("ece2cf")); break;
+                case "deck_walnut": Boards(p, Palette.Hex("9a6a45"), Palette.Hex("845936"), Palette.Hex("5f3e24"), Palette.Hex("a8774f"), Palette.Hex("8d603c")); break;
+                case "deck_sakura":
+                    Boards(p, Palette.Hex("f3d2cf"), Palette.Hex("e8bdb9"), Palette.Hex("cf9f9b"), Palette.Hex("f8dcd9"), Palette.Hex("ecc6c2"));
+                    for (int i = 0; i < 9; i++) { float x = p.R() * p.N, y = p.R() * p.N, a = p.R() * 6.28f; p.Ellipse(x, y, 5.5f, 3.4f, a, Palette.Hex("ffb7c8")); p.Ellipse(x + 4f, y + 2f, 4.5f, 2.8f, a + 1.2f, Palette.Hex("ffc9d6")); }
+                    break;
+                case "deck_basket":
+                {
+                    Color a = Palette.Hex("e2b483"), b = Palette.Hex("d4a271"), gap = Palette.Hex("a8774c"), grain = Palette.Hex("c99868");
+                    int q = p.N / 2, w = q / 3;   // (반 칸 정사각 4개, 그 안에 판자 3장: 가로·세로 번갈아)
+                    for (int sy = 0; sy < 2; sy++) for (int sx = 0; sx < 2; sx++)
+                        {
+                            bool horiz = (sx + sy) % 2 == 0; int x0 = sx * q, y0 = sy * q;
+                            for (int k = 0; k < 3; k++)
+                            {
+                                var c = k == 1 ? b : a;
+                                if (horiz) { p.Rect(x0, y0 + k * w, q, w, c); p.Rect(x0, y0 + k * w, q, 2, gap); for (int g = 0; g < 2; g++) p.Ellipse(x0 + p.R() * q, y0 + k * w + 4 + p.R() * (w - 8), 14f + p.R() * 20f, 1.2f, 0f, grain); }
+                                else { p.Rect(x0 + k * w, y0, w, q, c); p.Rect(x0 + k * w, y0, 2, q, gap); for (int g = 0; g < 2; g++) p.Ellipse(x0 + k * w + 4 + p.R() * (w - 8), y0 + p.R() * q, 1.2f, 14f + p.R() * 20f, 0f, grain); }
+                            }
+                            p.Rect(x0, y0, q, 2, gap); p.Rect(x0, y0, 2, q, gap);
+                        }
+                    break;
+                }
+                case "tile_mint": Squares(p, Palette.Hex("fbf6e6"), Palette.Hex("9fdcc6"), Palette.Hex("e3ddcc"), true); break;
+                case "tile_terracotta": Squares(p, Palette.Hex("e48a5d"), Palette.Hex("d97b50"), Palette.Hex("f3e3c8"), false); break;
+                case "stone_path":
+                {
+                    // 징검돌: 풀밭 바탕(풀밭 무늬와 같은 색) 위 둥근 돌 셋
+                    p.Fill(Palette.Hex("74c254"));
+                    for (int i = 0; i < 26; i++) { float r = 5f + p.R() * 9f; p.Ellipse(p.R() * p.N, p.R() * p.N, r, r * .7f, p.R() * 3f, p.R() < .5f ? Palette.Hex("7cc85b") : Palette.Hex("6dbb4e")); }
+                    var stones = new[] { (64f, 70f, 46f, 36f), (182f, 96f, 52f, 40f), (110f, 190f, 50f, 38f) };
+                    foreach (var (x, y, rx, ry) in stones)
+                    {
+                        p.Ellipse(x + 3f, y - 4f, rx, ry, .3f, Palette.Hex("8d9a86"));          // (돌 그늘)
+                        p.Ellipse(x, y, rx, ry, .3f, Palette.Hex("d6d2c6"));
+                        p.Ellipse(x - rx * .25f, y + ry * .25f, rx * .55f, ry * .45f, .3f, Palette.Hex("e6e2d8"));
+                        for (int k = 0; k < 3; k++) p.Ellipse(x + (p.R() - .5f) * rx, y + (p.R() - .5f) * ry, 4f, 3f, 0f, Palette.Hex("c4bfb2"));
+                    }
+                    break;
+                }
+                default: Boards(p, Palette.Hex("e2b483"), Palette.Hex("cc9d6c"), Palette.Hex("a8774c"), Palette.Hex("e9bf90"), Palette.Hex("d9a977")); break;   // deck_honey
+            }
+        });
+
+        /// <summary>판자 마루: 한 칸에 판자 4장(가로), 판 끝 이음은 엇갈리게, 결과 옹이.</summary>
+        static void Boards(Painter p, Color baseC, Color grain, Color gap, Color varA, Color varB)
+        {
+            p.Fill(baseC); int plank = p.N / 4;
+            for (int k = 0; k < 4; k++)
+            {
+                var c = Color.Lerp(baseC, k % 3 == 0 ? varA : k % 3 == 1 ? varB : baseC, .7f);
+                p.Rect(0, k * plank + 2, p.N, plank - 4, c);
+                for (int g = 0; g < 6; g++) p.Ellipse(p.R() * p.N, k * plank + 6 + p.R() * (plank - 12), 30f + p.R() * 60f, 1.3f, 0f, grain);
+                if (k % 2 == 0) p.Ellipse(p.R() * p.N, k * plank + plank * .5f, 5f, 3f, 0f, gap);   // 옹이
+                p.Rect(0, k * plank, p.N, 2, gap);
+                p.Rect((k * 97 + 40) % p.N, k * plank, 3, plank, gap);                            // 판 끝 이음 (엇갈림)
+            }
+        }
+
+        /// <summary>네모 타일: 한 칸에 2 x 2, 줄눈, 살짝 볼록한 밝은 면. checker: 두 색을 번갈아.</summary>
+        static void Squares(Painter p, Color a, Color b, Color grout, bool checker)
+        {
+            p.Fill(grout); int q = p.N / 2;
+            for (int y = 0; y < 2; y++) for (int x = 0; x < 2; x++)
+                {
+                    var c = checker ? ((x + y) % 2 == 0 ? a : b) : Color.Lerp(a, b, p.R());
+                    p.Rect(x * q + 3, y * q + 3, q - 6, q - 6, c);
+                    p.Ellipse(x * q + q * .38f, y * q + q * .62f, q * .26f, q * .16f, .4f, Color.Lerp(c, Color.white, .18f));
+                }
+        }
+
         static Texture2D Get(string key, int n, System.Action<Painter> draw)
         {
             if (cache.TryGetValue(key, out var t) && t != null) return t;

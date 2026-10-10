@@ -53,7 +53,7 @@ namespace CatIsland.Tests
                 Assert.IsTrue(s.cats.All(c => c.status == "home" || c.status == "walk" || c.status == "star"), where + " status");
                 Assert.IsFalse(s.cats.Any(c => c.status == "star"), where + " (the game never sends a cat away)");
                 var (gw, gh) = CatIsland.Game.Game.GridSize(Zone.Indoor);
-                Assert.IsTrue(s.placed.All(p => p.x >= 0 && p.z >= 0 && p.x < 12 && p.z < 12), where + " grid");
+                Assert.IsTrue(s.placed.All(p => p.x >= 0 && p.z >= 0 && p.x < gw && p.z < gh), where + " grid");
             }
 
             for (int day = 0; day < days; day++)

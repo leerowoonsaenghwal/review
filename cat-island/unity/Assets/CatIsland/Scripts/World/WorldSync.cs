@@ -43,6 +43,7 @@ namespace CatIsland
             var g = boot.Logic; if (g?.S == null) return;
             boot.SyncCats();
             SceneItem(boot.Bowl, "food_bowl", g); SceneItem(boot.Cushion, "cushion", g); SceneItem(boot.Tower, "cat_tower_1", g);
+            FloorTiles.Instance?.Sync(g.S.floor);   // (깔린 데크 타일)
             foreach (var p in spawned.Keys.ToList()) if (!g.S.placed.Contains(p)) { UnityEngine.Object.Destroy(spawned[p]); spawned.Remove(p); if (obstacles.TryGetValue(p, out var o)) { boot.Nav.obstacles.Remove(o); obstacles.Remove(p); } }
             foreach (var p in g.S.placed)
             {

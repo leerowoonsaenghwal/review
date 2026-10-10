@@ -95,7 +95,7 @@ namespace CatIsland.Tests
         public IEnumerator Items_JiggleAndRoll_ThenSettleBack()
         {
             var g = game.Logic; g.AddCoins(5000);
-            Assert.IsTrue(g.Buy("mouse_toy")); Assert.IsTrue(g.Place("mouse_toy", CatIsland.Game.Zone.Indoor, 3, 8, 2));
+            Assert.IsTrue(g.Buy("mouse_toy")); Assert.IsTrue(g.Place("mouse_toy", CatIsland.Game.Zone.Indoor, 6, 11, 2));
             game.WorldLink.Refresh(); yield return null;
             var tag = Object.FindObjectsByType<ItemTag>(FindObjectsSortMode.None).First(t => t.id == "mouse_toy");
             var model = tag.transform.Find("Model"); var s0 = model.localScale; var p0 = model.localPosition;
@@ -107,6 +107,41 @@ namespace CatIsland.Tests
             yield return new WaitForSeconds(2.5f);
             Assert.Less(Vector3.Distance(model.localPosition, p0), .002f, "제자리로 돌아온다");
             Assert.Less(Vector3.Distance(model.localScale, s0), .002f);
+        }
+
+        /// <summary>처음 7일 안내 카드: 보이면 글자가 있다 (글자 넣기가 빠져 빈 카드가 뜬 적이 있다), 바닥 깔기 중에는 숨는다.</summary>
+        [UnityTest]
+        public IEnumerator HintCard_ShowsItsText_AndHidesWhileTiling()
+        {
+            game.Logic.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Playful); game.Logic.S.onboardingStep = 1; game.SyncCats(); yield return null;
+            game.UI.Refresh(); yield return null;
+            var hint = Object.FindObjectsByType<UnityEngine.UI.Text>(FindObjectsInactive.Include, FindObjectsSortMode.None).First(t => t.transform.parent && t.transform.parent.name == "Hint");
+            Assert.IsTrue(hint.gameObject.activeInHierarchy); Assert.AreEqual(CatIsland.UI.Str.Hint("hint_feed"), hint.text);
+            var mode = TileMode.Begin(game, null); yield return null;
+            Assert.IsFalse(hint.gameObject.activeInHierarchy, "바닥 깔기 막대와 겹치지 않게");
+            mode.Finish(); yield return null; game.UI.Refresh();
+            Assert.IsTrue(hint.gameObject.activeInHierarchy);
+        }
+
+        /// <summary>바닥 깔기: 손가락으로 쓸면 지나간 칸이 이어서 깔리고(빨리 쓸어도 빈칸 없음), 발소리 재질이 바뀌고, 걷으면 가방으로, 끝내면 저장·원래 화면.</summary>
+        [UnityTest]
+        public IEnumerator DeckTiles_PaintLine_Lift_AndFinish()
+        {
+            var g = game.Logic; int bag = g.Tiles("deck_honey"); Assert.Greater(bag, 4);
+            var mode = TileMode.Begin(game, "deck_honey"); yield return null;
+            Assert.IsTrue(game.IslandCam.Manual, "깔기 모드는 카메라를 이용자가 옮긴다"); Assert.IsFalse(game.Router.enabled);
+            Vector3 Cell(int x, int z) => WorldSync.CellToWorld(CatIsland.Game.Zone.Indoor, x + .5f, z + .5f);
+            mode.PaintAtWorld(Cell(2, 3)); mode.PaintAtWorld(Cell(6, 3));   // (한 번에 4칸 건너뛰어도)
+            for (int x = 2; x <= 6; x++) Assert.AreEqual("deck_honey", FloorTiles.IdAt(CatIsland.Game.Zone.Indoor, x, 3), $"칸 {x}");
+            Assert.AreEqual(bag - 5, g.Tiles("deck_honey"));
+            Assert.AreEqual(Surface.Wood, IslandBuilder.SurfaceAt(Cell(4, 3))); Assert.AreEqual(Surface.Grass, IslandBuilder.SurfaceAt(Cell(4, 6)));
+            var mf = Object.FindObjectsByType<MeshFilter>(FindObjectsSortMode.None).First(m => m.name.StartsWith("Tiles_deck_honey"));
+            Assert.AreEqual(5 + 5 + 5 + 2, mf.sharedMesh.vertexCount / 4, "윗면 5 + 바깥 옆면만 (앞뒤 5씩, 양 끝 1씩)");
+            mode.SetTool(TileMode.Tool.Lift); mode.PaintAtWorld(Cell(4, 3)); yield return null;
+            Assert.IsNull(FloorTiles.IdAt(CatIsland.Game.Zone.Indoor, 4, 3)); Assert.AreEqual(bag - 4, g.Tiles("deck_honey"));
+            mode.Finish(); yield return null;
+            Assert.IsFalse(game.IslandCam.Manual); Assert.IsTrue(game.Router.enabled); Assert.IsNull(TileMode.Active);
+            Assert.AreEqual(4, g.S.floor.Count);
         }
 
         /// <summary>고양이를 가리는 용품은 점무늬로 비치고(_FADE 재질), 비키면 원래 재질로 돌아온다.</summary>
@@ -167,7 +202,7 @@ namespace CatIsland.Tests
             var g = game.Logic; g.S.catSlots = 5; g.AddCoins(99999);
             foreach (var (b, n, p) in new[] { ("korean_shorthair", "나비", CatIsland.Game.Personality.Playful), ("munchkin", "콩", CatIsland.Game.Personality.Playful), ("persian", "보리", CatIsland.Game.Personality.Easygoing), ("siamese", "달이", CatIsland.Game.Personality.Playful), ("maine_coon", "호두", CatIsland.Game.Personality.Easygoing) })
                 g.AddCat(b, n, p);
-            foreach (var (id, x, z) in new[] { ("cushion", 4, 6), ("hideout", 7, 3), ("mouse_toy", 5, 8), ("scratcher", 2, 4) })
+            foreach (var (id, x, z) in new[] { ("cushion", 7, 9), ("hideout", 10, 6), ("mouse_toy", 8, 11), ("scratcher", 5, 7) })
                 if (g.Buy(id)) g.Place(id, CatIsland.Game.Zone.Indoor, x, z, 2);
             game.WorldLink.Refresh(); yield return null; game.SyncCats(); yield return null;   // (용품을 먼저 세워야 고양이가 그 밖에 선다)
             var cats = Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).Where(c => c.Data != null).ToList();

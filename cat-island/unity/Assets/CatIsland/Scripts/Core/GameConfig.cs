@@ -44,7 +44,7 @@ namespace CatIsland
         public const float TrotSpeed = 1.06f;
         public const float RunSpeed = 2.27f;
         public const float TurnSpeedDeg = 160f;
-        public const float IslandWalkRadius = 5.0f;
+        public const float IslandWalkRadius = 8.3f;   // (섬 반지름 9.6 m, 모래톱 9.2 m 앞까지. 뒤쪽 언덕은 길찾기 장애물이 막는다)
         public const float WanderRadius = 4.2f;   // (가끔 풀밭과 모래밭까지)
 
         // ---- 입력 ----
