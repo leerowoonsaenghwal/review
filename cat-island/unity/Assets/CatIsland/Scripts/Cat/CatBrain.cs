@@ -1412,13 +1412,14 @@ namespace CatIsland
         {
             float target = 0f;
             if (OnTower && curTower) target = curTower.Height(deck);
-            else if (State == CatState.UseItem && useLift > 0f) target = useLift;
+            else if (State == CatState.UseItem && useLift > 0f) target = useLift + (useTarget ? Mathf.Max(0f, useTarget.transform.position.y - .004f) : 0f);   // (데크 타일 위 용품: 그만큼 위)
             else if (LeftItem && leftLift > 0f && Time.time - LeftAt < 12f && Flat(transform.position - LeftItem.position).magnitude < .55f) target = leftLift;   // (나오는 동안 바닥에 묻히지 않게)
             else if (cushion)
             {
                 float d = Flat(transform.position - cushion.transform.position).magnitude;
-                target = cushion.TopHeight * (1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(cushion.Radius * 0.55f, cushion.Radius * 1.05f, d)));
+                target = (cushion.TopHeight + Mathf.Max(0f, cushion.transform.position.y - .004f)) * (1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(cushion.Radius * 0.55f, cushion.Radius * 1.05f, d)));
             }
+            if (!(OnTower && curTower)) target = Mathf.Max(target, FloorTiles.HeightAt(transform.position));   // (데크 타일 위: 발이 타일에 묻히지 않게)
             heightY = Mathf.Lerp(heightY, target, 1f - Mathf.Exp(-8f * dt));
             var pos = transform.position;
             pos.y = heightY;

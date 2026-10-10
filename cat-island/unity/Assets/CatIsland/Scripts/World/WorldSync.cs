@@ -44,6 +44,7 @@ namespace CatIsland
             boot.SyncCats();
             SceneItem(boot.Bowl, "food_bowl", g); SceneItem(boot.Cushion, "cushion", g); SceneItem(boot.Tower, "cat_tower_1", g);
             FloorTiles.Instance?.Sync(g.S.floor);   // (깔린 데크 타일)
+            foreach (var kv in spawned) if (kv.Value) { var t = kv.Value.transform; var c = PlacementCenter(kv.Key); t.position = new Vector3(t.position.x, .004f + FloorTiles.HeightAt(c), t.position.z); }   // (타일 위 용품은 타일 윗면에)
             foreach (var p in spawned.Keys.ToList()) if (!g.S.placed.Contains(p)) { UnityEngine.Object.Destroy(spawned[p]); spawned.Remove(p); if (obstacles.TryGetValue(p, out var o)) { boot.Nav.obstacles.Remove(o); obstacles.Remove(p); } }
             foreach (var p in g.S.placed)
             {
@@ -74,7 +75,7 @@ namespace CatIsland
             }
             c.gameObject.SetActive(true);
             var pos = PlacementCenter(p) + new Vector3(0, .004f, 0);
-            c.transform.position = new Vector3(pos.x, c.transform.position.y, pos.z);
+            c.transform.position = new Vector3(pos.x, .004f + FloorTiles.HeightAt(pos), pos.z);   // (데크 타일 위면 타일 윗면에)
             if (id != "cat_tower_1") c.transform.rotation = Quaternion.Euler(0, 180f - p.rot * 90f, 0);   // (캣타워는 점프 방향이 정해져 있어 돌리지 않는다)
             if (ob != null) { ob.center = new Vector3(pos.x, 0, pos.z); ob.yaw = c.transform.eulerAngles.y; if (!boot.Nav.obstacles.Contains(ob)) boot.Nav.obstacles.Add(ob); }
         }

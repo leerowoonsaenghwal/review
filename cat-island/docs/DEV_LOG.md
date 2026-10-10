@@ -120,3 +120,4 @@
   - 찾아 고친 것: 도구를 바꿔도 손가락 자취가 이어져 걷기가 여러 칸을 걷던 것, 안내 카드 글자 넣기가 주석에 묻혀 빈 카드(테스트 추가), 놓을 수 있는 칸이 예전 둥근 마루 원으로 제한되던 것, 점프 중인 고양이를 피하다 크게 밀리던 것(비키는 양 상한).
   - 확인: 시뮬레이터 화면(docs/images/checks/island_wide_far.png, deck_tiles_close.png, tile_mode.png), 테스트 DeckTiles_BuyLaySwapLift, SaveV1_IndoorPlacements_ShiftToWiderGrid, DeckTiles_PaintLine_Lift_AndFinish, HintCard_ShowsItsText. EditMode 45, PlayMode 38.
 - 2026-10-10 앱스토어 스크린샷 다시 찍음(넓어진 섬, 데크 타일: 원목 마루·징검돌·민트 체크), 2번 문구 '바닥도 꾸미고 / 놓으면 바로 써 봐요'.
+- 2026-10-10 데크 타일 위 높이: 고양이·용품·방석·숨숨집 쓰는 자리가 타일 윗면(1.2 cm) 위로(FloorTiles.HeightAt), 타일을 깔고 걷으면 놓인 용품 높이도 다시 맞춤. 시뮬레이터 확인.

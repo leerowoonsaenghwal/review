@@ -102,6 +102,9 @@ namespace CatIsland
             var d = Catalog.Tile(id); return d != null ? (Surface)d.surface : Surface.Wood;
         }
 
+        /// <summary>그 자리 바닥 높이: 타일 위면 타일 윗면, 아니면 0 (고양이·용품을 타일 위로 올린다).</summary>
+        public static float HeightAt(Vector3 p) => map.Count > 0 && CellAt(p, out var zone, out int x, out int z) && map.ContainsKey((zone, x, z)) ? Top : 0f;
+
         /// <summary>테스트용: 그 칸에 그려진 무늬.</summary>
         public static string IdAt(Zone zone, int x, int z) => map.TryGetValue((zone, x, z), out var id) ? id : null;
     }
