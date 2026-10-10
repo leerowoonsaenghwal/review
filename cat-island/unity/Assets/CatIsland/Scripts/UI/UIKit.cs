@@ -115,11 +115,18 @@ namespace CatIsland.UI
             var circle = Box(root, "Circle", bg ?? Theme.Cream, (int)(size / 2)); Anchor(circle.rectTransform, new Vector2(.5f, 1), new Vector2(.5f, 1), Vector2.zero, new Vector2(size, size));
             var line = Box(circle.transform, "Line", Theme.Cocoa, (int)(size / 2), 2); Fill(line.rectTransform); line.raycastTarget = false;
             var ic = IconImage(circle.transform, icon, size * .6f); Anchor(ic.rectTransform, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(size * .6f, size * .6f));
-            if (caption != null) { var t = Label(root, caption, Theme.Tiny + 1); Anchor(t.rectTransform, new Vector2(.5f, 0), new Vector2(.5f, 0), Vector2.zero, new Vector2(size + 16, 18)); }
+            if (caption != null) { var t = Label(root, caption, Theme.Tiny + 1); Anchor(t.rectTransform, new Vector2(.5f, 0), new Vector2(.5f, 0), Vector2.zero, new Vector2(size + 16, 18)); Halo(t); }
             var b = circle.gameObject.AddComponent<Button>(); b.transition = Selectable.Transition.None; b.onClick.AddListener(() => onClick?.Invoke());
             circle.gameObject.AddComponent<Press>();
             var le = root.gameObject.AddComponent<LayoutElement>(); le.preferredWidth = size; le.preferredHeight = size + (caption != null ? 18 : 0);
             return b;
+        }
+        /// <summary>섬 위에 바로 놓이는 글자: 크림색 테두리를 둘러 밤·그늘에서도 읽히게.</summary>
+        public static Text Halo(Text t)
+        {
+            foreach (var d in new[] { new Vector2(1.5f, -1.5f), new Vector2(-1.5f, 1.5f) })
+            { var o = t.gameObject.AddComponent<Outline>(); o.effectColor = new Color(Theme.Cream.r, Theme.Cream.g, Theme.Cream.b, .95f); o.effectDistance = d; o.useGraphicAlpha = true; }
+            return t;
         }
         /// <summary>작은 빨간 점 (새 것이 있을 때).</summary>
         public static Image Badge(Transform parent)
