@@ -221,5 +221,21 @@ namespace CatIsland.Tests
                 Assert.Greater(opaque, 300, icon + " should have visible pixels");
             }
         }
+
+        /// <summary>화질 자동 조절: 느리면 3초 만에 한 단계 낮추고, 넉넉함이 15초 이어져야 올리며, 올리자마자 떨어지면 1분 동안 그 단계로 다시 올리지 않는다.</summary>
+        [Test]
+        public void QualityGovernor_DropsFast_RisesSlow_NoFlapping()
+        {
+            var q = new CatIsland.QualityGovernor(0);
+            void Run(float fps, float seconds) { for (float t = 0; t < seconds; t += 1f / fps) q.Tick(1f / fps); }
+            Run(60f, 9f); Assert.AreEqual(0, q.Level, "넉넉하면 그대로");
+            Run(40f, 3.1f); Assert.AreEqual(1, q.Level, "느리면 3초 만에 한 단계 낮춤");
+            Run(40f, 9.3f); Assert.AreEqual(3, q.Level, "계속 느리면 끝까지"); Run(40f, 6f); Assert.AreEqual(3, q.Level, "가장 낮은 단계에서 멈춤");
+            Run(60f, 12f); Assert.AreEqual(3, q.Level, "올리는 것은 천천히");
+            Run(60f, 6f); Assert.AreEqual(2, q.Level, "넉넉함이 15초 이어지면 한 단계 올림");
+            Run(40f, 3.1f); Assert.AreEqual(3, q.Level, "올리자마자 느려지면 다시 낮춤");
+            Run(60f, 30f); Assert.AreEqual(3, q.Level, "그 단계는 1분 동안 다시 올리지 않는다");
+            Run(60f, 40f); Assert.AreEqual(2, q.Level, "1분이 지나면 다시 올려 본다");
+        }
     }
 }

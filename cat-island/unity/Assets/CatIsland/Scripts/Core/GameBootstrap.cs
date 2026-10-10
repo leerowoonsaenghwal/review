@@ -164,6 +164,7 @@ namespace CatIsland
 
             if (Debug.isDebugBuild || Application.isEditor) gameObject.AddComponent<DebugOverlay>();   // (개발용 정보: 출시 빌드에는 없음 - 세 손가락 톡으로 켜질 수 있고, 꺼져 있어도 OnGUI 가 매 프레임 돈다)
             gameObject.AddComponent<PerfMonitor>();
+            gameObject.AddComponent<AdaptiveQuality>().Cam = IslandCam;   // (느려지면 화질을 한 단계씩 낮추고, 그림자 거리를 카메라에 맞춘다)
             gameObject.AddComponent<BackgroundMusic>();
         }
 

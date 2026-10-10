@@ -25,6 +25,8 @@ namespace CatIsland
         Camera cam;
 
         public float Yaw => yaw;
+        /// <summary>보는 곳까지의 거리 (그림자 거리 맞추기: AdaptiveQuality).</summary>
+        public float CurrentDistance => PhotoMode ? photoDist : dist;
         /// <summary>바닥 깔기 모드: 정한 곳(ManualFocus)을 정한 거리에서 본다. 끄면 다시 고양이를 따라간다.</summary>
         public bool Manual; public Vector3 ManualFocus; public float ManualDist = 11f;
         /// <summary>화면의 한 점 아래 땅 (높이 0) 의 세상 좌표.</summary>

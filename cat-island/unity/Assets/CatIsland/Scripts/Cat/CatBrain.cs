@@ -554,7 +554,7 @@ namespace CatIsland
             if (distGoal <= arriveDist) { Speed = Mathf.MoveTowards(Speed, 0f, dt * 4f); return Speed < 0.05f; }
             // 다른 고양이: 목적지에 이미 있으면 그 옆에서 멈추고, 앞을 막고 있으면 잠깐 기다린다 (오래 막히면 여기서 멈춘다)
             if (distGoal < .75f && OtherCatNear(target, .55f)) { Speed = Mathf.MoveTowards(Speed, 0f, dt * 4f); return Speed < 0.05f; }
-            var ahead = CatAhead(Flat(target - pos).normalized, .6f);
+            var ahead = CatAhead(Flat(target - pos).normalized, Mathf.Max(.6f, Speed * .45f));   // (빠를수록 더 멀리 앞을 본다: 질주 중 마주 오는 고양이와 부딪치지 않게)
             if (ahead != null)
             {
                 blockedFor += dt; Speed = Mathf.MoveTowards(Speed, 0f, dt * 5f);
