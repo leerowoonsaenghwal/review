@@ -158,7 +158,7 @@ namespace CatIsland
         void CloseMouth() { Rig.mouthOpen = 0f; }
 
         // ---------------- 저절로 우는 소리: 가끔, 자연스럽게 (눌러서가 아니라 고양이 스스로)
-        float lastTapMeow = -9f, nextVocal = -1f, lastPetChirp = -9f, petPeak, tapTiltUntil, tapTiltSign = 1f; bool wasTouching, petSessionHeart;
+        float lastTapMeow = -9f, nextVocal = -1f, lastPetChirp = -9f, petPeak, tapTiltUntil, tapTiltSign = 1f, slowBlinkAt = -9f; bool wasTouching, petSessionHeart;
         static float lastAnyVocal = -9f;   // (여러 마리가 한꺼번에 울지 않게)
         /// <summary>야옹(입 벌림과 함께). tapped: 눌러서 우는 것(다른 고양이 간격은 보지 않는다).</summary>
         void Vocalize(bool tapped = false)
@@ -259,7 +259,7 @@ namespace CatIsland
             {
                 case CatState.Idle: TickIdle(dt); break;
                 case CatState.Wander: TickMoveTo(dt, GameConfig.WalkSpeed, CatState.Idle); break;
-                case CatState.Called: TickMoveTo(dt, GameConfig.TrotSpeed, CatState.Idle); break;
+                case CatState.Called: TickCalled(dt); break;
                 case CatState.Zoomies: TickZoomies(dt); break;
                 case CatState.Invite: TickInvite(dt); break;
                 case CatState.SitIdle: TickSitIdle(dt); break;
@@ -770,6 +770,16 @@ namespace CatIsland
                 next = pos + step;
             }
             return next;
+        }
+
+        /// <summary>불려 와서: 도착하면 집사 쪽을 보고 앉아 천천히 눈을 깜빡인다 (고양이의 '좋아해' 신호), 잠깐 쉬었다가 다시 자유롭게.</summary>
+        void TickCalled(float dt)
+        {
+            if (!(MoveTowards(moveTarget, GameConfig.TrotSpeed, dt) || StateTime > 12f)) return;
+            if (InsideItem()) { Enter(CatState.Idle); return; }
+            Enter(CatState.SitIdle); stateTimer = 4f;
+            if (cam) faceDir = Flat(cam.position - transform.position);
+            slowBlinkAt = Time.time + .9f;   // (앉고 나서)
         }
 
         void TickMoveTo(float dt, float speed, CatState then)
@@ -1427,6 +1437,8 @@ namespace CatIsland
             bool sleep = State == CatState.Sleep || r.Current == Posture.Sleep;
             float happyClose = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.12f, 0.4f, p));   // (좋아하기 시작하면 곧 '^^' 눈)
             r.eyeOpen = sleep ? 0f : 1f - happyClose;
+            // 천천히 깜빡이기: 0.35초 감았다가 0.35초에 걸쳐 뜬다
+            float sb = Time.time - slowBlinkAt; if (!sleep && sb > 0f && sb < .9f) r.eyeOpen = Mathf.Min(r.eyeOpen, sb < .35f ? 1f - sb / .35f * .9f : sb < .55f ? .1f : .1f + (sb - .55f) / .35f * .9f);
             r.tailWag = State == CatState.Nip ? 1f : p * 0.5f + (touchingCat && p > .2f ? .25f : 0f);
             // 웃는 얼굴: 좋아하기 시작하면 눈을 감은 채 입을 살짝 벌려 웃는다, 발라당 누워서도 (자는 중은 아님)
             r.smile = sleep ? 0f : State == CatState.BellyUp ? .35f : (touchingCat || State == CatState.Petted) && p > .15f ? Mathf.Lerp(.15f, .35f, Mathf.InverseLerp(.15f, .7f, p)) : 0f;
