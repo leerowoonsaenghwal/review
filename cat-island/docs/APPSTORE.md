@@ -77,6 +77,10 @@
 
 **광고를 넣은 뒤 (AdMob)**: '데이터를 수집합니다' → 식별자(기기 ID: 광고·추적), 사용 데이터(광고 데이터: 제3자 광고), 진단(충돌 데이터: 앱 기능) — 사용자와 연결 안 됨, 추적에 사용(이용자가 허락한 경우). 앱 추적 투명성 창(ATT) 문구를 Info.plist에 넣는다 (NSUserTrackingUsageDescription).
 
+## 개인정보 매니페스트·권한 문구 (빌드에 자동으로 들어감)
+- 앱 본체 `PrivacyInfo.xcprivacy` (원본 `unity/Assets/CatIsland/Editor/iOS/`, IosPostBuild 가 넣음): 추적 없음, 모으는 데이터 없음, 설정 저장(UserDefaults, CA92.1). 엔진 몫은 UnityFramework 안 매니페스트. 광고를 넣으면 광고 SDK 매니페스트가 더해지고 위 '광고를 넣은 뒤' 답과 맞춘다.
+- `NSPhotoLibraryAddUsageDescription`: "찍은 고양이 사진을 사진 앱에 저장할 때만 써요." (공유 화면의 '이미지 저장'. 없으면 누르는 순간 앱이 꺼진다.) 사진 고르기는 PHPicker 라 보관함 권한 문구가 필요 없다.
+
 ## 수출 규정 (암호화)
 Info.plist `ITSAppUsesNonExemptEncryption = NO` 를 빌드 때 넣는다 (IosPostBuild). 업로드할 때 묻지 않는다.
 
