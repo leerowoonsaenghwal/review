@@ -35,3 +35,34 @@ namespace CatIsland
         }
     }
 }
+
+namespace CatIsland
+{
+    /// <summary>바닥을 누른 자리: 크림색 고리가 0.5초 동안 퍼지며 사라진다 (고양이가 그리로 간다는 표시, 소리 대신).</summary>
+    public class TapRipple : MonoBehaviour
+    {
+        static TapRipple inst;
+        float t = 9f; Vector3 at; Material mat;
+
+        public static void Show(Vector3 world)
+        {
+            if (!inst)
+            {
+                var go = new GameObject("TapRipple"); inst = go.AddComponent<TapRipple>();
+                var mesh = MeshFactory.Lathe("tapripple", new System.Collections.Generic.List<Vector2> { new Vector2(.20f, .015f), new Vector2(.16f, .015f) }, 40);
+                go.AddComponent<MeshFilter>().sharedMesh = mesh; var mr = go.AddComponent<MeshRenderer>();
+                inst.mat = new Material(Materials.Soft(Palette.Hex("FBF6E6"))); inst.mat.SetFloat("_Emission", .85f); mr.sharedMaterial = inst.mat;
+                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            inst.at = new Vector3(world.x, FloorTiles.HeightAt(world) + .006f, world.z); inst.t = 0f; inst.gameObject.SetActive(true);
+        }
+
+        void LateUpdate()
+        {
+            t += Time.unscaledDeltaTime;
+            if (t > .5f) { gameObject.SetActive(false); return; }
+            float u = t / .5f;
+            transform.position = at; transform.localScale = new Vector3(1f + 1.6f * u, 1f, 1f + 1.6f * u) * (1f - .3f * u * u);
+        }
+    }
+}

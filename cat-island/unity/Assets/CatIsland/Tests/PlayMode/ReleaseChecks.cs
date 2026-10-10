@@ -143,6 +143,7 @@ namespace CatIsland.Tests
             yield return Tap(Screen(ground));
             Assert.AreEqual(CatState.Called, other.State, "바닥을 누르면 지금 고양이가 온다");
             Assert.AreEqual(played, au.PlayedCount, "바닥을 누를 때 울지 않는다");
+            var ripple = GameObject.Find("TapRipple"); Assert.IsTrue(ripple && Vector3.Distance(new Vector3(ripple.transform.position.x, 0, ripple.transform.position.z), new Vector3(ground.x, 0, ground.z)) < .3f, "누른 자리에 물결");
             // 손가락이 닿자마자 기댄다 (문지르기 전에도)
             other.ForceState(CatState.SitIdle); yield return new WaitForSeconds(.5f);
             fingers.Press(Screen(other.Rig.HeadZone.position)); for (int i = 0; i < 6; i++) yield return null;

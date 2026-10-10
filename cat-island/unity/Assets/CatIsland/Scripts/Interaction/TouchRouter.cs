@@ -191,7 +191,7 @@ namespace CatIsland
                     if (tap)
                     {
                         var ray = cam.ScreenPointToRay(lastPos);
-                        if (Physics.Raycast(ray, out var hit, 100f)) cat?.OnTapGround(hit.point);
+                        if (Physics.Raycast(ray, out var hit, 100f)) { cat?.OnTapGround(hit.point); if (cat) TapRipple.Show(hit.point); }   // (누른 자리에 물결: 고양이가 그리로 간다)
                     }
                     break;
             }
