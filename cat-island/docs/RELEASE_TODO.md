@@ -10,7 +10,7 @@
 | 4 | 광고 회사 앱 ID (AdMob 또는 AppLovin MAX) | admob.google.com | 앱 추가 → 보상형·전면 광고 단위 만들기 → ID를 알려 주면 넣는다 |
 | 5 | Game Center 업적·순위표 등록 | App Store Connect → 앱 → Game Center | ID 목록은 개발 중 아래에 채워 둔다 |
 | 6 | 개인정보 처리방침 게시 | 정적 웹페이지 (예: GitHub Pages, Notion 공개 페이지) | 초안은 개발 끝에 `docs/PRIVACY_POLICY.md`로 제공 |
-| 7 | 실제 아이폰 테스트 | 사용자 아이폰 | 빌드 설치 후 5~10분 플레이, 이상하면 알려 주기 |
+| 7 | 실제 아이폰 테스트 | 사용자 아이폰 | **2026-10-10 개발용으로 설치됨** (lifeisgood^~^, iPhone 17 Pro, 홈 화면 '놀고섬'). 5~10분 플레이, 이상하면 알려 주기. 새 버전 다시 설치: 아이폰을 연결·잠금 해제하고 `unity/tools/install_device.sh` |
 | 8 | 상표 출원 ("놀러와요 고양이섬") | 특허로 (patent.go.kr) | 상품류 9류(게임 소프트웨어), 41류(온라인 게임 제공) |
 | 10 | 앱 기능 켜기 (서명에 필요) | developer.apple.com → Identifiers → 이 앱 | iCloud(키값 저장), Game Center, In-App Purchase 를 켠다. Xcode 프로젝트에는 빌드 때 자동으로 켜진다 |
 | 11 | 앱 개인정보 보호 항목 입력 | App Store Connect → 앱 → 앱 개인정보 보호 | `docs/APPSTORE.md` '앱 개인정보 보호' 표대로 (광고 넣기 전: 수집 안 함) |
