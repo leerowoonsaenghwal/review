@@ -367,6 +367,8 @@ namespace CatIsland.UI
                                (c.status == "walk" ? $"산책 중 · {Math.Max(1, (c.walkEndsAt - G.Now) / 60)}분 뒤 와요" : $"밥 {Pct(c.hunger)} · 물 {Pct(c.thirst)} · 놀이 {Pct(c.play)}");
                     Kit.Size(RowText(r, info, Theme.Caption), -1, 96, 1);
                     var uid = c.uid;
+                    if (c.status == "home" && GameBootstrap.Instance)   // (줄을 누르면 그 고양이를 본다: 카메라가 따라가고, 바닥을 누르면 이 고양이가 온다)
+                    { var rowBtn = r.parent.gameObject.AddComponent<Button>(); rowBtn.transition = Selectable.Transition.None; rowBtn.onClick.AddListener(() => { CloseAll(); GameBootstrap.Instance.SelectCat(uid); }); }
                     if (c.status == "home")
                     {
                         Kit.Size(Kit.Btn(r, "밥", () => { if (G.Feed(uid)) Toast("냠냠"); else if (G.AdAvailable(Catalog.AdSpot.FreeFood)) G.FreeFoodAd(ok => Toast(ok ? "사료 한 봉지를 받았어요" : Str.AdLater)); else Toast("상점에서 사료를 사 와요"); Open(BuildCats); }, Kit.Style.Secondary), 52, 44);

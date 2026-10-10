@@ -20,13 +20,13 @@ namespace CatIsland
         // ---- 쓰다듬기 ----
         public const float PleasureDecayPerSec = 0.22f;
         public const float GainLoved = 0.55f;
-        public const float GainLiked = 0.32f;
-        public const float GainNeutral = 0.14f;
+        public const float GainLiked = 0.42f;
+        public const float GainNeutral = 0.24f;
         public const float StrokeSpeedMin = 0.04f;     // 화면 높이 기준 /초. 이보다 느리면 문지르는 게 아님
         public const float StrokeSpeedBest = 0.55f;    // 이 근처가 가장 기분 좋음
         public const float StrokeSpeedRough = 2.2f;    // 이보다 빠르면 거칠다
-        public const float PurrOnPleasure = 0.22f;
-        public const float PurrOffPleasure = 0.12f;
+        public const float PurrOnPleasure = 0.15f;
+        public const float PurrOffPleasure = 0.08f;
         public const float BellyTolerance = 1.1f;      // 신뢰 전 배를 이만큼 문지르면 살짝 깨묾
         public const float NipCooldown = 2.5f;
         public const float BellyUpHold = 1.6f;         // 기쁨 최대치를 이만큼 유지하면 발라당

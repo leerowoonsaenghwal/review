@@ -109,6 +109,46 @@ namespace CatIsland.Tests
             Assert.Less(Vector3.Distance(model.localScale, s0), .002f);
         }
 
+        /// <summary>고양이 셋: 다른 고양이를 누르면 '지금 고양이'가 되어 카메라가 따라가고, 바닥을 누르면 그 고양이가 온다(울지 않고). 손가락이 닿자마자 기댄다.</summary>
+        [UnityTest]
+        public IEnumerator ThreeCats_TapToSelect_GroundTapCallsSelected_NoMeowPerTap()
+        {
+            var g = game.Logic; g.S.catSlots = 4;
+            foreach (var (b, n) in new[] { ("korean_shorthair", "나비"), ("persian", "보리"), ("siamese", "달이") }) g.AddCat(b, n, CatIsland.Game.Personality.Easygoing);
+            game.SyncCats(); for (int i = 0; i < 30; i++) yield return null;
+            var cats = Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).Where(c => c.Data != null).OrderBy(c => c.Data.name).ToList();
+            Assert.AreEqual(3, cats.Count);
+            var other = cats.First(c => c != game.Router.cat);
+            foreach (var c in cats) { c.Needs.SetForTest(1f, 1f); c.ForceState(CatState.SitIdle); }
+            game.IslandCam.SnapNow(); yield return null;
+            // (그 고양이 머리를 톡)
+            game.IslandCam.follow = other.transform; game.IslandCam.SnapNow(); yield return null; game.IslandCam.follow = cats.First(c => c != other).transform;
+            yield return Tap(Screen(other.Rig.HeadZone.position));
+            Assert.AreSame(other, game.Router.cat, "누른 고양이가 지금 고양이"); Assert.AreSame(other.transform, game.IslandCam.follow, "카메라가 따라간다");
+            var ring = GameObject.Find("SelectRing"); Assert.IsNotNull(ring, "발밑 고리"); yield return new WaitForSeconds(.3f);
+            var rb = ring.GetComponent<MeshRenderer>().bounds; Debug.Log($"[Ring] active {ring.activeInHierarchy} visible {ring.GetComponent<MeshRenderer>().isVisible} center {rb.center} size {rb.size} scale {ring.transform.localScale} cat {other.transform.position} verts {ring.GetComponent<MeshFilter>().sharedMesh.vertexCount}");
+            // (카메라 화면을 받아 고리 자리 둘레에 분홍(딸기우유) 화소가 있는지)
+            var camC = game.IslandCam.GetComponent<Camera>(); var rt = new RenderTexture(540, 1170, 24); var prevT = camC.targetTexture; camC.targetTexture = rt; camC.Render(); camC.targetTexture = prevT;
+            RenderTexture.active = rt; var shot = new Texture2D(540, 1170, TextureFormat.RGB24, false); shot.ReadPixels(new Rect(0, 0, 540, 1170), 0, 0); shot.Apply(); RenderTexture.active = null;
+            var sp = camC.WorldToViewportPoint(rb.center); int pink = 0;
+            for (int y = -60; y <= 60; y += 2) for (int x = -90; x <= 90; x += 2)
+                { var c = shot.GetPixel((int)(sp.x * 540) + x, (int)(sp.y * 1170) + y); if (c.r > .85f && c.g > .35f && c.g < .65f && c.b > .45f && c.b < .75f) pink++; }
+            Debug.Log($"[Ring] pink {pink} at viewport {sp}"); rt.Release(); Object.Destroy(shot);
+            Assert.Greater(pink, 20, "고리가 화면에 그려진다");
+            var mesh = ring.GetComponent<MeshFilter>().sharedMesh; Assert.Greater(mesh.normals.Average(n => n.y), .5f, "고리 면이 위를 본다");
+            // 바닥을 누르면 그 고양이가 온다, 울지 않는다
+            yield return new WaitForSeconds(2.2f);
+            var au = other.GetComponent<CatAudio>(); int played = au.PlayedCount;
+            var ground = other.transform.position + new Vector3(1.2f, 0f, 0f);
+            yield return Tap(Screen(ground));
+            Assert.AreEqual(CatState.Called, other.State, "바닥을 누르면 지금 고양이가 온다");
+            Assert.AreEqual(played, au.PlayedCount, "바닥을 누를 때 울지 않는다");
+            // 손가락이 닿자마자 기댄다 (문지르기 전에도)
+            other.ForceState(CatState.SitIdle); yield return new WaitForSeconds(.5f);
+            fingers.Press(Screen(other.Rig.HeadZone.position)); for (int i = 0; i < 6; i++) yield return null;
+            Assert.Greater(other.Rig.petLean, .4f, "닿자마자 기댄다"); fingers.Release(); yield return null;
+        }
+
         /// <summary>처음 7일 안내 카드: 보이면 글자가 있다 (글자 넣기가 빠져 빈 카드가 뜬 적이 있다), 바닥 깔기 중에는 숨는다.</summary>
         [UnityTest]
         public IEnumerator HintCard_ShowsItsText_AndHidesWhileTiling()

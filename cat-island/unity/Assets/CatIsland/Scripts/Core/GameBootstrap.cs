@@ -109,6 +109,7 @@ namespace CatIsland
             Router.tower = Tower;
             Router.islandCamera = IslandCam;
             Router.audioOut = Audio;
+            Router.OnSelect = SelectCat;
 
             // 게임 규칙 · 저장 · 화면
             var files = NewFiles?.Invoke() ?? new CatIsland.Game.DiskFiles(System.IO.Path.Combine(Application.persistentDataPath, "save"));
@@ -156,6 +157,7 @@ namespace CatIsland
             }
             if (Logic.S.cats.Count == 0 && OpenCatMakerIfEmpty) CatIsland.UI.CatMaker.Open(UI);
             if (System.Environment.GetEnvironmentVariable("CATISLAND_TILEMODE") == "1") TileMode.Begin(this, null);
+            if (int.TryParse(System.Environment.GetEnvironmentVariable("CATISLAND_SELECT"), out var selIdx) && selIdx < Logic.S.cats.Count) StartCoroutine(SelectLater(Logic.S.cats[selIdx].uid));   // (점검: n 번째 고양이 고르기)
             if (System.Environment.GetEnvironmentVariable("CATISLAND_TILESAMPLER") == "1")   // (점검: 데크 타일 8종을 3 x 3 씩 나란히)
             {
                 Logic.S.floor.Clear(); Logic.AddCoins(5000); int k = 0;
@@ -192,9 +194,21 @@ namespace CatIsland
         }
 
         /// <summary>고양이 만들기 미리보기 (첫 고양이: 섬에 서 있는 미리보기 고양이를 고른 모습으로 바꾼다).</summary>
+        System.Collections.IEnumerator SelectLater(string uid) { yield return new WaitForSeconds(3f); SelectCat(uid); }
+
         System.Collections.IEnumerator SamplerPan()
         {
             foreach (float x in new[] { 2.5f, 6.5f, 10.5f, 14.5f }) { IslandCam.ManualFocus = WorldSync.CellToWorld(CatIsland.Game.Zone.Indoor, x, 4f); yield return new WaitForSecondsRealtime(4f); }
+        }
+
+        /// <summary>'지금 고양이'를 바꾼다: 카메라가 따라가고, 바닥을 누르면 이 고양이가 오고, 발밑에 분홍 고리가 잠깐 뜬다.</summary>
+        public void SelectCat(string uid) { foreach (var b in CatBrain.All) if (b && b.Data != null && b.Data.uid == uid && b.isActiveAndEnabled) { SelectCat(b); return; } }
+        public void SelectCat(CatBrain b)
+        {
+            if (!b) return;
+            Router.cat = b; IslandCam.follow = b.transform; if (IslandCam.zoomLevel != 1) { IslandCam.zoomLevel = 1; }
+            SelectRing.Show(b.transform);
+            if (b.Data != null) UI?.Toast(b.Data.name);
         }
 
         void ShowPreview(CatIsland.UI.PhotoCat p)

@@ -68,6 +68,7 @@ namespace CatIsland.Tests
             Time.timeScale = 1f;
             if (TileMode.Active) TileMode.Active.Finish();
             if (PlaceMode.Active) PlaceMode.Active.Finish(false);
+            if (CatIsland.UI.PhotoModeUI.Active) CatIsland.UI.PhotoModeUI.Active.Close();
             game.UI.CloseAll(); yield return null;
             Debug.Log($"[Monkey] seed {seed}: {actions} actions, {clicks} button presses, coins {g.S.coins}, jelly {g.S.jelly}, cats {g.S.cats.Count}, placed {g.S.placed.Count}, tiles {g.S.floor.Count}");
             // 끝난 뒤 상태가 멀쩡한가

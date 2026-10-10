@@ -148,15 +148,34 @@ namespace CatIsland
         {
             NoteUserActivity();
             if (State == CatState.Sleep) return; // 자는 고양이는 깨우지 않는다
-            audioOut?.Meow();
-            Rig.mouthOpen = 1f;
-            Invoke(nameof(CloseMouth), 0.4f);
+            if (Time.time - lastTapMeow > 2f) { lastTapMeow = Time.time; Vocalize(true); }   // (연달아 눌러도 2초에 한 번만 운다)
             Haptics.Impact(ImpactStyle.Soft, 0.6f);
             if (State == CatState.Wander || State == CatState.Invite) Enter(CatState.Idle);
             if (cam) faceDir = Flat(cam.position - transform.position);
         }
 
         void CloseMouth() { Rig.mouthOpen = 0f; }
+
+        // ---------------- 저절로 우는 소리: 가끔, 자연스럽게 (눌러서가 아니라 고양이 스스로)
+        float lastTapMeow = -9f, nextVocal = -1f, lastPetChirp = -9f; bool wasTouching, petSessionHeart;
+        static float lastAnyVocal = -9f;   // (여러 마리가 한꺼번에 울지 않게)
+        /// <summary>야옹(입 벌림과 함께). tapped: 눌러서 우는 것(다른 고양이 간격은 보지 않는다).</summary>
+        void Vocalize(bool tapped = false)
+        {
+            if (!tapped && Time.time - lastAnyVocal < 7f) return;
+            lastAnyVocal = Time.time;
+            audioOut?.Meow(); Rig.mouthOpen = 1f; CancelInvoke(nameof(CloseMouth)); Invoke(nameof(CloseMouth), 0.4f);
+        }
+        void TickVocal()
+        {
+            if (nextVocal < 0f) nextVocal = Time.time + UnityEngine.Random.Range(8f, 30f);
+            if (Time.time < nextVocal) return;
+            // 배고프면 자주(밥 달라고), 집사를 부를 때·놀 때 가끔, 그 밖에는 드물게. 자거나 먹거나 쓰다듬는 중에는 울지 않는다
+            bool talky = State == CatState.WaitAtBowl || State == CatState.Invite || Needs.IsHungry;
+            bool quiet = State == CatState.Sleep || State == CatState.LieDown || State == CatState.Eat || State == CatState.Petted || State == CatState.BellyUp || State == CatState.Groom || IsJumping() || OnTower;
+            nextVocal = Time.time + (talky ? UnityEngine.Random.Range(9f, 20f) : UnityEngine.Random.Range(25f, 70f));
+            if (!quiet) Vocalize();
+        }
 
         public void OnTapGround(Vector3 world)
         {
@@ -165,8 +184,7 @@ namespace CatIsland
             if (!IsFree() || OnTower) return;
             moveTarget = ClampToIsland(world);
             if (nav != null) moveTarget = FreeSpot(moveTarget);
-            audioOut?.Chirp();
-            Enter(CatState.Called);
+            Enter(CatState.Called);   // (바닥을 누를 때마다 울지 않는다: 우는 것은 가끔, 고양이 스스로 - Vocalize)
         }
 
         public void OnBowlFilled()
@@ -271,6 +289,7 @@ namespace CatIsland
             }
 
             Separate(dt);
+            TickVocal();
             // 방금 쓰고 나온 용품을 지나가도 되는 것은 아직 그 안에 있을 때만: 밖으로 다 나오면 바로 끝 (그 뒤 12초 동안 다시 가로질러 들어가던 것)
             if (LeftItem && nav != null && (Time.frameCount + GetInstanceID()) % 5 == 0)
             {
@@ -307,7 +326,9 @@ namespace CatIsland
                 }
                 AddAffection(f.AffectionGained);
                 heartAccum += f.AffectionGained;
-                if (heartAccum >= 2.2f)
+                // (좋아하기 시작한 순간 바로 하트 하나: 쓰다듬은 보람이 곧장 보이게. 그 뒤는 쌓일 때마다)
+                if (!petSessionHeart) { petSessionHeart = true; heartAccum = 2.2f; }
+                if (heartAccum >= 1.6f)
                 {
                     heartAccum = 0f;
                     OnPetted?.Invoke(Mathf.Clamp01(Pet.Pleasure + .3f));
@@ -1373,12 +1394,21 @@ namespace CatIsland
             r.moveSpeed = Mathf.Max(Speed, turnStep);
             turnStep = Mathf.MoveTowards(turnStep, 0f, dt * 0.6f);
             bool sleep = State == CatState.Sleep || r.Current == Posture.Sleep;
-            float happyClose = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 0.75f, p));
+            float happyClose = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.18f, 0.65f, p));   // (조금 일찍 눈을 가늘게)
             r.eyeOpen = sleep ? 0f : 1f - happyClose;
             r.tailWag = State == CatState.Nip ? 1f : p * 0.5f;
 
             bool petting = touchingCat && (State == CatState.Petted || State == CatState.BellyUp);
-            r.petLean = petting ? 1f : 0f;
+            // (손가락이 닿자마자 반쯤 기대고, 좋아하기 시작하면 다 기댄다: 문지르기 전에도 반응이 보이게)
+            r.petLean = petting ? 1f : touchingCat && State != CatState.Sleep ? .5f : 0f;
+            if (!touchingCat && Time.time - lastPetTime > 3f) petSessionHeart = false;
+            // 닿은 순간: 걷던 고양이는 멈추고 손가락을 본다, 쓰다듬기를 시작할 때 '브릅' 한 번 (누를 때마다는 아님)
+            if (touchingCat && !wasTouching)
+            {
+                if (State == CatState.Wander || State == CatState.Called || State == CatState.Invite) { Enter(CatState.Idle); Speed = 0f; }
+                if (State != CatState.Sleep && Time.time - lastPetChirp > 6f) { lastPetChirp = Time.time; audioOut?.Chirp(); }
+            }
+            wasTouching = touchingCat;
             if (touchingCat) FingerGlow.Show(pointerWorld);
             if (petting && (petZone == PetZone.Forehead || petZone == PetZone.Cheek))
             {

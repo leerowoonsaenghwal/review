@@ -322,15 +322,17 @@ namespace CatIsland.Tests
             Assert.GreaterOrEqual(game.Audio.MeowCount, 6);
             string prev = null;
             var heard = new System.Collections.Generic.HashSet<string>();
-            for (int i = 0; i < 12; i++)
+            Time.timeScale = 4f;   // (눌러도 2초에 한 번만 운다: 간격을 두고 누른다)
+            for (int i = 0; i < 7; i++)
             {
                 yield return Tap(Screen(HeadPoint));
                 Assert.AreNotEqual(prev, game.Audio.LastMeow, "a different meow each tap");
                 prev = game.Audio.LastMeow;
                 heard.Add(prev);
-                yield return new WaitForSeconds(0.3f);
+                yield return new WaitForSeconds(2.1f);
             }
-            Assert.GreaterOrEqual(heard.Count, 5, "many different meows over a dozen taps");
+            Time.timeScale = 1f;
+            Assert.GreaterOrEqual(heard.Count, 6, "every meow over a few taps (shuffled, no repeats in a round)");
         }
 
         [UnityTest]

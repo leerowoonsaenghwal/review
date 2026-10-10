@@ -25,6 +25,8 @@ namespace CatIsland
         public CatTower tower;
         public IslandCamera islandCamera;
         public CatAudio audioOut;
+        /// <summary>다른 고양이를 눌러 '지금 고양이'가 바뀔 때.</summary>
+        public System.Action<CatBrain> OnSelect;
         CatAudio Out => audioOut ? audioOut : (audioOut = GameBootstrap.Instance ? GameBootstrap.Instance.Audio : null);   // (지운 물체는 ?. 로 걸러지지 않는다: 사라졌으면 다시 받는다)
         public IPointerSource source = new InputSystemPointers();
 
@@ -134,7 +136,7 @@ namespace CatIsland
             if (Physics.Raycast(ray, out var hit, 100f))
             {
                 downHit = hit.collider;
-                foreach (var c in cats) if (c && c.isActiveAndEnabled && c.Rig.IsCatCollider(hit.collider)) { cat = c; break; }
+                foreach (var c in cats) if (c && c.isActiveAndEnabled && c.Rig.IsCatCollider(hit.collider)) { if (c != cat) { cat = c; OnSelect?.Invoke(c); } break; }   // (누른 고양이가 '지금 고양이': 카메라가 따라가고 바닥을 누르면 이 고양이가 온다)
                 if (cat && cat.Rig.IsCatCollider(hit.collider)) mode = Mode.Pet;
                 else if (bowl && hit.collider.gameObject == bowl.gameObject) mode = Mode.Bowl;
                 else if (cushion && hit.collider.gameObject == cushion.gameObject) mode = Mode.Cushion;

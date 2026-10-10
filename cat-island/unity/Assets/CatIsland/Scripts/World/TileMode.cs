@@ -29,7 +29,7 @@ namespace CatIsland
         public static TileMode Begin(GameBootstrap boot, string tileId, Action done = null)
         {
             if (Active) Active.Finish();
-            if (PlaceMode.Active) PlaceMode.Active.Finish(false);
+            if (PlaceMode.Active) PlaceMode.Active.Finish(false); if (CatIsland.UI.PhotoModeUI.Active) CatIsland.UI.PhotoModeUI.Active.Close();   // (모드는 한 번에 하나)
             var m = new GameObject("TileMode").AddComponent<TileMode>();
             m.boot = boot; m.g = boot.Logic; m.TileId = tileId ?? Catalog.Tiles.Select(t => t.id).FirstOrDefault(id => boot.Logic.Tiles(id) > 0) ?? Catalog.StarterTile; m.done = done;
             boot.Router.enabled = false;

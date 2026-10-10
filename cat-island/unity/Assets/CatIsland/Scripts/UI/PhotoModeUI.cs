@@ -31,6 +31,7 @@ namespace CatIsland.UI
         public static void Open(GameUI ui, GameBootstrap boot)
         {
             if (Active) return;
+            if (TileMode.Active) TileMode.Active.Finish(); if (PlaceMode.Active) PlaceMode.Active.Finish(false);   // (모드는 한 번에 하나: 손가락 입력을 끄고 켜는 일이 꼬이지 않게)
             var m = new GameObject("PhotoMode").AddComponent<PhotoModeUI>(); m.ui = ui; m.boot = boot; Active = m;
             ui.CloseAll();
             boot.IslandCam.BeginPhoto(); boot.Router.enabled = false;

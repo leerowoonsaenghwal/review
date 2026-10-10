@@ -28,6 +28,7 @@ namespace CatIsland
         public static PlaceMode Begin(GameBootstrap boot, string item, int moveIndex, Action<bool> done)
         {
             if (Active) Active.Finish(false);
+            if (TileMode.Active) TileMode.Active.Finish(); if (CatIsland.UI.PhotoModeUI.Active) CatIsland.UI.PhotoModeUI.Active.Close();   // (모드는 한 번에 하나)
             var m = new GameObject("PlaceMode").AddComponent<PlaceMode>();
             m.boot = boot; m.g = boot.Logic; m.Item = item; m.done = done; m.moveIndex = moveIndex;
             var d = Catalog.Item(item); m.Zone = d.zone;
