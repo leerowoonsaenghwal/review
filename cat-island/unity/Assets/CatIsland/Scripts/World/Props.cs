@@ -440,7 +440,7 @@ namespace CatIsland
 
         /// <summary>튤립 한 송이: 줄기 + 달걀꼴 꽃 + 잎 둘 (시안 크기 × 2.56).</summary>
         /// <summary>동그란 덤불: 잎 공 셋(크기·초록을 조금씩 다르게), 고양이는 돌아간다.</summary>
-        static void Bush(Transform root, string name, Vector3 pos, float size, System.Random rng)
+        public static void Bush(Transform root, string name, Vector3 pos, float size, System.Random rng)
         {
             var b = Shapes.Pivot(root, name, pos, new Vector3(0f, (float)rng.NextDouble() * 360f, 0f)); var sphere = MeshFactory.Sphere();
             Color[] greens = { Palette.Hex("4aa845"), Palette.Hex("58b44f"), Palette.Hex("3f9a3e") };
@@ -458,7 +458,7 @@ namespace CatIsland
             Solids.Add((name, new Vector3(pos.x, 0f, pos.z), .3f * size));
         }
 
-        static void Tulip(Transform parent, string name, Vector3 at, Color c, float size)
+        public static void Tulip(Transform parent, string name, Vector3 at, Color c, float size)
         {
             float s = MockScale * size;
             var f = Shapes.Pivot(parent, name, at);
