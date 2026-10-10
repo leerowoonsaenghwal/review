@@ -25,6 +25,7 @@ namespace CatIsland
         public CatTower tower;
         public IslandCamera islandCamera;
         public CatAudio audioOut;
+        CatAudio Out => audioOut ? audioOut : (audioOut = GameBootstrap.Instance ? GameBootstrap.Instance.Audio : null);   // (지운 물체는 ?. 로 걸러지지 않는다: 사라졌으면 다시 받는다)
         public IPointerSource source = new InputSystemPointers();
 
         readonly List<PointerSample> samples = new List<PointerSample>();
@@ -154,7 +155,7 @@ namespace CatIsland
                     if ((tap || !movedFar) && (BeforeBowlFill == null || BeforeBowlFill()))
                     {
                         bowl.Fill();
-                        audioOut?.Kibble();
+                        Out?.Kibble();
                         Haptics.Impact(ImpactStyle.Light, 0.5f);
                         cat?.OnBowlFilled();
                     }
@@ -163,7 +164,7 @@ namespace CatIsland
                     if (!movedFar)
                     {
                         cushion.Poke();
-                        audioOut?.Pop();
+                        Out?.Pop();
                         Haptics.Impact(ImpactStyle.Soft, 0.5f);
                         cat?.OnCushionTapped();
                     }

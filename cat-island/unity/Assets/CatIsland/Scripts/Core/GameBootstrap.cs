@@ -22,7 +22,18 @@ namespace CatIsland
         public NavGrid Nav { get; private set; }
         public IslandCamera IslandCam { get; private set; }
         public TouchRouter Router { get; private set; }
-        public CatAudio Audio { get; private set; }
+        /// <summary>화면 효과음에 쓰는 소리 (첫 고양이의 소리). 그 고양이가 산책·별나라로 사라지면 남은 고양이 것으로, 없으면 섬 소리로 바꾼다.</summary>
+        public CatAudio Audio
+        {
+            get
+            {
+                if (audio) return audio;
+                foreach (var b in CatBrain.All) if (b) { var a = b.GetComponent<CatAudio>(); if (a) return audio = a; }
+                return audio = gameObject.GetComponent<CatAudio>() ?? gameObject.AddComponent<CatAudio>();
+            }
+            private set => audio = value;
+        }
+        CatAudio audio;
         /// <summary>게임 규칙과 저장 (Scripts/Game). 화면(GameUI)과 섬(WorldSync)이 이것을 본다.</summary>
         public CatIsland.Game.Game Logic { get; private set; }
         public CatIsland.UI.GameUI UI { get; private set; }
@@ -175,7 +186,7 @@ namespace CatIsland
             var rig = go.AddComponent<CatRig>(); rig.breed = breed; if (data != null) { rig.eyeStyle = data.eyeStyle; rig.whiskerStyle = data.whiskerStyle; rig.coatJson = data.coatJson; }
             var audio = go.AddComponent<CatAudio>(); var brain = go.AddComponent<CatBrain>();
             brain.bowl = Bowl; brain.cushion = Cushion; brain.tower = Tower; brain.nav = Nav; brain.audioOut = audio; brain.cam = camT; brain.Data = data;
-            if (Audio == null) Audio = audio;
+            if (!this.audio || this.audio.gameObject == gameObject) Audio = audio;   // (첫 고양이의 소리를 쓴다: 섬 소리는 고양이가 없을 때만)
             go.SetActive(true);
             return brain;
         }

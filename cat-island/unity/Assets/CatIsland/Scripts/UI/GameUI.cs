@@ -153,8 +153,8 @@ namespace CatIsland.UI
         System.Collections.IEnumerator SlideUp(RectTransform rt)
         {
             var end = rt.anchoredPosition; float h = rt.rect.height + 40;
-            for (float t = 0; t < .22f; t += Time.unscaledDeltaTime) { float u = 1 - Mathf.Pow(1 - t / .22f, 3); rt.anchoredPosition = end + new Vector2(0, -h * (1 - u)); yield return null; }
-            rt.anchoredPosition = end;
+            for (float t = 0; t < .22f; t += Time.unscaledDeltaTime) { if (!rt) yield break; float u = 1 - Mathf.Pow(1 - t / .22f, 3); rt.anchoredPosition = end + new Vector2(0, -h * (1 - u)); yield return null; }
+            if (rt) rt.anchoredPosition = end;   // (올라오는 사이 창이 닫혔으면 그만)
         }
         public bool InStarLand;
         public void CloseAll()
