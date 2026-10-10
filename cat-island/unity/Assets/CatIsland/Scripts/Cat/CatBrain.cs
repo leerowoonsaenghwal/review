@@ -538,6 +538,9 @@ namespace CatIsland
             return path[0];
         }
 
+        /// <summary>MoveTowards 가 '도착'을 돌려줬지만 실제로는 막혀서·다른 고양이 때문에 멈춘 경우 (자리 맞추기로 끌어당기면 미끄러지듯 순간이동한다).</summary>
+        bool TooFarToSettle(Vector3 spot) => Flat(spot - transform.position).magnitude > .15f;
+
         bool MoveTowards(Vector3 target, float maxSpeed, float dt, float arriveDist = 0.08f)
         {
             if (!Rig.CanMove)
@@ -788,6 +791,7 @@ namespace CatIsland
             var spot = EatSpot(out var face);
             if (MoveTowards(spot, GameConfig.TrotSpeed, dt, 0.05f))
             {
+                if (TooFarToSettle(spot)) { Enter(CatState.SitIdle); return; }   // (막혀서·다른 고양이가 있어서 멈춘 것: 그 자리에서 쉰다)
                 faceDir = face;
                 transform.position = Vector3.Lerp(transform.position, new Vector3(spot.x, transform.position.y, spot.z), 1f - Mathf.Exp(-8f * dt));
                 if (FacingAngle(face) < 4f && Flat(spot - transform.position).magnitude < .015f) Enter(bowl.HasFood ? CatState.Eat : CatState.WaitAtBowl);   // (그릇 자리에 다 와서: 혀가 그릇에 닿는 자리)
@@ -854,6 +858,7 @@ namespace CatIsland
             var spot = CushionSpot(out var face);
             if (MoveTowards(spot, GameConfig.WalkSpeed, dt, 0.05f))
             {
+                if (TooFarToSettle(spot)) { Enter(CatState.SitIdle); return; }
                 faceDir = face;
                 transform.position = Vector3.Lerp(transform.position, new Vector3(spot.x, transform.position.y, spot.z), 1f - Mathf.Exp(-8f * dt));
                 if (FacingAngle(face) < 6f) Enter(CatState.LieDown);
@@ -950,6 +955,7 @@ namespace CatIsland
             if (StateTime < dt * 1.5f) { deck = -1; targetDeck = forcedTarget >= 0 ? forcedTarget : UnityEngine.Random.value < .5f ? curTower.TopDeck : UnityEngine.Random.Range(0, curTower.Decks.Count); forcedTarget = -1; int first = curTower.NextUp(-1, transform.position); if (first < 0 || !PlanHop(first)) { Enter(CatState.Idle); return; } }
             if (MoveTowards(hopTakeoff, GameConfig.WalkSpeed, dt, 0.05f))
             {
+                if (TooFarToSettle(hopTakeoff)) { Enter(CatState.Idle); return; }
                 faceDir = jumpDir;
                 transform.position = Vector3.Lerp(transform.position, new Vector3(hopTakeoff.x, 0f, hopTakeoff.z), 1f - Mathf.Exp(-8f * dt));
                 if (FacingAngle(faceDir) < 3f) { transform.rotation = Quaternion.LookRotation(jumpDir); StartHop(); }

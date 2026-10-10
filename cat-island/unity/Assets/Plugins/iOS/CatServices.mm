@@ -5,6 +5,7 @@
 #import <UserNotifications/UserNotifications.h>
 #import <GameKit/GameKit.h>
 #import <StoreKit/StoreKit.h>
+#import <AVFoundation/AVFoundation.h>
 
 extern UIViewController *UnityGetGLViewController(void);
 extern void UnitySendMessage(const char *obj, const char *method, const char *msg);
@@ -109,3 +110,6 @@ extern "C" void CatShare_Image(const char *path, const char *text) {
     vc.popoverPresentationController.sourceRect = CGRectMake(root.view.bounds.size.width / 2, root.view.bounds.size.height, 1, 1);
     [root presentViewController:vc animated:YES completion:nil];
 }
+
+// ---------------------------------------------------------------- 다른 앱 소리 (음악 앱 등): 나오는 동안 게임 배경음악은 쉰다 (효과음은 그대로)
+extern "C" bool CatAudio_OtherPlaying() { return [AVAudioSession sharedInstance].secondaryAudioShouldBeSilencedHint; }

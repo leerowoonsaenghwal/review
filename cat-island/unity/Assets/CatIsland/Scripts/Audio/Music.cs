@@ -205,12 +205,23 @@ namespace CatIsland
 
         static bool IsNight => GameBootstrap.Instance && GameBootstrap.Instance.Day && GameBootstrap.Instance.Day.Night;
 
+#if UNITY_IOS && !UNITY_EDITOR
+        [System.Runtime.InteropServices.DllImport("__Internal")] static extern bool CatAudio_OtherPlaying();
+#else
+        static bool CatAudio_OtherPlaying() => false;
+#endif
+        /// <summary>다른 앱(음악·영상)이 소리를 내는 중: 2초마다 묻는다. 그동안 배경음악은 쉰다.</summary>
+        public static bool OtherAudio { get; private set; }
+        float otherCheckAt;
+        void OnApplicationFocus(bool focus) { if (focus) otherCheckAt = 0f; }   // (돌아오면 바로 다시 묻는다)
+
         void Update()
         {
             if (!day) return;
+            if (Time.unscaledTime >= otherCheckAt) { otherCheckAt = Time.unscaledTime + 2f; OtherAudio = CatAudio_OtherPlaying(); }
             float want = night && IsNight ? 0f : 1f;
             dayW = Mathf.MoveTowards(dayW, want, Time.unscaledDeltaTime / 8f);
-            float master = Mathf.MoveTowards(day.volume + (night ? night.volume : 0f), On ? volume : 0f, Time.unscaledDeltaTime * volume / (On ? 2.5f : .4f));
+            bool play = On && !OtherAudio; float master = Mathf.MoveTowards(day.volume + (night ? night.volume : 0f), play ? volume : 0f, Time.unscaledDeltaTime * volume / (play ? 2.5f : .4f));
             day.volume = master * dayW; if (night) night.volume = master * (1f - dayW);
         }
 
