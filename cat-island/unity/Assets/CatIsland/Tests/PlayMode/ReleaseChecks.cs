@@ -200,6 +200,21 @@ namespace CatIsland.Tests
             Assert.IsTrue(shot2);
         }
 
+        /// <summary>오랜만에 돌아오면: 깨어 있는 고양이가 카메라 앞으로 와서 반긴다(야옹·하트), 자는 고양이는 깨우지 않는다.</summary>
+        [UnityTest]
+        public IEnumerator WelcomeBack_AwakeCatsGreet_SleepersKeepSleeping()
+        {
+            var g = game.Logic; g.S.catSlots = 4;
+            g.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Easygoing); g.AddCat("persian", "보리", CatIsland.Game.Personality.Easygoing);
+            game.SyncCats(); for (int i = 0; i < 30; i++) yield return null;
+            var cats = Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).Where(c => c.Data != null).ToList();
+            var awake = cats[0]; var sleeper = cats[1];
+            awake.Needs.SetForTest(1f, 1f); awake.ForceState(CatState.SitIdle); sleeper.ForceState(CatState.Sleep); yield return null;
+            game.WelcomeBack(); yield return null;
+            Assert.AreEqual(CatState.Invite, awake.State, "깨어 있는 고양이가 반기러 온다");
+            Assert.AreEqual(CatState.Sleep, sleeper.State, "자는 고양이는 깨우지 않는다");
+        }
+
         /// <summary>처음 7일 안내 카드: 보이면 글자가 있다 (글자 넣기가 빠져 빈 카드가 뜬 적이 있다), 바닥 깔기 중에는 숨는다.</summary>
         [UnityTest]
         public IEnumerator HintCard_ShowsItsText_AndHidesWhileTiling()

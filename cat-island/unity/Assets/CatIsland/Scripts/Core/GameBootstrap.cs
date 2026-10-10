@@ -121,7 +121,7 @@ namespace CatIsland
 #else
             Logic = new CatIsland.Game.Game(new CatIsland.Game.RealClock(), files, null, new CatIsland.Game.FakeAds(), new CatIsland.Game.FakeStore(), new CatIsland.Game.FakeGameCenter(), new CatIsland.Game.FakeNotifier());
 #endif
-            Logic.LoadOrNew();
+            long lastSaved = 0; Logic.LoadOrNew(); lastSaved = Logic.S.savedAt;
             WorldLink = new WorldSync(this);
             UI = CatIsland.UI.GameUI.Create(Logic, WorldLink);
             WorldLink.Refresh();
@@ -166,6 +166,7 @@ namespace CatIsland
                 WorldLink.Refresh(); IslandCam.Manual = true; IslandCam.ManualDist = 14f; StartCoroutine(SamplerPan());
             }   // (점검: 바닥 깔기 모드로 시작)
             SyncCats(); SyncGuest();
+            if (lastSaved > 0 && Logic.Now - lastSaved >= (long)WelcomeAfter && !demo) StartCoroutine(WelcomeLater());   // (앱을 새로 열었을 때도: 오랜만이면 반긴다)
             Router.BeforeBowlFill = () =>
             {
                 if (Logic.S.cats.Count == 0) return true;      // (첫 고양이를 만들기 전 미리보기)
@@ -196,6 +197,7 @@ namespace CatIsland
 
         /// <summary>고양이 만들기 미리보기 (첫 고양이: 섬에 서 있는 미리보기 고양이를 고른 모습으로 바꾼다).</summary>
         System.Collections.IEnumerator HeartsLoop() { while (true) { yield return new WaitForSeconds(.4f); var c = Router ? Router.cat : null; if (c) FxPool.Instance?.Burst(Icon.Heart, c.Rig.BubbleAnchor.position - Vector3.up * .15f, 2, .18f, .3f); } }
+        System.Collections.IEnumerator WelcomeLater() { yield return new WaitForSeconds(1.2f); WelcomeBack(); }
         System.Collections.IEnumerator SelectLater(string uid) { yield return new WaitForSeconds(3f); SelectCat(uid); }
 
         System.Collections.IEnumerator SamplerPan()
@@ -303,7 +305,23 @@ namespace CatIsland
             if (Logic == null || Time.unscaledTime < logicTickAt) return;
             logicTickAt = Time.unscaledTime + 5f; Logic.Tick(); SyncGuest();
         }
-        void OnApplicationPause(bool paused) { if (Logic == null) return; if (paused) Logic.Pause(); else Logic.Resume(); }
+        void OnApplicationPause(bool paused)
+        {
+            if (Logic == null) return;
+            if (paused) { Logic.Pause(); pausedAt = Time.realtimeSinceStartup; }
+            else { Logic.Resume(); if (pausedAt >= 0f && Time.realtimeSinceStartup - pausedAt >= WelcomeAfter) WelcomeBack(); pausedAt = -1f; }
+        }
+        float pausedAt = -1f;
+        const float WelcomeAfter = 600f;   // (10분 넘게 떠났다 오면 반긴다)
+        /// <summary>집사가 돌아왔다: 깨어 있는 고양이 둘까지 카메라 앞으로 와서 반기고 '왔구나!' (기획: 벌주지 않고 반겨 준다).</summary>
+        public void WelcomeBack()
+        {
+            if (Logic == null || Logic.S.cats.Count == 0) return;
+            int n = 0;
+            var order = CatBrain.All.Where(c => c && c.Data != null && c.isActiveAndEnabled).OrderBy(c => c == (Router ? Router.cat : null) ? 0 : 1).ToList();
+            foreach (var c in order) { if (n >= 2) break; if (c.Welcome()) n++; }
+            if (n > 0) UI?.Toast(CatIsland.UI.Str.Welcome);
+        }
         void OnApplicationQuit() => Logic?.Pause();
 
         static string DeviceGenerationName()

@@ -1344,6 +1344,15 @@ namespace CatIsland
             if (Time.time - lastPetTime > 1.6f && !touchingCat) { if (OnTower) Enter(CatState.OnTower); else AfterPetting(); }
         }
 
+        /// <summary>집사가 돌아왔다: 깨어 있으면 카메라 앞으로 와서 앉아 야옹 + 하트 (자는 고양이는 깨우지 않는다). 반겼으면 true.</summary>
+        public bool Welcome()
+        {
+            if (State == CatState.Sleep || State == CatState.LieDown || OnTower || IsJumping() || State == CatState.UseItem || State == CatState.Eat || !isActiveAndEnabled) return false;
+            Enter(CatState.Invite); inviteCooldown = 30f;
+            Vocalize(true); FxPool.Instance?.Burst(Icon.Heart, Rig.HeadZone.position + Vector3.up * Rig.HeadRadius * .5f, 3, .3f, .3f);
+            return true;
+        }
+
         /// <summary>
         /// 쓰다듬기가 끝난 뒤 여운: 기분 좋게 쓰다듬겼으면 하트를 날리고 기지개 켜기 / 세수 / 입맛 다시기 중 하나 (장난꾸러기는 가끔 신나서 뛰어다님).
         /// 별로였으면 그냥 앉아 쉰다.
