@@ -246,6 +246,7 @@ namespace CatIsland
                 case CatState.Nip: TickNip(dt); break;
             }
 
+            Separate(dt);
             if (!IsJumping()) { ApplyFace(dt); ApplyHeight(dt); }
             UpdateFootsteps(dt);
             UpdateExpression(dt);
@@ -557,8 +558,8 @@ namespace CatIsland
             float targetSpeed = Mathf.Max(0.12f, maxSpeed * align * Mathf.Clamp01(distGoal / (0.25f + maxSpeed * 0.35f) + 0.15f));
             Speed = Mathf.MoveTowards(Speed, targetSpeed, dt * (maxSpeed > 1.5f ? 4f : 2.5f));
             Vector3 next = pos + transform.forward * Speed * dt;
-            next = SlideOffItems(pos, next);
             next = KeepApart(next);
+            next = SlideOffItems(pos, next);   // (비켜 선 걸음도 용품 안으로는 들어가지 않게: 비키기 다음에)
             next = ClampToIsland(next);
             next.y = transform.position.y;
             transform.position = next;
@@ -569,16 +570,98 @@ namespace CatIsland
         /// 마지막 안전장치: 길찾기가 실패해 곧장 가더라도 쓰고 있지 않은 용품 안으로는 들어가지 않는다 (그 가장자리를 따라 미끄러진다).
         /// 방석도 돌아간다(높이 13 cm: 바닥 높이로 지나가면 다리가 묻힌다). 이미 안에 있으면(쓰고 나오는 중, 방석 위에서 깸) 더 깊이 들어가는 쪽만 막는다.
         /// </summary>
-        /// <summary>고양이끼리 너무 가까우면 살짝 비켜 선다 (어떤 걸음에서든 몸이 겹치지 않게).</summary>
+        /// <summary>고양이끼리 너무 가까우면 살짝 비켜 선다 (어떤 걸음에서든 몸이 겹치지 않게).
+        /// 뿌리 사이 거리만 보면 마주 선 큰 머리가 옆 고양이 몸에 파고든다: 머리(원)·몸통(선분+반지름)을 위에서 본 모양으로 잰다.</summary>
         Vector3 KeepApart(Vector3 next)
         {
+            var shift = Flat(next - transform.position);
             foreach (var o in All)
             {
                 if (!o || o == this || !o.isActiveAndEnabled || o.OnTower) continue;
                 var away = Flat(next - o.transform.position); float d = away.magnitude;
                 if (d < .34f && d > 1e-4f) next += away / d * (.34f - d) * .5f;
+                float gap = Gap(this, o, out var dir, shift);
+                if (gap < 0f)
+                {
+                    var pushed = next + dir * (-gap) * (o.Speed > .05f ? .5f : 1f);   // (상대가 서 있으면 내가 다 비킨다)
+                    if (!IntoScenery(next, pushed)) { next = pushed; shift = Flat(next - transform.position); }
+                }
             }
             return next;
+        }
+
+        /// <summary>
+        /// 멈춰 있어도 겹치지 않게: 걷는 중에는 KeepApart 가 막지만, 도착해 앉았거나 앞이 막혀 기다리는 고양이끼리 3 cm 넘게 겹치면
+        /// 천천히(최대 0.5 m/s, 걷는 빠르기) 비켜 선다. 자리가 정해진 고양이(용품 쓰기·밥 먹기·쓰다듬기·캣타워·점프·산책)는 그대로 두고 상대가 비킨다.
+        /// </summary>
+        void Separate(float dt)
+        {
+            if (Pinned(this)) return;
+            Vector3 push = Vector3.zero;
+            foreach (var o in All)
+            {
+                if (!o || o == this || !o.isActiveAndEnabled || o.OnTower) continue;
+                float g = Gap(this, o, out var dir); if (g >= -.03f) continue;
+                float share = Pinned(o) || (o.Speed < .05f && Speed >= .05f) ? 1f : .5f;
+                push += dir * (-g - .02f) * share;
+            }
+            if (push.sqrMagnitude < 1e-10f) return;
+            float max = .5f * dt; if (push.magnitude > max) push = push.normalized * max;
+            var pos = transform.position; var next = ClampToIsland(SlideOffItems(pos, pos + push)); next.y = pos.y;
+            if (IntoScenery(pos, next)) return;
+            transform.position = next;
+        }
+        /// <summary>비켜 서다가 꽃밭·나무 같은 경치(용품 아닌 장애물) 쪽으로 더 들어가는가 (SlideOffItems 는 용품만 본다).</summary>
+        bool IntoScenery(Vector3 from, Vector3 to)
+        {
+            if (nav == null) return false;
+            foreach (var o in nav.obstacles)
+            {
+                if (o.owner != null || o.item != null) continue;
+                float d = o.Distance(to); if (d < .2f && d < o.Distance(from)) return true;
+            }
+            return false;
+        }
+        static bool Pinned(CatBrain c) => c.OnTower || c.IsJumping() || c.State == CatState.UseItem || c.State == CatState.Eat || c.State == CatState.Petted || c.State == CatState.BellyUp
+            || c.State == CatState.Nip || c.State == CatState.Treat || c.State == CatState.LeaveForWalk || c.State == CatState.ReturnFromWalk;
+
+        /// <summary>두 고양이 몸 사이 틈 (m, 위에서 본 모양: 머리 원 + 몸통 캡슐, 털은 조금 눌려도 된다). 음수면 겹침, dir 은 a 를 b 에서 떼는 방향.
+        /// shiftA: a 를 이만큼 옮겼다고 치고 잰다 (다음 걸음).</summary>
+        public static float Gap(CatBrain a, CatBrain b, out Vector3 dir, Vector3 shiftA = default)
+        {
+            Shape(a, shiftA, out var ha, out var hra, out var a0, out var a1, out var bra);
+            Shape(b, Vector3.zero, out var hb, out var hrb, out var b0, out var b1, out var brb);
+            float best = float.MaxValue; Vector2 pa = default, pb = default;
+            void Try(Vector2 p, Vector2 q, float r) { float g = (p - q).magnitude - r; if (g < best) { best = g; pa = p; pb = q; } }
+            Try(ha, hb, hra + hrb);
+            Try(ha, Closest(b0, b1, ha), hra + brb);
+            Try(Closest(a0, a1, hb), hb, bra + hrb);
+            // (몸통끼리: 네 끝점에서 상대 선분까지 - 엇갈려 겹치는 경우는 머리·뿌리 검사가 먼저 막는다)
+            Try(a0, Closest(b0, b1, a0), bra + brb); Try(a1, Closest(b0, b1, a1), bra + brb);
+            Try(Closest(a0, a1, b0), b0, bra + brb); Try(Closest(a0, a1, b1), b1, bra + brb);
+            var v = pa - pb;
+            if (v.sqrMagnitude < 1e-8f) { var f = Flat(a.transform.position + shiftA - b.transform.position); v = f.sqrMagnitude > 1e-8f ? new Vector2(f.x, f.z) : Vector2.right; }
+            v.Normalize(); dir = new Vector3(v.x, 0f, v.y);
+            return best;
+        }
+
+        static void Shape(CatBrain c, Vector3 shift, out Vector2 head, out float headR, out Vector2 b0, out Vector2 b1, out float bodyR)
+        {
+            var rig = c.Rig; Vector2 P(Vector3 w) => new Vector2(w.x + shift.x, w.z + shift.z);
+            if (rig && rig.HeadZone && rig.BodyZone)
+            {
+                head = P(rig.HeadZone.position); headR = rig.HeadRadius * .62f;   // (HeadRadius 는 귀까지 넣은 80 % 값: 머리 공 자체는 그 약 60 %)
+                var fw = Flat(rig.BodyZone.forward); if (fw.sqrMagnitude < 1e-6f) fw = Flat(c.transform.forward);
+                fw.Normalize(); var bc = rig.BodyZone.position; float half = rig.BodyHalf.z;
+                b0 = P(bc - fw * half); b1 = P(bc + fw * half); bodyR = rig.BodyHalf.x * .85f;
+            }
+            else { var p = P(c.transform.position); head = p; headR = .12f; b0 = b1 = p; bodyR = .12f; }
+        }
+
+        static Vector2 Closest(Vector2 s0, Vector2 s1, Vector2 p)
+        {
+            var d = s1 - s0; float l = d.sqrMagnitude; if (l < 1e-8f) return s0;
+            return s0 + d * Mathf.Clamp01(Vector2.Dot(p - s0, d) / l);
         }
 
         Vector3 SlideOffItems(Vector3 pos, Vector3 next)

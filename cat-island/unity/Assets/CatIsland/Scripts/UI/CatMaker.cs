@@ -39,8 +39,8 @@ namespace CatIsland.UI
             Kit.Size(grid, -1, Mathf.CeilToInt(Catalog.Breeds.Length / 3f) * 50);
             foreach (var b in Catalog.Breeds)
             {
-                var bb = b; var btn = Kit.Btn(grid, b.ko.Length > 7 ? b.ko.Substring(0, 7) : b.ko, () => { breed = bb.id; coatJson = ""; (eye, whisker) = CatFace.Defaults(breed); Preview(); Open(ui); }, breed == b.id ? Kit.Style.Primary : Kit.Style.Secondary);
-                btn.GetComponentInChildren<Text>().fontSize = Theme.Caption;
+                var bb = b; var btn = Kit.Btn(grid, b.ko, () => { breed = bb.id; coatJson = ""; (eye, whisker) = CatFace.Defaults(breed); Preview(); Open(ui); }, breed == b.id ? Kit.Style.Primary : Kit.Style.Secondary);
+                btn.GetComponentInChildren<Text>().fontSize = b.ko.Length > 7 ? Mathf.RoundToInt(Theme.Caption * 7f / b.ko.Length) : Theme.Caption;   // (8글자 품종: 자르지 않고 글자를 조금 작게)
             }
             // 눈 · 수염 · 성격
             Choice(list, Str.EyeStyle, Str.EyeNames, Array.IndexOf(EyeIds, eye), i => { eye = EyeIds[i]; Preview(); Open(ui); });

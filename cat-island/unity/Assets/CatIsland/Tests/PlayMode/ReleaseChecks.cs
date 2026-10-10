@@ -176,8 +176,12 @@ namespace CatIsland.Tests
             foreach (var o in game.Nav.obstacles.Where(o => o.owner == null && o.item)) Debug.Log($"[Soak] item {o.name} {o.center} half {o.half} r {o.radius}");
             float logT = 0f;
             Time.timeScale = 4f; float worst = 0f, closest = 9f; string what = "", pair = "";
+            bool jumpLogged = false; var prevPos = new System.Collections.Generic.Dictionary<CatBrain, Vector3>(); var prevState = new System.Collections.Generic.Dictionary<CatBrain, string>();
+            foreach (var c in cats) { prevPos[c] = c.transform.position; prevState[c] = c.State.ToString(); }
+            var run = new System.Collections.Generic.Dictionary<string, float>(); float longest = 0f; string longPair = "";   // (3 cm 넘게 겹친 채 이어진 시간)
             for (float t = 0; t < 120f; t += Time.deltaTime)
             {
+                if (t > 0f) foreach (var c in cats) { prevPos[c] = c.transform.position; prevState[c] = c.State.ToString(); }
                 yield return null;
                 if (t < 8f && t - logT > .5f) { logT = t; foreach (var c in cats) Debug.Log($"[Soak] t {t:F1} {c.name} {c.transform.position} {c.State}"); }
                 foreach (var k in cats)
@@ -196,14 +200,20 @@ namespace CatIsland.Tests
                         if (d < worst) { worst = d; what = $"{k.name} in {o.name} ({k.State}, {k.Rig.Current}, y {k.transform.position.y:F2}, t {t:F0}) cat {k.transform.position} body {k.Rig.BodyZone.position} ob {o.center} half {o.half} r {o.radius} item {(o.item ? o.item.position.ToString() : "-")} left {(k.LeftItem ? k.LeftItem.name : "-")} {Time.time - k.LeftAt:F1}s target {(k.EnteringItem ? k.EnteringItem.name : "-")}"; }
                     }
                     foreach (var k2 in cats) if (k2 != k && k2.isActiveAndEnabled && !k.OnTower && !k2.OnTower)
-                        { float dd = Vector3.Distance(k.Rig.BodyZone.position, k2.Rig.BodyZone.position); if (dd < closest) { closest = dd; pair = $"{k.name}({k.State}) - {k2.name}({k2.State}) t {t:F0}"; } }
+                        { float dd = CatBrain.Gap(k, k2, out _);
+                            var key = k.name + "|" + k2.name;
+                            if (dd < -.08f && !jumpLogged) { jumpLogged = true; Debug.Log($"[Soak] deep {key} gap {dd * 1000:F0} t {t:F2} now {k.transform.position}/{k2.transform.position} {k.State}/{k2.State} {k.Rig.Current}/{k2.Rig.Current} prev {prevPos[k]}/{prevPos[k2]} prevState {prevState[k]}/{prevState[k2]}"); } run[key] = dd < -.03f ? (run.TryGetValue(key, out var r0) ? r0 : 0f) + Time.deltaTime / 4f : 0f;
+                            if (run[key] > longest) { longest = run[key]; longPair = $"{k.name}({k.State}) - {k2.name}({k2.State}) t {t:F0} gap {dd * 1000:F0} mm"; } if (dd < closest) { closest = dd; pair = $"{k.name}({k.State}, {k.Rig.Current}) - {k2.name}({k2.State}, {k2.Rig.Current}) t {t:F0} gap {dd * 1000:F0} mm pos {k.transform.position} {k2.transform.position} head {k.Rig.HeadZone.position} {k2.Rig.HeadZone.position} body {k.Rig.BodyZone.position} {k2.Rig.BodyZone.position} hr {k.Rig.HeadRadius:F3} bh {k.Rig.BodyHalf}"; } }
                 }
             }
             Time.timeScale = 1f;
-            Debug.Log($"[Soak] worst item {worst * 1000:F0} mm {what}; closest cats {closest:F2} m {pair}");
+            Debug.Log($"[Soak] worst item {worst * 1000:F0} mm {what}; closest cats {pair}; longest overlap {longest:F2} s {longPair}");
             // (용품 막힘은 격자 칸 크기 상자(한 칸 0.54 m)로 잰다: 대부분 용품은 그보다 작아 8 cm 안쪽까지는 실제로 닿지 않는다)
             Assert.Greater(worst, -0.08f, what);
-            Assert.Greater(closest, 0.2f, pair);   // (나란히 앉으면 어깨가 살짝 닿는 정도까지는 고양이답다)
+            // (머리·몸통 모양 사이 틈: 3 cm 넘게 겹친 채로는 0.25초를 넘기지 않는다 - 곧 비켜 선다. 제자리에서 몸을 돌리다 엉덩이가
+            //  지나가는 고양이를 스치는 순간은 위치로 막을 수 없어 깊이는 15 cm 까지 본다)
+            Assert.Greater(closest, -0.15f, pair);
+            Assert.Less(longest, .25f, longPair);
         }
 
         [UnityTest]
