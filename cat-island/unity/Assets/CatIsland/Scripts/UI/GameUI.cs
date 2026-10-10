@@ -129,6 +129,8 @@ namespace CatIsland.UI
         public float SheetTop => SheetOpen ? sheetTop : 1f;
         float sheetTop = .78f;
         /// <param name="top">창 윗변 (화면 비율). 고양이 만들기는 낮게 열어 위로 3D 미리보기 고양이가 보이게 한다.</param>
+        /// <summary>결제 상품 가격: 앱스토어가 알려 준 그 나라 가격(통화 포함). 아직 못 받았으면 원화 기준 가격.</summary>
+        public string Price(string productId, int krw) => G?.Store is CatIsland.Game.IosServices ios && ios.LocalPrices.TryGetValue(productId, out var local) && !string.IsNullOrEmpty(local) ? local : Str.Krw(krw);
         public void Open(Func<RectTransform, string> build, float top = .78f)
         {
             CloseAll();
@@ -247,7 +249,7 @@ namespace CatIsland.UI
                 var r = Row(list, 66); Kit.Size(Kit.IconImage(r, p.kind == "jelly" ? UIIcon.Jelly : UIIcon.Gift, 44), 44, 44); RowText(r, p.ko);
                 bool owned = p.kind != "jelly" && G.S.purchases.Contains(p.id);
                 var prod = p;
-                Kit.Size(Kit.Btn(r, owned ? "가졌어요" : Str.Krw(p.priceKrw), () => { if (!owned) G.Purchase(prod.id, res => { Toast(res == PurchaseResult.Success ? "고마워요! 받았어요" : res == PurchaseResult.Cancelled ? "괜찮아요, 다음에 봐요" : Str.Oops); Open(BuildJellyShop); }); }, owned ? Kit.Style.Secondary : Kit.Style.Primary), 120, 46);
+                Kit.Size(Kit.Btn(r, owned ? "가졌어요" : Price(p.id, p.priceKrw), () => { if (!owned) G.Purchase(prod.id, res => { Toast(res == PurchaseResult.Success ? "고마워요! 받았어요" : res == PurchaseResult.Cancelled ? "괜찮아요, 다음에 봐요" : Str.Oops); Open(BuildJellyShop); }); }, owned ? Kit.Style.Secondary : Kit.Style.Primary), 120, 46);
             }
             var rr = Row(list, 56); RowText(rr, "이전에 산 것 다시 받기");
             Kit.Size(Kit.Btn(rr, Str.Restore, () => { G.RestorePurchases(); Toast("다시 확인했어요"); }, Kit.Style.Secondary), 110, 44);
