@@ -30,6 +30,24 @@ namespace CatIsland.EditorTools
             if (pbx.FindFileGuidByProjectPath("PrivacyInfo.xcprivacy") == null)
                 pbx.AddFileToBuild(main, pbx.AddFile("PrivacyInfo.xcprivacy", "PrivacyInfo.xcprivacy", PBXSourceTree.Source));
             pbx.WriteToFile(proj);
+            // 앱 아이콘: 1024 한 장(기본) + iOS 18 어두운·색조 모드 아이콘 (Unity 는 크기별 기본 아이콘만 만든다 - 없으면 시스템이 임의로 어둡게 바꾼다)
+            var set = Path.Combine(path, "Unity-iPhone/Images.xcassets/AppIcon.appiconset");
+            var src = Path.GetFullPath(Path.Combine(UnityEngine.Application.dataPath, "../../assets/app_icon"));
+            if (Directory.Exists(set) && File.Exists(Path.Combine(src, "AppIcon-1024.png")))
+            {
+                foreach (var f in Directory.GetFiles(set, "*.png")) File.Delete(f);
+                File.Copy(Path.Combine(src, "AppIcon-1024.png"), Path.Combine(set, "AppIcon-1024.png"), true);
+                File.Copy(Path.Combine(src, "AppIcon-1024-dark.png"), Path.Combine(set, "AppIcon-1024-dark.png"), true);
+                File.Copy(Path.Combine(src, "AppIcon-1024-tinted.png"), Path.Combine(set, "AppIcon-1024-tinted.png"), true);
+                File.WriteAllText(Path.Combine(set, "Contents.json"), @"{
+  ""images"" : [
+    { ""filename"" : ""AppIcon-1024.png"", ""idiom"" : ""universal"", ""platform"" : ""ios"", ""size"" : ""1024x1024"" },
+    { ""appearances"" : [ { ""appearance"" : ""luminosity"", ""value"" : ""dark"" } ], ""filename"" : ""AppIcon-1024-dark.png"", ""idiom"" : ""universal"", ""platform"" : ""ios"", ""size"" : ""1024x1024"" },
+    { ""appearances"" : [ { ""appearance"" : ""luminosity"", ""value"" : ""tinted"" } ], ""filename"" : ""AppIcon-1024-tinted.png"", ""idiom"" : ""universal"", ""platform"" : ""ios"", ""size"" : ""1024x1024"" }
+  ],
+  ""info"" : { ""author"" : ""xcode"", ""version"" : 1 }
+}");
+            }
             // 앱 이름·암호화 신고 (표준 암호화만 씀: 수출 신고 질문을 건너뛴다)
             var plistPath = Path.Combine(path, "Info.plist"); var plist = new PlistDocument(); plist.ReadFromFile(plistPath);
             plist.root.SetBoolean("ITSAppUsesNonExemptEncryption", false);
