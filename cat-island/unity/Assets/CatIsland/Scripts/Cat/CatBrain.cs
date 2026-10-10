@@ -271,6 +271,16 @@ namespace CatIsland
             }
 
             Separate(dt);
+            // 방금 쓰고 나온 용품을 지나가도 되는 것은 아직 그 안에 있을 때만: 밖으로 다 나오면 바로 끝 (그 뒤 12초 동안 다시 가로질러 들어가던 것)
+            if (LeftItem && nav != null && (Time.frameCount + GetInstanceID()) % 5 == 0)
+            {
+                Obstacle lo = null; foreach (var o in nav.obstacles) if (o.owner == null && o.item == LeftItem) { lo = o; break; }
+                if (lo == null || lo.Distance(transform.position) > .15f) LeftItem = null;
+            }
+            // 마지막 안전장치: 쉬는 상태로 용품 칸 안에 머물지 않는다 (막혀 멈춘 곳·방금 쓰고 나온 곳이 용품 안이면 걸어 나간다)
+            if ((Time.frameCount + GetInstanceID()) % 15 == 0 && !OnTower && Rig.CanMove
+                && (State == CatState.Idle || State == CatState.SitIdle || State == CatState.Groom || State == CatState.Stretch || State == CatState.Invite)
+                && InsideItem()) Enter(CatState.Wander);
             if (!IsJumping()) { ApplyFace(dt); ApplyHeight(dt); }
             UpdateFootsteps(dt);
             UpdateExpression(dt);
