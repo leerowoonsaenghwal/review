@@ -29,7 +29,8 @@ namespace CatIsland
         public const float PurrOffPleasure = 0.08f;
         public const float BellyTolerance = 1.1f;      // 신뢰 전 배를 이만큼 문지르면 살짝 깨묾
         public const float NipCooldown = 2.5f;
-        public const float BellyUpHold = 1.6f;         // 기쁨 최대치를 이만큼 유지하면 발라당
+        public const float BellyUpHold = 0.8f;         // 기쁨이 BellyUpPleasure 넘은 채로 이만큼 이어지면 발라당 (2~3초 잘 쓰다듬으면)
+        public const float BellyUpPleasure = 0.7f;
         public const float TrustWindow = 7f;           // 발라당 뒤 배를 만져도 되는 시간
         public const float FirstPetOfDayBonus = 25f;
 

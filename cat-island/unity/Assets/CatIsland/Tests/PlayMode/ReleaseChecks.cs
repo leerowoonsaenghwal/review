@@ -171,6 +171,35 @@ namespace CatIsland.Tests
             Assert.AreEqual(b.uid, game.Router.cat.Data.uid); Assert.AreSame(game.Router.cat.transform, game.IslandCam.follow, "카메라도 남은 고양이를 본다");
         }
 
+        /// <summary>쓰다듬기 반응 흐름: 닿으면 기대고 → 좋아하면 웃는 얼굴(눈 감고 입 살짝)·골골 → 계속하면 발라당 → 손을 떼면 기지개·세수 같은 여운. 단계마다 Shots/petting 에 찍는다.</summary>
+        [UnityTest]
+        public IEnumerator Petting_Smile_Flop_ThenAfterglow()
+        {
+            var dir = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "../Shots/petting")); System.IO.Directory.CreateDirectory(dir);
+            void Shot(string n) { var c = Cam; var rt = new RenderTexture(720, 1280, 24); c.targetTexture = rt; c.Render(); c.targetTexture = null; RenderTexture.active = rt; var t = new Texture2D(720, 1280, TextureFormat.RGB24, false); t.ReadPixels(new Rect(0, 0, 720, 1280), 0, 0); t.Apply(); RenderTexture.active = null; System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, n + ".png"), t.EncodeToPNG()); rt.Release(); Object.Destroy(t); }
+            Cat.Needs.SetForTest(1f, 1f); Cat.ForceState(CatState.SitIdle);
+            for (int i = 0; i < 60; i++) yield return null;
+            game.IslandCam.zoomLevel = 1; game.IslandCam.SnapNow(); yield return null; Shot("0_before");
+            float smileSeen = 0f; bool flopped = false, shot1 = false, shot2 = false;
+            for (float t = 0; t < 7f && !flopped; t += .7f)
+            {
+                yield return Stroke(() => flopped ? BellyPoint : BackPoint, .7f);
+                smileSeen = Mathf.Max(smileSeen, Cat.Rig.smile);
+                if (!shot1 && Cat.Pet.Pleasure > .3f) { shot1 = true; Shot("1_smile"); }
+                if (Cat.State == CatState.BellyUp) { flopped = true; }
+            }
+            Debug.Log($"[Pet] pleasure {Cat.Pet.Pleasure:F2} smile {smileSeen:F2} state {Cat.State}");
+            Assert.Greater(smileSeen, .05f, "좋아하면 웃는 얼굴");
+            Assert.IsTrue(flopped, "몇 초 잘 쓰다듬으면 발라당");
+            for (int i = 0; i < 50; i++) yield return null; Shot("2_flop"); shot2 = true;
+            // 손을 뗀다 → 여운
+            fingers.Release(); var seen = new System.Collections.Generic.HashSet<CatState>();
+            for (float t = 0; t < 8f; t += Time.deltaTime) { yield return null; seen.Add(Cat.State); if (t > 5f && t - Time.deltaTime <= 5f) Shot("3_after"); }
+            Debug.Log($"[Pet] after: {string.Join(",", seen)}");
+            Assert.IsTrue(seen.Overlaps(new[] { CatState.Stretch, CatState.Groom, CatState.SitIdle, CatState.Zoomies }), "손을 떼면 여운 동작");
+            Assert.IsTrue(shot2);
+        }
+
         /// <summary>처음 7일 안내 카드: 보이면 글자가 있다 (글자 넣기가 빠져 빈 카드가 뜬 적이 있다), 바닥 깔기 중에는 숨는다.</summary>
         [UnityTest]
         public IEnumerator HintCard_ShowsItsText_AndHidesWhileTiling()

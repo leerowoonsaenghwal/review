@@ -24,6 +24,7 @@ namespace CatIsland
         [HideInInspector] public float moveSpeed;
         [HideInInspector] public float eyeOpen = 1f;     // 0 = 기분 좋게 감음
         [HideInInspector] public float mouthOpen;
+        [HideInInspector] public float smile;            // 기분 좋은 웃음 (입을 살짝 벌림, 0~1): 야옹(mouthOpen) 과 큰 쪽
         [HideInInspector] public float headTilt;         // 고개 갸웃 (도)
         [HideInInspector] public float tailWag;
         [HideInInspector] public float lookWeight = 1f;
@@ -370,7 +371,7 @@ namespace CatIsland
                 if (blinkT >= 0.18f) blinkT = -1f;
             }
             sEye = Mathf.Lerp(sEye, eyeOpen, 1f - Mathf.Exp(-10f * dt));
-            sMouth = Mathf.Lerp(sMouth, mouthOpen, 1f - Mathf.Exp(-18f * dt));
+            sMouth = Mathf.Lerp(sMouth, Mathf.Max(mouthOpen, smile), 1f - Mathf.Exp(-18f * dt));
             if (face)
             {
                 float closed = Mathf.Clamp01(Mathf.Max(1f - sEye, blink));

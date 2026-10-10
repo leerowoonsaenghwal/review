@@ -157,7 +157,7 @@ namespace CatIsland
         void CloseMouth() { Rig.mouthOpen = 0f; }
 
         // ---------------- 저절로 우는 소리: 가끔, 자연스럽게 (눌러서가 아니라 고양이 스스로)
-        float lastTapMeow = -9f, nextVocal = -1f, lastPetChirp = -9f; bool wasTouching, petSessionHeart;
+        float lastTapMeow = -9f, nextVocal = -1f, lastPetChirp = -9f, petPeak; bool wasTouching, petSessionHeart;
         static float lastAnyVocal = -9f;   // (여러 마리가 한꺼번에 울지 않게)
         /// <summary>야옹(입 벌림과 함께). tapped: 눌러서 우는 것(다른 고양이 간격은 보지 않는다).</summary>
         void Vocalize(bool tapped = false)
@@ -332,7 +332,7 @@ namespace CatIsland
                 {
                     heartAccum = 0f;
                     OnPetted?.Invoke(Mathf.Clamp01(Pet.Pleasure + .3f));
-                    FxPool.Instance?.Burst(Icon.Heart, Rig.BubbleAnchor.position - Vector3.up * 0.15f, 1, 0.15f, 0.22f);
+                    FxPool.Instance?.Burst(Icon.Heart, Rig.HeadZone.position + Vector3.up * Rig.HeadRadius * .5f, 2, .3f, .3f);   // (머리 둘레에서: 말풍선에 가리지 않게)
                     Haptics.Impact(ImpactStyle.Soft, 0.35f);
                 }
             }
@@ -1340,7 +1340,24 @@ namespace CatIsland
         void TickPetted(float dt)
         {
             Speed = Mathf.MoveTowards(Speed, 0f, dt * 6f);
-            if (Time.time - lastPetTime > 1.6f && !touchingCat) Enter(OnTower ? CatState.OnTower : CatState.SitIdle);
+            if (Time.time - lastPetTime > 1.6f && !touchingCat) { if (OnTower) Enter(CatState.OnTower); else AfterPetting(); }
+        }
+
+        /// <summary>
+        /// 쓰다듬기가 끝난 뒤 여운: 기분 좋게 쓰다듬겼으면 하트를 날리고 기지개 켜기 / 세수 / 입맛 다시기 중 하나 (장난꾸러기는 가끔 신나서 뛰어다님).
+        /// 별로였으면 그냥 앉아 쉰다.
+        /// </summary>
+        void AfterPetting()
+        {
+            float peak = petPeak; petPeak = 0f;
+            if (peak < .45f) { Enter(CatState.SitIdle); return; }
+            FxPool.Instance?.Burst(Icon.Heart, Rig.BubbleAnchor.position, 3, .25f, .22f); audioOut?.Chirp();
+            bool playful = Data != null && Data.personality == CatIsland.Game.Personality.Playful;
+            float r = UnityEngine.Random.value;
+            if (playful && r < .25f && Needs.Energy > .5f) { Enter(CatState.Zoomies); return; }
+            if (r < .5f) { Enter(CatState.Stretch); return; }
+            if (r < .8f && Rig.HasClip("GroomFace")) { Enter(CatState.Groom); return; }
+            Enter(CatState.SitIdle); if (Rig.HasClip("LickLips")) Rig.PlayAction("LickLips");
         }
 
         /// <summary>발라당 누웠을 때 배가 카메라를 보도록 하는 몸 방향 (배 방향은 가져올 때 클립에서 잼).</summary>
@@ -1359,7 +1376,7 @@ namespace CatIsland
             if (StateTime < 1.4f) transform.rotation = Quaternion.RotateTowards(transform.rotation, flopFacing, 170f * dt);
             // 계속 쓰다듬는 동안은 누워 있다. 믿음 시간이 끝난 뒤에도 배를 계속 만지면 살짝 깨문다.
             bool petRecently = Time.time - lastPetTime < 2.5f || touchingCat;
-            if (!petRecently && StateTime > 2.5f) Enter(CatState.Idle);
+            if (!petRecently && StateTime > 2.5f) AfterPetting();   // (일어나서 기지개·세수 같은 여운)
         }
 
         void TickNip(float dt)
@@ -1394,9 +1411,12 @@ namespace CatIsland
             r.moveSpeed = Mathf.Max(Speed, turnStep);
             turnStep = Mathf.MoveTowards(turnStep, 0f, dt * 0.6f);
             bool sleep = State == CatState.Sleep || r.Current == Posture.Sleep;
-            float happyClose = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.18f, 0.65f, p));   // (조금 일찍 눈을 가늘게)
+            float happyClose = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.12f, 0.4f, p));   // (좋아하기 시작하면 곧 '^^' 눈)
             r.eyeOpen = sleep ? 0f : 1f - happyClose;
-            r.tailWag = State == CatState.Nip ? 1f : p * 0.5f;
+            r.tailWag = State == CatState.Nip ? 1f : p * 0.5f + (touchingCat && p > .2f ? .25f : 0f);
+            // 웃는 얼굴: 좋아하기 시작하면 눈을 감은 채 입을 살짝 벌려 웃는다, 발라당 누워서도 (자는 중은 아님)
+            r.smile = sleep ? 0f : State == CatState.BellyUp ? .35f : (touchingCat || State == CatState.Petted) && p > .15f ? Mathf.Lerp(.15f, .35f, Mathf.InverseLerp(.15f, .7f, p)) : 0f;
+            if (touchingCat) petPeak = Mathf.Max(petPeak, p);
 
             bool petting = touchingCat && (State == CatState.Petted || State == CatState.BellyUp);
             // (손가락이 닿자마자 반쯤 기대고, 좋아하기 시작하면 다 기댄다: 문지르기 전에도 반응이 보이게)
@@ -1417,7 +1437,8 @@ namespace CatIsland
             }
             else r.headTilt = State == CatState.WaitAtBowl ? Mathf.Sin(Time.time * 0.7f) * 8f : 0f;
 
-            if (State == CatState.Eat || sleep) r.lookTarget = null;
+            if (State == CatState.BellyUp && cam) r.lookTarget = cam.position;   // (발라당: 집사 쪽을 보며)
+            else if (State == CatState.Eat || sleep) r.lookTarget = null;
             else if (petting && petZone == PetZone.Chin && cam) r.lookTarget = cam.position + Vector3.up * 6f;
             else if (touchingCat) r.lookTarget = pointerWorld;
             else if (State == CatState.WaitAtBowl && cam && bowl) r.lookTarget = Mathf.Repeat(StateTime, 5f) < 2.5f ? bowl.transform.position : cam.position;
@@ -1429,6 +1450,7 @@ namespace CatIsland
 
         void UpdateBubble()
         {
+            if (State != CatState.Nip && (touchingCat || State == CatState.Petted || State == CatState.BellyUp)) { Bubble.Hide(); return; }   // (쓰다듬는 동안은 하트와 표정이 주인공, 깨물 때 느낌표는 남김)
             if (State == CatState.Nip) Bubble.Show(Icon.Exclaim);
             else if (Needs.IsHungry && State != CatState.Eat && State != CatState.Sleep && !IsJumping() && !(bowl && bowl.HasFood && State == CatState.GoToBowl)) Bubble.Show(Icon.Fish);
             else if (State == CatState.Sleep && StateTime > 1.5f) Bubble.Show(Icon.Sleep);

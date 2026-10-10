@@ -157,6 +157,7 @@ namespace CatIsland
             }
             if (Logic.S.cats.Count == 0 && OpenCatMakerIfEmpty) CatIsland.UI.CatMaker.Open(UI);
             if (System.Environment.GetEnvironmentVariable("CATISLAND_TILEMODE") == "1") TileMode.Begin(this, null);
+            if (System.Environment.GetEnvironmentVariable("CATISLAND_HEARTS") == "1") StartCoroutine(HeartsLoop());   // (점검: 하트 효과 색·크기)
             if (int.TryParse(System.Environment.GetEnvironmentVariable("CATISLAND_SELECT"), out var selIdx) && selIdx < Logic.S.cats.Count) StartCoroutine(SelectLater(Logic.S.cats[selIdx].uid));   // (점검: n 번째 고양이 고르기)
             if (System.Environment.GetEnvironmentVariable("CATISLAND_TILESAMPLER") == "1")   // (점검: 데크 타일 8종을 3 x 3 씩 나란히)
             {
@@ -194,6 +195,7 @@ namespace CatIsland
         }
 
         /// <summary>고양이 만들기 미리보기 (첫 고양이: 섬에 서 있는 미리보기 고양이를 고른 모습으로 바꾼다).</summary>
+        System.Collections.IEnumerator HeartsLoop() { while (true) { yield return new WaitForSeconds(.4f); var c = Router ? Router.cat : null; if (c) FxPool.Instance?.Burst(Icon.Heart, c.Rig.BubbleAnchor.position - Vector3.up * .15f, 2, .18f, .3f); } }
         System.Collections.IEnumerator SelectLater(string uid) { yield return new WaitForSeconds(3f); SelectCat(uid); }
 
         System.Collections.IEnumerator SamplerPan()

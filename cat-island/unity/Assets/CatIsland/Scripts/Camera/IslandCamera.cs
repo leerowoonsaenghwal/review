@@ -119,7 +119,7 @@ namespace CatIsland
             if (Time.unscaledTime - orbitAt > .06f && Mathf.Abs(spin) > 1f)
             { yaw = Mathf.Repeat(yaw + spin * Time.unscaledDeltaTime + 180f, 360f) - 180f; spin *= Mathf.Exp(-7f * Time.unscaledDeltaTime); }
             else if (Time.unscaledTime - orbitAt > .06f) spin = 0f;
-            dist = Mathf.Lerp(dist, distances[zoomLevel] * (Petting ? .82f : 1f) * Mathf.Lerp(1f, .72f, frameK), 1f - Mathf.Exp((Petting ? -1.2f : -6f) * dt));   // (쓰다듬을 때 천천히 가까이)
+            dist = Mathf.Lerp(dist, distances[zoomLevel] * (Petting ? .6f : 1f) * Mathf.Lerp(1f, .72f, frameK), 1f - Mathf.Exp((Petting ? -1.6f : -6f) * dt));   // (쓰다듬을 때 천천히 가까이: 표정이 보이게)
             if (follow) focus = Vector3.Lerp(focus, FocusFor(follow.position), 1f - Mathf.Exp(-2.5f * dt));
             Apply();
         }

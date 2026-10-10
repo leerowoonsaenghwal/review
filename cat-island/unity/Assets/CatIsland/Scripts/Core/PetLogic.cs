@@ -115,7 +115,7 @@ namespace CatIsland
                     f.AffectionGained = gain * dt * GameConfig.AffectionPerPleasure;
                     f.Enjoying = gain > 0f;
 
-                    if (Pleasure >= 0.97f) maxHold += dt;
+                    if (Pleasure >= GameConfig.BellyUpPleasure) maxHold += dt;
                     if (maxHold >= GameConfig.BellyUpHold && !Trusting)
                     {
                         f.BellyUp = true;
