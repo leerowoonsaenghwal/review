@@ -198,12 +198,21 @@ namespace CatIsland.Game
         bool TaskAvailable(TaskDef t) => t.counter switch
         {
             "walk" => S.cats.Count > 0, "guestTreat" => true, "plant" => S.zonesUnlocked.Contains(1) || S.onboardingStep >= 2,
-            "craft" => S.recipes.Count > 0, "clean" => S.placed.Any(p => p.item == "litter_box"), _ => true,
+            "craft" => S.recipes.Count > 0, "clean" => S.placed.Any(p => p.item == "litter_box"),
+            "tile" => S.tileBag.Sum(c => c.n) >= 3 || S.coins >= 200,   // (깔 타일이 있거나 한 묶음 살 만큼)
+            _ => true,
         };
         static int Hash(string s) { unchecked { int h = 17; foreach (char ch in s) h = h * 31 + ch; return h & 0x7fffffff; } }
 
         string PickGuest(System.Random rng)
         {
+            // 두 번 만난 손님(한 번 더 만나면 같이 살 수 있음)은 자리가 있으면 35 % 로 다시 온다: 입양이 운에만 달리지 않게
+            if (CanAddCat)
+            {
+                var almost = Catalog.Breeds.Where(b => Meetings(b.id) == Catalog.AdoptAfterMeetings - 1).Select(b => b.id).ToList();
+                double roll = rng.NextDouble();
+                if (almost.Count > 0 && roll < .35) return almost[rng.Next(almost.Count)];
+            }
             // 아직 도감에 없는 품종을 조금 더 자주 (같은 날은 같은 손님)
             var pool = Catalog.Breeds.Select(b => (b.id, w: Catalog.BreedWeight(b) * (S.dex.Contains(b.id) ? 1 : 2))).ToList();
             int total = pool.Sum(p => p.w), r = rng.Next(total);

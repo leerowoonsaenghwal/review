@@ -215,6 +215,7 @@ namespace CatIsland.Game
             T("photo1", "사진 1장 찍기", "photo", 1), T("guest1", "손님 고양이에게 간식 주기", "guestTreat", 1), T("walk1", "산책 보내기", "walk", 1),
             T("plant1", "텃밭에 씨앗 심기", "plant", 1), T("place1", "용품 하나 놓기", "place", 1), T("collect1", "방치 보상 받기", "collect", 1),
             T("water1", "물 채워 주기", "water", 1), T("craft1", "만들기 1번", "craft", 1), T("clean1", "화장실 치우기", "clean", 1),
+            T("tile3", "데크 타일 3장 깔기", "tile", 3),
         };
         static TaskDef T(string id, string ko, string counter, int goal) => new TaskDef { id = id, ko = ko, counter = counter, goal = goal, jelly = 2, coins = 60 };
         public const int DailyTaskCount = 3, DailyAllDoneJelly = 4;   // 하루 3개 다 하면 +4 젤리 (하나에 2 + 모두 4 = 10/일)
