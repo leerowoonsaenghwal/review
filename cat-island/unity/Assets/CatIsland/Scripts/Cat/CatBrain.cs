@@ -18,7 +18,14 @@ namespace CatIsland
     }
 
     /// <summary>섬에 놓인 용품 표시 (고양이가 골라 쓴다).</summary>
-    public class ItemTag : MonoBehaviour { public string id; public CatIsland.Game.Placement placement; }
+    public class ItemTag : MonoBehaviour
+    {
+        public string id; public CatIsland.Game.Placement placement;
+        /// <summary>섬에 있는 용품 (켜진 것만): 매번 찾지 않게 스스로 등록한다 (OccluderFade).</summary>
+        public static readonly System.Collections.Generic.List<ItemTag> All = new System.Collections.Generic.List<ItemTag>();
+        void OnEnable() => All.Add(this);
+        void OnDisable() => All.Remove(this);
+    }
 
     /// <summary>
     /// 고양이의 행동. 상태, 성격(좋아하는 곳), 쓰다듬기 입력에 따라 스스로 움직인다.
@@ -1056,7 +1063,7 @@ namespace CatIsland
         }
         ItemTag PickItemUse()
         {
-            var all = FindObjectsByType<ItemTag>(FindObjectsSortMode.None); if (all.Length == 0) return null;
+            var all = ItemTag.All; if (all.Count == 0) return null;
             ItemTag best = null; float bs = 0f;
             foreach (var t in all)
             {

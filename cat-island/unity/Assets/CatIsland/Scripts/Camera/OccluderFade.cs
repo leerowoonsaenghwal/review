@@ -46,7 +46,7 @@ namespace CatIsland
         void Check()
         {
             items.Clear();
-            foreach (var t in FindObjectsByType<ItemTag>(FindObjectsSortMode.None)) items.Add(t.transform);
+            foreach (var t in ItemTag.All) if (t) items.Add(t.transform);
             foreach (var t in extra) if (t && t.gameObject.activeInHierarchy) items.Add(t);
             foreach (var f in faders.Values) if (f != null) f.want = false;
             Vector3 eye = transform.position;
@@ -54,8 +54,9 @@ namespace CatIsland
             {
                 if (!cat || !cat.isActiveAndEnabled) continue;
                 Vector3 c = cat.transform.position;
-                foreach (var target in new[] { c + Vector3.up * .25f, c + Vector3.up * .55f })   // (몸통, 머리)
+                for (int k = 0; k < 2; k++)   // (몸통, 머리)
                 {
+                    var target = c + Vector3.up * (k == 0 ? .25f : .55f);
                     var ray = new Ray(eye, target - eye); float toCat = Vector3.Distance(eye, target);
                     foreach (var it in items)
                     {

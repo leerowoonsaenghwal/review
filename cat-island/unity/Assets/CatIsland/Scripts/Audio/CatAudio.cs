@@ -26,6 +26,7 @@ namespace CatIsland
         AudioClip[] noms;
         AudioClip[][] steps;
         int lastMeow = -1, lastStep = -1;
+        readonly System.Collections.Generic.List<int> meowBag = new System.Collections.Generic.List<int>();
         public int StepCount { get; private set; }
         public Surface LastStepSurface { get; private set; }
         AudioClip[] meows;
@@ -83,11 +84,16 @@ namespace CatIsland
             else if (v <= 0.001f && purrSrc.isPlaying) purrSrc.Stop();
         }
 
-        /// <summary>누를 때마다 다른 야옹 (바로 전과 같은 것은 고르지 않는다).</summary>
+        /// <summary>누를 때마다 다른 야옹: 모든 야옹을 섞어 한 바퀴 다 들려준 뒤 다시 섞는다 (몇 개만 돌지 않게, 바퀴가 바뀔 때도 연달아 같은 것 없음).</summary>
         public void Meow()
         {
-            int i = Random.Range(0, meows.Length - 1);
-            if (i >= lastMeow && lastMeow >= 0) i++;
+            if (meowBag.Count == 0)
+            {
+                for (int k = 0; k < meows.Length; k++) meowBag.Add(k);
+                for (int k = meowBag.Count - 1; k > 0; k--) { int j = Random.Range(0, k + 1); (meowBag[k], meowBag[j]) = (meowBag[j], meowBag[k]); }
+                if (meowBag.Count > 1 && meowBag[meowBag.Count - 1] == lastMeow) (meowBag[0], meowBag[meowBag.Count - 1]) = (meowBag[meowBag.Count - 1], meowBag[0]);
+            }
+            int i = meowBag[meowBag.Count - 1]; meowBag.RemoveAt(meowBag.Count - 1);
             lastMeow = i;
             LastMeow = meows[i].name;
             Play(meows[i], 0.85f, Random.Range(0.97f, 1.04f));
