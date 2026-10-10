@@ -46,14 +46,14 @@ namespace CatIsland.Tests
             Cat.Needs.SetForTest(1f, 1f); Cat.NoteUserActivity();
             Cat.transform.SetPositionAndRotation(new Vector3(0f, 0f, -0.6f), Quaternion.Euler(0f, 150f, 0f)); Cat.ForceState(CatState.Idle);
             game.IslandCam.follow = Cat.transform; game.IslandCam.zoomLevel = 1; game.IslandCam.SnapNow(); yield return null;
-            yield return Stroke(() => BackPoint, 2f);
+            yield return Stroke(() => BackPoint, 2f, () => Cat.Pet.Pleasure > .45f);   // (웃는 얼굴까지: 더 쓰다듬으면 발라당)
             var headFocus = new GameObject("HeadFocus").transform; game.IslandCam.follow = headFocus;
             game.IslandCam.BeginPhoto();
             for (int k = 0; k < 2; k++)   // (쓰다듬으면 고양이가 몸을 돌린다: 돌린 뒤 머리 쪽에서 다시 맞춘다)
             {
                 game.IslandCam.FramePhoto(Cat.Rig.Head.eulerAngles.y + 180f - 25f, 18f, 3.0f);
                 headFocus.position = Vector3.Lerp(Cat.Rig.Head.position, Cat.Rig.BodyZone.position, .35f) - Vector3.up * .4f;   // (머리와 몸 사이)
-                yield return Stroke(() => BackPoint, .6f);
+                yield return Stroke(() => BackPoint, .6f, () => Cat.Pet.Pleasure > .6f);
             }
             Debug.Log($"[StoreShots] cat yaw {Cat.transform.eulerAngles.y:F0} head yaw {Cat.Rig.Head.eulerAngles.y:F0} cam yaw {game.IslandCam.transform.eulerAngles.y:F0}");
             Capture("1_petting");

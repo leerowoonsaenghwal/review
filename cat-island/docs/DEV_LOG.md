@@ -147,3 +147,4 @@
   - 테스트 Petting_Smile_Flop_ThenAfterglow (단계마다 Shots/petting, docs/images/checks/petting_flow.png). EditMode 46, PlayMode 42.
 - 2026-10-11 발라당할 때 배를 보이면서 머리를 카메라 쪽으로 35도 더 틀어 웃는 얼굴이 보이게(docs/images/checks/petting_flop_face.png). 고양이를 톡 하면 고개 갸웃(귀도 따라 흔들림). EditMode 46, PlayMode 42.
 - 2026-10-11 다시 왔을 때 반기기: 10분 넘게 떠났다 앱으로 돌아오거나 새로 열면 깨어 있는 고양이 둘까지 카메라 앞으로 와 앉아 야옹·하트, '왔구나!'(자는 고양이는 깨우지 않음). 테스트 WelcomeBack_AwakeCatsGreet_SleepersKeepSleeping. EditMode 46, PlayMode 43.
+- 2026-10-11 앱스토어 스크린샷 다시: 쓰다듬기가 빨라져 발라당 도중에 찍히던 1번을 '웃는 얼굴'(기쁨 45~60 %)에서 찍게.
