@@ -142,7 +142,7 @@ namespace CatIsland
                 return false;
             };
 
-            gameObject.AddComponent<DebugOverlay>();
+            if (Debug.isDebugBuild || Application.isEditor) gameObject.AddComponent<DebugOverlay>();   // (개발용 정보: 출시 빌드에는 없음 - 세 손가락 톡으로 켜질 수 있고, 꺼져 있어도 OnGUI 가 매 프레임 돈다)
             gameObject.AddComponent<PerfMonitor>();
             gameObject.AddComponent<BackgroundMusic>();
         }
@@ -313,10 +313,20 @@ namespace CatIsland
     public class PerfMonitor : MonoBehaviour
     {
         float acc, worst; int frames, slow, gcAtStart = -1, gcAtWorst, lastGc;
-        string worstWhat = "";
+        string worstWhat = ""; long lastHeap = -1, allocSum;
+        float disableAt = 3f; string disable = System.Environment.GetEnvironmentVariable("CATISLAND_DISABLE");
         void Update()
         {
             float dt = Time.unscaledDeltaTime;
+            // (프레임마다 새로 만든 관리 메모리: 힙 사용량이 늘어난 만큼, GC 로 줄면 0 - 실기 GC 원인 찾기)
+            long heap = UnityEngine.Profiling.Profiler.GetMonoUsedSizeLong(); if (lastHeap >= 0 && heap > lastHeap) allocSum += heap - lastHeap; lastHeap = heap;
+            // (점검: CATISLAND_DISABLE=종류,종류 - 켠 지 3초 뒤 그 MonoBehaviour 들을 꺼서 메모리를 어디서 만드는지 기기에서 가른다)
+            if (!string.IsNullOrEmpty(disable) && disableAt > 0f && (disableAt -= dt) <= 0f)
+            {
+                var names = new System.Collections.Generic.HashSet<string>(disable.Split(','));
+                int n = 0; foreach (var m in FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None)) if (names.Contains(m.GetType().Name)) { m.enabled = false; n++; }
+                Debug.Log($"[CatIsland] disabled {n} ({disable})");
+            }
             int gc = System.GC.CollectionCount(0); if (gcAtStart < 0) { gcAtStart = gc; lastGc = gc; }
             acc += dt; frames++;
             if (dt > worst)
@@ -330,8 +340,8 @@ namespace CatIsland
             if (dt > 0.025f) slow++;
             if (acc >= 5f)
             {
-                Debug.Log($"[CatIsland] perf fps={frames / acc:F1} worst={worst * 1000f:F1}ms ({worstWhat}) slow(>25ms)={slow} gc={gc - gcAtStart} mem={UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong() / 1048576}MB target={Application.targetFrameRate}");
-                acc = 0f; frames = 0; slow = 0; worst = 0f; gcAtStart = gc;
+                Debug.Log($"[CatIsland] perf fps={frames / acc:F1} worst={worst * 1000f:F1}ms ({worstWhat}) slow(>25ms)={slow} gc={gc - gcAtStart} alloc={allocSum / 1024f / frames:F1}KB/frame heap={lastHeap / 1048576}MB mem={UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong() / 1048576}MB");
+                acc = 0f; frames = 0; slow = 0; worst = 0f; gcAtStart = gc; allocSum = 0;
             }
         }
     }

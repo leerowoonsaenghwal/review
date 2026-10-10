@@ -110,3 +110,4 @@
 - 2026-10-10 가림 검사(OccluderFade)·용품 고르기가 매번 용품을 찾지 않게 ItemTag.All 등록 목록 사용(0.1초마다 생기던 배열 없앰: 실기 가끔 튀는 프레임 후보). 야옹 고르기를 '바로 앞과만 다르게' → 섞어서 한 바퀴씩(6가지가 고루, 테스트가 가끔 4가지만 나와 떨어지던 것). EditMode 43, PlayMode 36.
 - 2026-10-10 성능 기록(PerfMonitor): 가장 긴 프레임 순간의 GC·열린 창·고양이·용품 수, 5초 동안 GC 횟수·메모리를 함께 남김(실기 버벅임 원인 찾기). 출시 빌드 보통 로그는 호출 경로 없이.
 - 2026-10-10 시간대 점검(CATISLAND_HOUR=6.5/17.8/22, docs/images/checks/hours_morning_evening_night.png): 밤에 아래 버튼 이름·손님·선물 개수가 어두운 섬에 묻혀 안 읽힘 → 둥근 버튼 글자에 크림색 테두리(Kit.Halo, night_labels_after.png). EditMode 43, PlayMode 36.
+- 2026-10-10 실기 GC 폭주 고침: 출시 빌드의 DebugOverlay(OnGUI) 제거 → GC 5초 40번 → 0, 튄 프레임 80 ms → 17 ms, 메모리 증가 멈춤(PERF.md 표). 기기 측정용: PerfMonitor 에 KB/프레임·힙, CATISLAND_DISABLE. 실기 계측 테스트 AllocProbe(Explicit, 에디터).
