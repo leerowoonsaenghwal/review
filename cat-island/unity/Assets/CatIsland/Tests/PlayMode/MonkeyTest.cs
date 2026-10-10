@@ -18,6 +18,8 @@ namespace CatIsland.Tests
 
         [UnityTest, Explicit, Timeout(1800000)] public IEnumerator Monkey_Seed2_TenMinutes() => Run(2, 600f);
         [UnityTest, Explicit, Timeout(1800000)] public IEnumerator Monkey_Seed3_TenMinutes() => Run(3, 600f);
+        [UnityTest, Explicit, Timeout(1800000)] public IEnumerator Monkey_Seed4_TenMinutes() => Run(4, 600f);
+        [UnityTest, Explicit, Timeout(1800000)] public IEnumerator Monkey_Seed5_TenMinutes() => Run(5, 600f);
 
         IEnumerator Run(int seed, float seconds)
         {

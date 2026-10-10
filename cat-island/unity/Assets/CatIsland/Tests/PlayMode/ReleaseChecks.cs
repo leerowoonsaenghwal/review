@@ -149,6 +149,27 @@ namespace CatIsland.Tests
             Assert.Greater(other.Rig.petLean, .4f, "닿자마자 기댄다"); fingers.Release(); yield return null;
         }
 
+        /// <summary>'지금 고양이'가 산책을 나가 섬에서 사라진 뒤 바닥·그릇을 눌러도 오류 없이 남은 고양이가 받는다.</summary>
+        [UnityTest]
+        public IEnumerator CurrentCatLeavesForWalk_TapsStillWork()
+        {
+            var g = game.Logic; g.S.catSlots = 3;
+            var a = g.AddCat("korean_shorthair", "나비", CatIsland.Game.Personality.Easygoing); var b = g.AddCat("persian", "보리", CatIsland.Game.Personality.Easygoing);
+            game.SyncCats(); for (int i = 0; i < 20; i++) yield return null;
+            var cats = Object.FindObjectsByType<CatBrain>(FindObjectsSortMode.None).Where(c => c.Data != null).ToList();
+            var cur = cats.First(c => c.Data == a); game.SelectCat(cur); yield return null;
+            Assert.IsTrue(g.SendWalk(a.uid, CatIsland.Game.Catalog.WalkHours[0]), "산책 보내기");
+            game.SyncCats(); game.WorldLink.Refresh();
+            Time.timeScale = 4f; for (float t = 0; t < 40f && cur.isActiveAndEnabled; t += Time.deltaTime) yield return null; Time.timeScale = 1f;   // (바닷가로 걸어 나가 숨을 때까지)
+            Assert.IsFalse(cur.isActiveAndEnabled, "산책 간 고양이는 섬에서 사라진다");
+            var bowlPos = game.Bowl ? game.Bowl.transform.position : Vector3.zero;
+            yield return Tap(Screen(new Vector3(.5f, 0f, -1.2f)));
+            if (game.Bowl && game.Bowl.gameObject.activeInHierarchy) yield return Tap(Screen(bowlPos + Vector3.up * .05f));
+            yield return null;
+            Assert.IsTrue(game.Router.cat && game.Router.cat.isActiveAndEnabled, "남은 고양이가 지금 고양이");
+            Assert.AreEqual(b.uid, game.Router.cat.Data.uid); Assert.AreSame(game.Router.cat.transform, game.IslandCam.follow, "카메라도 남은 고양이를 본다");
+        }
+
         /// <summary>처음 7일 안내 카드: 보이면 글자가 있다 (글자 넣기가 빠져 빈 카드가 뜬 적이 있다), 바닥 깔기 중에는 숨는다.</summary>
         [UnityTest]
         public IEnumerator HintCard_ShowsItsText_AndHidesWhileTiling()

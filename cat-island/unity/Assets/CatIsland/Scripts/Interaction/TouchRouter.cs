@@ -43,7 +43,19 @@ namespace CatIsland
 
         void Start() { cam = islandCamera ? islandCamera.GetComponent<Camera>() : Camera.main; }
 
-        void Update() { Tick(Time.deltaTime); if (islandCamera) islandCamera.Petting = mode == Mode.Pet && movedFar; }
+        void Update()
+        {
+            // ('지금 고양이'가 산책·별나라로 사라졌으면 남은 고양이로: 지운 물체는 cat?. 로 걸러지지 않아 누르는 순간 오류가 난다)
+            // (산책 간 고양이는 숨겨진다: 숨은 고양이도 남은 고양이로 바꾸고 카메라도 그쪽을 본다)
+            if (!cat || !cat.isActiveAndEnabled)
+            {
+                cats.RemoveAll(c => !c); var gone = cat; cat = null;
+                foreach (var c in cats) if (c.isActiveAndEnabled) { cat = c; break; }
+                if (mode == Mode.Pet) mode = Mode.None;
+                if (cat && islandCamera && (!islandCamera.follow || (gone && islandCamera.follow == gone.transform))) islandCamera.follow = cat.transform;
+            }
+            Tick(Time.deltaTime); if (islandCamera) islandCamera.Petting = mode == Mode.Pet && movedFar;
+        }
 
         public void Tick(float dt)
         {
