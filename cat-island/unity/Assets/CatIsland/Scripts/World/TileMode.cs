@@ -35,7 +35,10 @@ namespace CatIsland
             boot.Router.enabled = false;
             if (boot.UI) boot.UI.Root.Find("Bottom")?.gameObject.SetActive(false);
             m.Build(); m.ShowZone(Zone.Indoor);
-            Active = m; boot.UI?.Refresh(); return m;
+            Active = m; boot.UI?.Refresh();
+            // (처음 한 번만: 어떻게 까는지)
+            if (PlayerPrefs.GetInt("tile_tip_shown", 0) == 0) { PlayerPrefs.SetInt("tile_tip_shown", 1); boot.UI?.Toast("손가락으로 쓸어서 깔아요. 화면 끝으로 가면 따라가요"); }
+            return m;
         }
 
         void ShowZone(Zone z)
@@ -182,7 +185,9 @@ namespace CatIsland
             }
             if (!any) return;
             FloorTiles.Instance?.Sync(g.S.floor);
-            boot.Audio?.Pop(); Haptics.Impact(ImpactStyle.Soft, .25f);
+            // (소리: 까는 무늬의 재질 발소리를 크게 - 나무 '톡', 징검돌 '사각'. 걷을 때는 가벼운 퐁)
+            if (Current == Tool.Lay) boot.Audio?.Step((Surface)(Catalog.Tile(TileId)?.surface ?? 0), 1f); else boot.Audio?.Pop();
+            Haptics.Impact(ImpactStyle.Soft, .25f);
             RefreshBar();
         }
 

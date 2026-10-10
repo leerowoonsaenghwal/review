@@ -215,13 +215,17 @@ namespace CatIsland.Tests
             foreach (var o in game.Nav.obstacles.Where(o => o.owner == null && o.item)) Debug.Log($"[Soak] item {o.name} {o.center} half {o.half} r {o.radius}");
             float logT = 0f;
             Time.timeScale = 4f; float worst = 0f, closest = 9f; string what = "", pair = "";
-            float maxStep = 0f; string stepWhat = "";
+            float maxStep = 0f; string stepWhat = ""; var hist = new System.Collections.Generic.Dictionary<CatBrain, System.Collections.Generic.List<string>>();
             bool jumpLogged = false; var prevPos = new System.Collections.Generic.Dictionary<CatBrain, Vector3>(); var prevState = new System.Collections.Generic.Dictionary<CatBrain, string>();
             foreach (var c in cats) { prevPos[c] = c.transform.position; prevState[c] = c.State.ToString(); }
             var run = new System.Collections.Generic.Dictionary<string, float>(); float longest = 0f; string longPair = "";   // (3 cm 넘게 겹친 채 이어진 시간)
             for (float t = 0; t < 120f; t += Time.deltaTime)
             {
-                if (t > 0f) foreach (var c in cats) { prevPos[c] = c.transform.position; prevState[c] = c.State.ToString(); }
+                if (t > 0f) foreach (var c in cats)
+                    {
+                        if (prevState[c] != c.State.ToString()) { if (!hist.TryGetValue(c, out var hl)) hist[c] = hl = new System.Collections.Generic.List<string>(); hl.Add($"{t:F1}s {prevState[c]}->{c.State} @({c.transform.position.x:F2},{c.transform.position.z:F2})"); if (hl.Count > 6) hl.RemoveAt(0); }
+                        prevPos[c] = c.transform.position; prevState[c] = c.State.ToString();
+                    }
                 yield return null;
                 if (t < 8f && t - logT > .5f) { logT = t; foreach (var c in cats) Debug.Log($"[Soak] t {t:F1} {c.name} {c.transform.position} {c.State}"); }
                 foreach (var k in cats)
@@ -246,7 +250,7 @@ namespace CatIsland.Tests
                         if (k.LeftItem && o.item == k.LeftItem && Time.time - k.LeftAt < 12f) continue;   // (방금 쓰고 나오는 중)
                         if (k.EnteringItem && o.item == k.EnteringItem) continue;   // (문으로 들어가는 중)
                         float d = o.Distance(k.Rig.BodyZone.position) - k.Rig.BodyHalf.x * .8f;
-                        if (d < worst) { worst = d; what = $"{k.name} in {o.name} ({k.State}, {k.Rig.Current}, y {k.transform.position.y:F2}, t {t:F0}) cat {k.transform.position} body {k.Rig.BodyZone.position} ob {o.center} half {o.half} r {o.radius} item {(o.item ? o.item.position.ToString() : "-")} left {(k.LeftItem ? k.LeftItem.name : "-")} {Time.time - k.LeftAt:F1}s target {(k.EnteringItem ? k.EnteringItem.name : "-")}"; }
+                        if (d < worst) { worst = d; what = (hist.TryGetValue(k, out var hh) ? "[" + string.Join(" | ", hh) + "] " : "") + $"{k.name} in {o.name} ({k.State}, {k.Rig.Current}, y {k.transform.position.y:F2}, t {t:F0}) cat {k.transform.position} body {k.Rig.BodyZone.position} ob {o.center} half {o.half} r {o.radius} item {(o.item ? o.item.position.ToString() : "-")} left {(k.LeftItem ? k.LeftItem.name : "-")} {Time.time - k.LeftAt:F1}s target {(k.EnteringItem ? k.EnteringItem.name : "-")}"; }
                     }
                     foreach (var k2 in cats) if (k2 != k && k2.isActiveAndEnabled && !k.OnTower && !k2.OnTower)
                         { float dd = CatBrain.Gap(k, k2, out _);

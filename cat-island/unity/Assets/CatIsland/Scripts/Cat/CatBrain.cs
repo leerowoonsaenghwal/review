@@ -555,6 +555,14 @@ namespace CatIsland
         Vector3 FreeSpot(Vector3 p, Transform item = null) { nav.Self = this; var r = nav.NearestFree(p, item); nav.Self = null; return r; }
         bool BlockedForMe(Vector3 p) { nav.Self = this; bool b = nav.Blocked(p); nav.Self = null; return b; }
 
+        /// <summary>지금 서 있는 곳이 놓인 용품(장면 용품 포함) 칸 안인가 (방금 쓰고 나온 용품도 포함).</summary>
+        bool InsideItem()
+        {
+            if (nav == null) return false;
+            foreach (var o in nav.obstacles) if (o.owner == null && o.item != null && o.Distance(transform.position) < .05f) return true;
+            return false;
+        }
+
         /// <summary>방석 가기를 그만둘 때: 반쯤 올라서 있으면 '방금 쓰고 나오는 중'으로 걸어 나가고(방석 안에 서 있지 않게), 아니면 그 자리에서 쉰다.</summary>
         void GiveUpCushion()
         {
@@ -753,6 +761,7 @@ namespace CatIsland
         {
             if (Rig.Current == Posture.Sit || MoveTowards(moveTarget, GameConfig.WalkSpeed, dt))
             {
+                if (Rig.Current != Posture.Sit && TooFarToSettle(moveTarget) && InsideItem()) { Enter(CatState.Wander); return; }   // (막혀 멈춘 곳이 용품 칸 안이면 앉지 않고 걸어 나간다)
                 if (cam) faceDir = Flat(cam.position - transform.position);
                 if (Rig.Current == Posture.Stand && FacingAngle(faceDir) < 20f) Rig.Request(Posture.Sit);
                 if (StateTime > 14f) Enter(CatState.Idle);
