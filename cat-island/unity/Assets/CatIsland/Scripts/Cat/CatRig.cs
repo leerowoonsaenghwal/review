@@ -58,6 +58,12 @@ namespace CatIsland
         Posture pendingPosture;
         bool actionLoop;
         float blinkTimer = 2f, blinkT = -1f, sEye = 1f, sMouth, sTilt, sWag;
+        float yawnT = -1f, sSmile; const float YawnLen = 2f;
+        CatMouth mouth;
+
+        /// <summary>하품: 입을 크게 벌리고 눈을 감으며 고개를 젖혔다 돌아온다 (2초, 동작 파일 없이 얼굴·고개만).</summary>
+        public void Yawn() { if (yawnT < 0f) yawnT = 0f; }
+        public bool Yawning => yawnT >= 0f;
         Vector2 look;
 
         [Serializable] public class RootCurve { public string clip; public float fps; public float[] forward; public float[] up; }
@@ -112,6 +118,7 @@ namespace CatIsland
                 blinkIdx = face.sharedMesh.GetBlendShapeIndex("Blink");
                 mouthIdx = face.sharedMesh.GetBlendShapeIndex("MouthOpen");
                 SetFace(eyeStyle, whiskerStyle);
+                mouth = CatMouth.Build(face, face.sharedMesh.GetBlendShapeIndex("MouthOpen"), Model.GetComponentsInChildren<SkinnedMeshRenderer>(true).FirstOrDefault(r => r.sharedMesh.blendShapeCount == 0), transform);
             }
 
             FitZones(bones);
@@ -370,13 +377,23 @@ namespace CatIsland
                 blink = 1f - Mathf.Abs(blinkT / 0.09f - 1f);
                 if (blinkT >= 0.18f) blinkT = -1f;
             }
+            // 하품 세기 (0~1): 0.5초에 걸쳐 벌리고, 0.9초 버티고, 0.6초에 다문다
+            float yawn = 0f;
+            if (yawnT >= 0f)
+            {
+                yawnT += dt; float k = yawnT / YawnLen;
+                yawn = k < .25f ? Mathf.SmoothStep(0f, 1f, k / .25f) : k < .7f ? 1f : Mathf.SmoothStep(1f, 0f, (k - .7f) / .3f);
+                if (k >= 1f) { yawnT = -1f; yawn = 0f; }
+            }
             sEye = Mathf.Lerp(sEye, eyeOpen, 1f - Mathf.Exp(-10f * dt));
-            sMouth = Mathf.Lerp(sMouth, Mathf.Max(mouthOpen, smile), 1f - Mathf.Exp(-18f * dt));
+            sMouth = Mathf.Lerp(sMouth, Mathf.Max(mouthOpen, yawn), 1f - Mathf.Exp(-18f * dt));
+            sSmile = Mathf.Lerp(sSmile, smile, 1f - Mathf.Exp(-8f * dt));   // (웃음은 'w' 입선을 남기고 그 아래 작은 입만 벌린다)
             if (face)
             {
-                float closed = Mathf.Clamp01(Mathf.Max(1f - sEye, blink));
+                float closed = Mathf.Clamp01(Mathf.Max(1f - sEye, blink, yawn * .9f));
                 if (blinkIdx >= 0) face.SetBlendShapeWeight(blinkIdx, Mathf.Max(face.GetBlendShapeWeight(blinkIdx), closed * 100f));
                 if (mouthIdx >= 0 && sMouth > 0.01f) face.SetBlendShapeWeight(mouthIdx, Mathf.Max(face.GetBlendShapeWeight(mouthIdx), sMouth * 100f));
+                if (mouth) mouth.Set(Mathf.Max(sMouth, sSmile * .9f, mouthIdx >= 0 ? face.GetBlendShapeWeight(mouthIdx) / 100f : 0f));   // (동작 파일이 벌린 입도)
             }
 
             // 고개: 바라볼 곳으로 (몸 기준 좌우·상하), 앉거나 서 있을 때만
@@ -396,6 +413,13 @@ namespace CatIsland
             neck.rotation = add * neck.rotation;
             Quaternion addHead = Quaternion.AngleAxis(look.x * 0.4f, up) * Quaternion.AngleAxis(look.y * 0.5f, right) * Quaternion.AngleAxis(sTilt, fwd);
             Head.rotation = addHead * Head.rotation;
+            // 하품: 고개를 젖히고 귀를 살짝 뒤로 (앉기·서기·식빵 자세에서, 자세가 바뀌는 중에는 얼굴만)
+            if (yawn > .001f && (Current == Posture.Stand || Current == Posture.Sit || Current == Posture.Loaf) && !InTransition)
+            {
+                neck.rotation = Quaternion.AngleAxis(-8f * yawn, right) * neck.rotation;
+                Head.rotation = Quaternion.AngleAxis(-20f * yawn, right) * Head.rotation;
+                foreach (var e in ears) e.rotation = Quaternion.AngleAxis(-14f * yawn, right) * e.rotation;
+            }
 
             // 꼬리 끝 살랑임 더하기
             sWag = Mathf.Lerp(sWag, tailWag, 1f - Mathf.Exp(-3f * dt));

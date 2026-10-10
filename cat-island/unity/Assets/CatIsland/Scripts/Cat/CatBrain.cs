@@ -158,7 +158,7 @@ namespace CatIsland
         void CloseMouth() { Rig.mouthOpen = 0f; }
 
         // ---------------- 저절로 우는 소리: 가끔, 자연스럽게 (눌러서가 아니라 고양이 스스로)
-        float lastTapMeow = -9f, nextVocal = -1f, lastPetChirp = -9f, petPeak, tapTiltUntil, tapTiltSign = 1f, slowBlinkAt = -9f; bool wasTouching, petSessionHeart;
+        float lastTapMeow = -9f, nextVocal = -1f, lastPetChirp = -9f, petPeak, tapTiltUntil, tapTiltSign = 1f, slowBlinkAt = -9f, yawnAt = -1f; bool wasTouching, petSessionHeart;
         static float lastAnyVocal = -9f;   // (여러 마리가 한꺼번에 울지 않게)
         /// <summary>야옹(입 벌림과 함께). tapped: 눌러서 우는 것(다른 고양이 간격은 보지 않는다).</summary>
         void Vocalize(bool tapped = false)
@@ -394,7 +394,7 @@ namespace CatIsland
                 case CatState.Idle: idleDecide = UnityEngine.Random.Range(1.5f, 3.5f); Rig.Request(Posture.Stand); break;
                 case CatState.Wander: moveTarget = RandomWalkPoint(1.2f); break;
                 case CatState.Invite: moveTarget = InviteSpot(); audioOut?.Chirp(); break;
-                case CatState.SitIdle: stateTimer = UnityEngine.Random.Range(4f, 8f); Rig.Request(Posture.Sit); break;
+                case CatState.SitIdle: stateTimer = UnityEngine.Random.Range(4f, 8f); Rig.Request(Posture.Sit); yawnAt = Sleepyish && UnityEngine.Random.value < .35f ? UnityEngine.Random.Range(1.2f, 2.5f) : -1f; break;
                 case CatState.Zoomies: zoomiesLeft = UnityEngine.Random.Range(3, 5); moveTarget = RandomWalkPoint(2.5f); audioOut?.Chirp(); break;
                 case CatState.Nip:
                     audioOut?.Nip();
@@ -815,6 +815,7 @@ namespace CatIsland
         {
             Speed = 0f;
             stateTimer -= dt;
+            if (yawnAt > 0f && StateTime >= yawnAt && Rig.Current == Posture.Sit && !Rig.Busy) { yawnAt = -1f; Rig.Yawn(); stateTimer = Mathf.Max(stateTimer, 2.2f); }
             if (stateTimer <= 0f) Enter(CatState.Idle);
         }
 
@@ -850,8 +851,11 @@ namespace CatIsland
                 else if (StateTime > 4f) Enter(CatState.Idle);
                 return;
             }
-            if (Rig.ActionClip == null) Enter(CatState.Idle);
+            if (Rig.ActionClip == null) { if (UnityEngine.Random.value < .6f) Rig.Yawn(); Enter(CatState.Idle); idleDecide = Mathf.Max(idleDecide, Rig.Yawning ? 2.1f : 0f); }   // (기지개 뒤 하품, 다 하고 걷는다)
         }
+
+        /// <summary>졸린 편 (하품이 잦다): 기운이 낮거나 밤.</summary>
+        bool Sleepyish => Needs.Energy < .45f || IsNight;
 
         // ---- 밥
 
@@ -948,7 +952,8 @@ namespace CatIsland
         void TickLieDown(float dt)
         {
             Speed = 0f;
-            Rig.Request(StateTime > 2.5f ? Posture.Sleep : Posture.Loaf);
+            if (!actionStarted && Rig.Current == Posture.Loaf && !Rig.InTransition) { actionStarted = true; if (UnityEngine.Random.value < .7f) Rig.Yawn(); }   // (식빵 자세가 되면 눕기 전 하품)
+            Rig.Request(StateTime > 2.5f && !Rig.Yawning ? Posture.Sleep : Posture.Loaf);
             if (Rig.Current == Posture.Sleep) Enter(CatState.Sleep);
         }
 

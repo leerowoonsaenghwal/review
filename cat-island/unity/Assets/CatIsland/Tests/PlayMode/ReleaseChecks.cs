@@ -206,6 +206,39 @@ namespace CatIsland.Tests
             Assert.IsTrue(shot2);
         }
 
+        /// <summary>하품: 입을 크게 벌리고 눈을 감고 고개를 젖혔다가 2초 안에 돌아온다 (기지개 뒤·눕기 전·졸릴 때 앉아서). Shots/petting/yawn.png</summary>
+        [UnityTest]
+        public IEnumerator Yawn_MouthOpens_EyesClose_HeadTipsBack()
+        {
+            Cat.Needs.SetForTest(1f, 1f); Cat.ForceState(CatState.SitIdle);
+            for (int i = 0; i < 90; i++) yield return null;
+            Assert.AreEqual(Posture.Sit, Cat.Rig.Current);
+            var face = Cat.Rig.GetComponentsInChildren<SkinnedMeshRenderer>().First(r => r.sharedMesh && r.sharedMesh.GetBlendShapeIndex("MouthOpen") >= 0);
+            int mi = face.sharedMesh.GetBlendShapeIndex("MouthOpen"), bi = face.sharedMesh.GetBlendShapeIndex("Blink");
+            { var m = face.sharedMesh; var dv = new Vector3[m.vertexCount]; m.GetBlendShapeFrameVertices(mi, m.GetBlendShapeFrameCount(mi) - 1, dv, null, null); float mx = 0; int nz = 0; foreach (var d in dv) { mx = Mathf.Max(mx, d.magnitude); if (d.sqrMagnitude > 1e-8f) nz++; } Debug.Log($"[YawnDbg] frames {m.GetBlendShapeFrameCount(mi)} w {m.GetBlendShapeFrameWeight(mi, 0)} maxDelta {mx} moved {nz}/{m.vertexCount} scale {face.transform.lossyScale}"); }
+            var head0 = Cat.Rig.Head.rotation; float mouth = 0f, eyes = 0f, tip = 0f;
+            Cat.Rig.Yawn(); Assert.IsTrue(Cat.Rig.Yawning);
+            for (float t = 0; t < 1.1f; t += Time.deltaTime)
+            {
+                yield return null;
+                mouth = Mathf.Max(mouth, face.GetBlendShapeWeight(mi)); if (bi >= 0) eyes = Mathf.Max(eyes, face.GetBlendShapeWeight(bi)); tip = Mathf.Max(tip, Quaternion.Angle(head0, Cat.Rig.Head.rotation));
+            }
+            game.IslandCam.zoomLevel = 1; game.IslandCam.SnapNow(); yield return null;
+            var dir = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "../Shots/petting")); System.IO.Directory.CreateDirectory(dir);
+            {   // (얼굴 가까이: 게임 카메라 쪽 1.7 m 에서)
+                var cg = new GameObject("YawnCam"); var c = cg.AddComponent<Camera>(); c.CopyFrom(Cam); c.fieldOfView = 30f;
+                var h = Cat.Rig.Head.position; var toCam = Cam.transform.position - h; toCam.y = 0f; cg.transform.position = h + toCam.normalized * 1.7f + Vector3.up * .25f; cg.transform.LookAt(h);
+                var rt = new RenderTexture(720, 720, 24); c.targetTexture = rt; c.Render(); c.targetTexture = null; RenderTexture.active = rt; var tx = new Texture2D(720, 720, TextureFormat.RGB24, false); tx.ReadPixels(new Rect(0, 0, 720, 720), 0, 0); tx.Apply(); RenderTexture.active = null; System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, "yawn.png"), tx.EncodeToPNG());
+                cg.transform.position = h + Quaternion.Euler(0f, 70f, 0f) * toCam.normalized * 1.7f + Vector3.up * .1f; cg.transform.LookAt(h);   // (옆에서: 입이 떠 있지 않은지)
+                c.targetTexture = rt; c.Render(); c.targetTexture = null; RenderTexture.active = rt; tx.ReadPixels(new Rect(0, 0, 720, 720), 0, 0); tx.Apply(); RenderTexture.active = null; System.IO.File.WriteAllBytes(System.IO.Path.Combine(dir, "yawn_side.png"), tx.EncodeToPNG());
+                rt.Release(); Object.Destroy(tx); Object.Destroy(cg);
+            }
+            Debug.Log($"[Yawn] mouth {mouth:F0} eyes {eyes:F0} head {tip:F1}°");
+            Assert.Greater(mouth, 80f, "입을 크게"); if (bi >= 0) Assert.Greater(eyes, 70f, "눈을 감는다"); Assert.Greater(tip, 10f, "고개를 젖힌다");
+            for (float t = 0; t < 1.6f; t += Time.deltaTime) yield return null;
+            Assert.IsFalse(Cat.Rig.Yawning, "2초면 끝"); Assert.Less(face.GetBlendShapeWeight(mi), 25f, "입을 다문다");
+        }
+
         /// <summary>오랜만에 돌아오면: 깨어 있는 고양이가 카메라 앞으로 와서 반긴다(야옹·하트), 자는 고양이는 깨우지 않는다.</summary>
         [UnityTest]
         public IEnumerator WelcomeBack_AwakeCatsGreet_SleepersKeepSleeping()

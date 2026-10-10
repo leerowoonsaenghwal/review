@@ -77,5 +77,39 @@ namespace CatIsland.Tests
             Object.Destroy(cam.gameObject); Object.Destroy(light.gameObject);
             Assert.Pass("Shots/sheets/breeds.png, eye_whisker.png");
         }
+
+        /// <summary>벌린 입 (CatMouth): 33품종 웃음(0.5)·크게(1) 를 한 장에 → Shots/sheets/mouths.png. 주둥이에 붙어 있고 떠 보이지 않는지.</summary>
+        [UnityTest]
+        public IEnumerator BreedMouths()
+        {
+            var (cam, light) = Stage();
+            var breeds = CatIsland.Game.Catalog.Breeds; var tiles = new Texture2D[breeds.Length * 2];
+            for (int i = 0; i < breeds.Length; i++)
+            {
+                CatRig rig = null; yield return Cat(breeds[i].id, "", "", r => rig = r);
+                rig.smile = .5f; for (float t = 0; t < .6f; t += Time.deltaTime) yield return null; tiles[i * 2] = Shot(cam, rig);
+                rig.smile = 0f; rig.mouthOpen = 1f; for (float t = 0; t < .6f; t += Time.deltaTime) yield return null; tiles[i * 2 + 1] = Shot(cam, rig);
+                Object.Destroy(rig.gameObject); yield return null;
+            }
+            Save("mouths", tiles, 10);
+            // 혀를 내미는 동작(입맛 다시기·세수 핥기)에서 입 모양이 혀를 가리지 않는지
+            var lick = new System.Collections.Generic.List<Texture2D>();
+            foreach (var id in new[] { "korean_shorthair", "persian", "siamese", "munchkin" })
+            {
+                CatRig rig = null; yield return Cat(id, "", "", r => rig = r);
+                foreach (var clip in new[] { "LickLips", "GroomFace" })
+                {
+                    if (!rig.HasClip(clip)) continue;
+                    rig.PlayAction(clip); float len = rig.ClipLength(clip);
+                    foreach (var at in new[] { .2f, .35f, .5f })
+                    { while (rig.ActionTime < len * at && rig.ActionClip != null) yield return null; lick.Add(Shot(cam, rig)); }
+                    rig.StopAction(); for (float t = 0; t < .5f; t += Time.deltaTime) yield return null;
+                }
+                Object.Destroy(rig.gameObject); yield return null;
+            }
+            Save("mouths_lick", lick.ToArray(), 6);
+            Object.Destroy(cam.gameObject); Object.Destroy(light.gameObject);
+            Assert.Pass("Shots/sheets/mouths.png");
+        }
     }
 }
