@@ -81,6 +81,8 @@ namespace CatIsland
             }
             IslandCam = camGo.AddComponent<IslandCamera>();
             var fade = camGo.AddComponent<OccluderFade>(); fade.extra.Add(Cushion.transform); fade.extra.Add(Tower.transform);   // (고양이를 가리는 용품은 비친다)
+            var island = world.Find("Island");   // (360도로 돌려 섬 뒤에서 보면 나무·덤불·바위가 고양이를 가린다: 이것들도 비친다)
+            if (island) foreach (Transform t in island) if (t.name.StartsWith("Tree") || t.name.StartsWith("Bush") || t.name.StartsWith("Rock")) fade.extra.Add(t);
             Weather = new GameObject("Weather").AddComponent<WeatherFx>(); Weather.transform.position = new Vector3(4f, 0f, 0f);   // (집 안 + 마당 위)
             Day = gameObject.AddComponent<DayCycle>(); Day.sun = RenderSettings.sun; Day.cam = cam; Day.weather = Weather; Day.Apply(DayCycle.HourOverride >= 0 ? DayCycle.HourOverride : (float)DateTime.Now.TimeOfDay.TotalHours);
 
@@ -125,6 +127,7 @@ namespace CatIsland
             if (look != null && look.Length == 3 && float.TryParse(look[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lx)
                 && float.TryParse(look[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lz) && float.TryParse(look[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ld))
             { IslandCam.Manual = true; IslandCam.ManualFocus = new Vector3(lx, .3f, lz); IslandCam.ManualDist = ld; }
+            if (float.TryParse(System.Environment.GetEnvironmentVariable("CATISLAND_YAW"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var yawDeg)) IslandCam.SetYaw(yawDeg);   // (점검: 카메라 방향)
             if (System.Environment.GetEnvironmentVariable("CATISLAND_ZOOM") == "0") { IslandCam.zoomLevel = 0; IslandCam.SnapNow(); }   // (점검: 멀리 보기로 시작)   // (화면 차례로 열기: 시뮬레이터 점검)
             if (demo && Logic.S.cats.Count == 0)
             {

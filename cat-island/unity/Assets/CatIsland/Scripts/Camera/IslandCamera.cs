@@ -4,7 +4,7 @@ namespace CatIsland
 {
     /// <summary>
     /// 장난감 상자를 들여다보는 시점: 약 40도로 내려다보고 화각이 좁다 (기획서 3부 6장).
-    /// 좌우 90도 회전, 확대 2단계. 고양이를 부드럽게 따라간다.
+    /// 360도 회전, 확대 2단계. 고양이를 부드럽게 따라간다.
     /// </summary>
     [RequireComponent(typeof(Camera))]
     public class IslandCamera : MonoBehaviour
@@ -19,7 +19,6 @@ namespace CatIsland
         public float[] distances = { 24f, 8.5f };   // 0 = 멀리(넓어진 섬 전체), 1 = 가까이
         public bool Petting;
         public int zoomLevel = 1;
-        public float yawLimit = 45f;
 
         float yaw, yawVel, dist;
         Vector3 focus;
@@ -45,11 +44,17 @@ namespace CatIsland
             Apply();
         }
 
+        /// <summary>손가락으로 돌리기: 360도 자유 (2026-10-10 사용자 요청, 예전 좌우 45도). 손을 떼면 남은 힘만큼 부드럽게 더 돈다.</summary>
         public void Orbit(float deg)
         {
-            yaw = Mathf.Clamp(yaw + deg, -yawLimit - 8f, yawLimit + 8f);
+            yaw = Mathf.Repeat(yaw + deg + 180f, 360f) - 180f;
+            float dt = Mathf.Max(Time.unscaledDeltaTime, 1e-3f);
+            spin = Mathf.Lerp(spin, deg / dt, .5f); orbitAt = Time.unscaledTime;
             yawVel = 0f;
         }
+        float spin, orbitAt;
+        /// <summary>점검·스크린샷: 방향을 바로 정한다.</summary>
+        public void SetYaw(float deg) { yaw = Mathf.Repeat(deg + 180f, 360f) - 180f; spin = 0f; yawVel = 0f; }   // (돌리는 빠르기 도/초, 마지막으로 돌린 때)
 
         public void StepZoom(int dir)
         {
@@ -76,7 +81,7 @@ namespace CatIsland
         public bool PhotoMode { get; private set; }
         float photoYaw, photoPitch = 25f, photoDist = 4f; bool eyeLevel;
         public void BeginPhoto() { PhotoMode = true; photoYaw = yaw; photoPitch = 25f; photoDist = Mathf.Clamp(dist * .6f, 2.2f, 9f); eyeLevel = false; }
-        public void EndPhoto() { PhotoMode = false; yaw = Mathf.Clamp(photoYaw, -yawLimit, yawLimit); }
+        public void EndPhoto() { PhotoMode = false; yaw = Mathf.Repeat(photoYaw + 180f, 360f) - 180f; spin = 0f; }
         public void PhotoOrbit(float dYaw, float dPitch) { photoYaw += dYaw; if (!eyeLevel) photoPitch = Mathf.Clamp(photoPitch + dPitch, 5f, 70f); }
         public void PhotoZoom(float k) { photoDist = Mathf.Clamp(photoDist * k, 1.6f, 14f); }
         public void SetEyeLevel(bool on) { eyeLevel = on; }
@@ -103,14 +108,15 @@ namespace CatIsland
             {
                 // (바닥 깔기: 고양이를 따라가지 않고 이용자가 옮기는 곳을 본다)
                 focus = Vector3.Lerp(focus, ManualFocus, 1f - Mathf.Exp(-10f * dt)); dist = Mathf.Lerp(dist, ManualDist, 1f - Mathf.Exp(-6f * dt));
-                yaw = Mathf.SmoothDamp(yaw, 0f, ref yawVel, .2f); frameK = Mathf.Lerp(frameK, 0f, 1f - Mathf.Exp(-5f * dt)); Apply(); return;
+                spin = 0f; yaw = Mathf.SmoothDampAngle(yaw, 0f, ref yawVel, .2f); frameK = Mathf.Lerp(frameK, 0f, 1f - Mathf.Exp(-5f * dt)); Apply(); return;
             }
             // 낮게 열린 창(고양이 만들기) 위로 고양이를 가까이 잡는다
             float top = CatIsland.UI.GameUI.Instance ? CatIsland.UI.GameUI.Instance.SheetTop : 1f;
             frameK = Mathf.Lerp(frameK, top < .7f ? 1f : 0f, 1f - Mathf.Exp(-5f * dt)); if (top < .7f) frameTop = top;
-            // 회전 한계 밖이면 살짝 되돌아옴
-            float clamped = Mathf.Clamp(yaw, -yawLimit, yawLimit);
-            yaw = Mathf.SmoothDamp(yaw, clamped, ref yawVel, 0.15f);
+            // 손을 뗀 뒤 남은 회전 (빠르게 밀면 더 멀리, 0.4초쯤 걸려 멈춘다)
+            if (Time.unscaledTime - orbitAt > .06f && Mathf.Abs(spin) > 1f)
+            { yaw = Mathf.Repeat(yaw + spin * Time.unscaledDeltaTime + 180f, 360f) - 180f; spin *= Mathf.Exp(-7f * Time.unscaledDeltaTime); }
+            else if (Time.unscaledTime - orbitAt > .06f) spin = 0f;
             dist = Mathf.Lerp(dist, distances[zoomLevel] * (Petting ? .82f : 1f) * Mathf.Lerp(1f, .72f, frameK), 1f - Mathf.Exp((Petting ? -1.2f : -6f) * dt));   // (쓰다듬을 때 천천히 가까이)
             if (follow) focus = Vector3.Lerp(focus, FocusFor(follow.position), 1f - Mathf.Exp(-2.5f * dt));
             Apply();

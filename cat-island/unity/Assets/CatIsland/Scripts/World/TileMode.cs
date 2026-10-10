@@ -72,7 +72,10 @@ namespace CatIsland
             var tb = top.gameObject.AddComponent<Button>(); tb.transition = Selectable.Transition.None; tb.onClick.AddListener(NextTile); top.gameObject.AddComponent<Press>();
             var ig = new GameObject("TileImg", typeof(RectTransform)); ig.transform.SetParent(top.transform, false); tileImg = ig.AddComponent<RawImage>(); tileImg.raycastTarget = false;
             Kit.Anchor(tileImg.rectTransform, new Vector2(0, .5f), new Vector2(0, .5f), new Vector2(10, 0), new Vector2(40, 40));
-            tileLabel = Kit.Label(top.transform, "", Theme.Body, null, TextAnchor.MiddleLeft); Kit.Fill(tileLabel.rectTransform, 60, 2, 12, 2); tileLabel.raycastTarget = false;
+            tileLabel = Kit.Label(top.transform, "", Theme.Body, null, TextAnchor.MiddleLeft); Kit.Fill(tileLabel.rectTransform, 60, 2, 108, 2); tileLabel.raycastTarget = false;
+            var zoom = Kit.Btn(top.transform, "멀리", null, Kit.Style.Secondary); zoom.onClick.AddListener(() => { ToggleZoom(); zoom.GetComponentInChildren<Text>().text = boot.IslandCam.ManualDist > 16f ? "가까이" : "멀리"; });
+            zoom.GetComponentInChildren<Text>().fontSize = Theme.Caption;
+            Kit.Anchor((RectTransform)zoom.transform, new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-6, 0), new Vector2(90, 44));
             // 아래 줄: 도구 + 다 했어요
             var row = Kit.Rect(bar, "Tools"); Kit.HList(row, 6); Kit.Size(row, -1, 56);
             toolBtns[Tool.Lay] = Kit.Btn(row, "깔기", () => SetTool(Tool.Lay), Kit.Style.Primary, UIIcon.Plus); Kit.Size(toolBtns[Tool.Lay], 82, 52);
@@ -123,7 +126,27 @@ namespace CatIsland
             }
             if (Current == Tool.Pan) { PanBy(lastScreen, pos.Value); lastScreen = pos.Value; return; }
             PaintAtScreen(pos.Value); lastScreen = pos.Value;
+            EdgeScroll(pos.Value, Time.unscaledDeltaTime);
         }
+
+        /// <summary>깔다가 손가락이 화면 가장자리(양옆 12 %, 위 18 %, 아래는 막대 위 띠)에 닿으면 그쪽으로 천천히 따라간다.</summary>
+        public void EdgeScroll(Vector2 screen, float dt)
+        {
+            float w = Screen.width, h = Screen.height, ex = w * .12f, top = h * .82f, bottom = h * .2f;
+            var d = Vector2.zero;
+            if (screen.x < ex) d.x = -(1f - screen.x / ex); else if (screen.x > w - ex) d.x = 1f - (w - screen.x) / ex;
+            if (screen.y > top) d.y = (screen.y - top) / (h - top); else if (screen.y < bottom + h * .08f && screen.y > bottom) d.y = -(1f - (screen.y - bottom) / (h * .08f));
+            if (d == Vector2.zero) return;
+            var cam = boot.IslandCam; var fwd = Vector3.ProjectOnPlane(cam.transform.forward, Vector3.up).normalized; var right = Vector3.Cross(Vector3.up, fwd);
+            var move = (right * d.x + fwd * d.y) * 3f * dt;   // (최대 3 m/s)
+            var f = cam.ManualFocus + move;
+            var (gw, gh) = CatIsland.Game.Game.GridSize(Zone); var o = WorldSync.CellToWorld(Zone, 0, 0); float c = WorldSync.Cell;
+            f.x = Mathf.Clamp(f.x, o.x, o.x + gw * c); f.z = Mathf.Clamp(f.z, o.z - 2f, o.z + gh * c - 2f);
+            cam.ManualFocus = f;
+        }
+
+        /// <summary>멀리·가까이 (손가락 하나로 다루는 모드라 두 손가락 확대 대신)</summary>
+        public void ToggleZoom() { var cam = boot.IslandCam; cam.ManualDist = cam.ManualDist > 16f ? 13f : 20f; }
 
         /// <summary>손가락을 끈 만큼 보는 곳을 옮긴다 (땅이 손가락을 따라오게). 격자 밖으로 너무 나가지 않게.</summary>
         public void PanBy(Vector2 from, Vector2 to)

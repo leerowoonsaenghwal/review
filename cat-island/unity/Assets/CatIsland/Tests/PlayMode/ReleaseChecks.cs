@@ -139,6 +139,10 @@ namespace CatIsland.Tests
             Assert.AreEqual(5 + 5 + 5 + 2, mf.sharedMesh.vertexCount / 4, "윗면 5 + 바깥 옆면만 (앞뒤 5씩, 양 끝 1씩)");
             mode.SetTool(TileMode.Tool.Lift); mode.PaintAtWorld(Cell(4, 3)); yield return null;
             Assert.IsNull(FloorTiles.IdAt(CatIsland.Game.Zone.Indoor, 4, 3)); Assert.AreEqual(bag - 4, g.Tiles("deck_honey"));
+            // (깔다가 손가락이 왼쪽 가장자리에 닿으면 화면이 왼쪽으로 따라간다, 멀리·가까이)
+            var f0 = game.IslandCam.ManualFocus; for (int i = 0; i < 20; i++) mode.EdgeScroll(new Vector2(2f, UnityEngine.Screen.height * .5f), .05f);
+            Assert.Less(game.IslandCam.ManualFocus.x, f0.x - .5f, "왼쪽 가장자리 → 왼쪽으로");
+            float d0 = game.IslandCam.ManualDist; mode.ToggleZoom(); Assert.Greater(game.IslandCam.ManualDist, d0); mode.ToggleZoom(); Assert.AreEqual(d0, game.IslandCam.ManualDist, 1e-4);
             mode.Finish(); yield return null;
             Assert.IsFalse(game.IslandCam.Manual); Assert.IsTrue(game.Router.enabled); Assert.IsNull(TileMode.Active);
             Assert.AreEqual(4, g.S.floor.Count);
