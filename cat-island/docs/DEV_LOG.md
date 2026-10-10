@@ -145,3 +145,4 @@
   - 단계: 닿으면 멈추고 기댐 → 좋아하면 웃는 얼굴(곧 '^^' 눈 + 입 살짝 벌린 웃음, 꼬리 살랑, 골골) → 2~3초 잘 쓰다듬으면 발라당(기쁨 70 % 0.8초) 집사 쪽을 보며 배 보이기 → 손을 떼면 여운(하트 + 기지개 / 세수 / 입맛 다시기, 장난꾸러기는 가끔 신나서 뛰어다님).
   - 쓰다듬는 동안 카메라가 더 가까이(거리 60 %), 머리 위 말풍선은 숨기고 하트는 머리 둘레에서 크게(깨물 때 느낌표는 남김).
   - 테스트 Petting_Smile_Flop_ThenAfterglow (단계마다 Shots/petting, docs/images/checks/petting_flow.png). EditMode 46, PlayMode 42.
+- 2026-10-11 발라당할 때 배를 보이면서 머리를 카메라 쪽으로 35도 더 틀어 웃는 얼굴이 보이게(docs/images/checks/petting_flop_face.png). 고양이를 톡 하면 고개 갸웃(귀도 따라 흔들림). EditMode 46, PlayMode 42.

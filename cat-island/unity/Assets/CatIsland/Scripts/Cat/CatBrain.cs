@@ -149,6 +149,7 @@ namespace CatIsland
             NoteUserActivity();
             if (State == CatState.Sleep) return; // 자는 고양이는 깨우지 않는다
             if (Time.time - lastTapMeow > 2f) { lastTapMeow = Time.time; Vocalize(true); }   // (연달아 눌러도 2초에 한 번만 운다)
+            tapTiltUntil = Time.time + 1.2f; tapTiltSign = UnityEngine.Random.value < .5f ? -1f : 1f;   // (톡 하면 고개를 갸웃: 귀도 따라 흔들린다)
             Haptics.Impact(ImpactStyle.Soft, 0.6f);
             if (State == CatState.Wander || State == CatState.Invite) Enter(CatState.Idle);
             if (cam) faceDir = Flat(cam.position - transform.position);
@@ -157,7 +158,7 @@ namespace CatIsland
         void CloseMouth() { Rig.mouthOpen = 0f; }
 
         // ---------------- 저절로 우는 소리: 가끔, 자연스럽게 (눌러서가 아니라 고양이 스스로)
-        float lastTapMeow = -9f, nextVocal = -1f, lastPetChirp = -9f, petPeak; bool wasTouching, petSessionHeart;
+        float lastTapMeow = -9f, nextVocal = -1f, lastPetChirp = -9f, petPeak, tapTiltUntil, tapTiltSign = 1f; bool wasTouching, petSessionHeart;
         static float lastAnyVocal = -9f;   // (여러 마리가 한꺼번에 울지 않게)
         /// <summary>야옹(입 벌림과 함께). tapped: 눌러서 우는 것(다른 고양이 간격은 보지 않는다).</summary>
         void Vocalize(bool tapped = false)
@@ -1366,7 +1367,11 @@ namespace CatIsland
             Vector3 belly = Flat(Rig.Info.flopBelly);
             if (!cam || belly.sqrMagnitude < 0.01f) return transform.rotation;
             Vector3 toCam = Flat(cam.position - transform.position);
-            return Quaternion.FromToRotation(belly.normalized, toCam.normalized);
+            // 배가 카메라를 보게 돌린 뒤, 머리(몸 앞쪽)를 카메라 쪽으로 35도 더 튼다: 배를 보이면서 집사 얼굴을 본다
+            var q = Quaternion.FromToRotation(belly.normalized, toCam.normalized);
+            var fwd = Flat(q * Vector3.forward); if (fwd.sqrMagnitude < 1e-4f) return q;   // (q 는 절대 방향: 몸 기준 앞쪽을 돌린 것)
+            var fwd2 = Vector3.RotateTowards(fwd.normalized, toCam.normalized, 35f * Mathf.Deg2Rad, 0f);
+            return Quaternion.FromToRotation(fwd.normalized, fwd2) * q;
         }
 
         void TickBellyUp(float dt)
@@ -1435,7 +1440,7 @@ namespace CatIsland
                 Vector3 local = transform.InverseTransformPoint(pointerWorld);
                 r.headTilt = Mathf.Clamp(-local.x * 60f, -18f, 18f);
             }
-            else r.headTilt = State == CatState.WaitAtBowl ? Mathf.Sin(Time.time * 0.7f) * 8f : 0f;
+            else r.headTilt = Time.time < tapTiltUntil ? tapTiltSign * 16f : State == CatState.WaitAtBowl ? Mathf.Sin(Time.time * 0.7f) * 8f : 0f;
 
             if (State == CatState.BellyUp && cam) r.lookTarget = cam.position;   // (발라당: 집사 쪽을 보며)
             else if (State == CatState.Eat || sleep) r.lookTarget = null;
