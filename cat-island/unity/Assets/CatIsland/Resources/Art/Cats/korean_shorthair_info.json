@@ -29,7 +29,9 @@
         "Walk",
         "Flop",
         "FlopIdle",
-        "FlopUp"
+        "FlopUp",
+        "LoafUp",
+        "WakeUp"
     ],
     "loops": [
         "Idle",

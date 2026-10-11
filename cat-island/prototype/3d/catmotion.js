@@ -888,6 +888,25 @@ export function makeClips(rig, opts = {}) {
   add('Loaf', 5, true, t => over(LOAF, { breath: Math.sin(TAU * t / 2.5), blink: .55 + .45 * blinkAt(t, [2]), tailWave: .04, tailWph: t / 2.5 }));
   add('Sleep', 5, true, t => over(SLEEP, { breath: 1.3 * Math.sin(TAU * t / 2.5), tailTip: .05 * Math.sin(TAU * t / 5), earLp: -.25 + .25 * bump(t, 3.2, .06) }));
   add('FallAsleep', 2, false, withSettle(S, t => { const P = over(transfer(LOAF, SLEEP, t / 2, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), { blink: Math.max(.55, ss(seg(t, .6, 1.6))) }); return P; }, 2, {}, 20));   // the head draws back over the front legs on the way
+  // getting up from lying, the way a cat does: the front end pushes up first (front legs straighten, chest rises),
+  // the hind end follows a beat later. From sleep it first lifts its head and opens its eyes slowly, uncurls into
+  // a loaf, and then gets up.
+  const rise = (A, t, a, b) => {
+    const kF = ss(seg(t, a, a + (b - a) * .62)), kH = ss(seg(t, a + (b - a) * .32, b)), P = { ...A };
+    for (const k in P0) P[k] = lerp(A[k], P0[k], /^(F[LR]|scap|nk|hd|sp)/.test(k) ? kF : kH);
+    for (const f of ['FL', 'FR']) P[f + 'y'] += .03 * Math.sin(Math.PI * kF);           // (each front paw steps forward off the floor)
+    for (const f of ['HL', 'HR']) P[f + 'y'] += .02 * Math.sin(Math.PI * kH);
+    P.nkPitch -= .08 * Math.sin(Math.PI * seg(t, a - .05, a + (b - a) * .5));            // head comes up as the chest rises
+    return P;
+  };
+  add('LoafUp', 1.1, false, withSettle(S, t => over(rise(LOAF, t, .05, 1.02), { blink: Math.max(.55 * (1 - seg(t, 0, .35)), blinkAt(t, [.85])) }), 1.1, {}, 12));
+  add('WakeUp', 2.4, false, withSettle(S, t => {
+    const kU = mj(seg(t, .35, 1.25)), P = rise(transfer(SLEEP, LOAF, kU, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), t, 1.25, 2.3);
+    P.nkPitch -= .18 * Math.sin(Math.PI * seg(t, 0, .9)) * (1 - kU);                       // lifts its head first
+    P.blink = t < .3 ? 1 : Math.max(lerp(1, .0, ss(seg(t, .3, 1.0))), blinkAt(t, [1.45], .4));   // eyes open slowly, one sleepy blink
+    P.earLp += .2 * bump(t, .5, .1); P.earRp += .2 * bump(t, .62, .1);                         // ears come up
+    return P;
+  }, 2.4, {}, 20));
   // ---------------------------------------------------------------- grooming
   // Cats groom sitting or lying, never standing, and a bout runs head to tail (cephalocaudal). Share of oral
   // grooming by region: face 31 %, hind legs 21 %, sides/back 13 %, neck/chest 11 %, anogenital 10 %,

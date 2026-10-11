@@ -4,8 +4,6 @@
         "Dig",
         "Drink",
         "FallAsleep",
-        "Flop",
-        "FlopIdle",
         "Gallop",
         "GroomFace",
         "Idle",
@@ -26,7 +24,12 @@
         "StandUp",
         "Stretch",
         "Trot",
-        "Walk"
+        "Walk",
+        "Flop",
+        "FlopIdle",
+        "FlopUp",
+        "LoafUp",
+        "WakeUp"
     ],
     "loops": [
         "Idle",
@@ -328,9 +331,9 @@
     "cushionZ": -0.02199999988079071,
     "cushionLift": 0.1340000033378601,
     "flopBelly": {
-        "x": -0.99201500415802,
-        "y": -0.12544968724250794,
-        "z": -0.012982713989913464
+        "x": -0.9902307987213135,
+        "y": -0.13883142173290254,
+        "z": -0.012995513156056404
     },
     "jumpD": 0.8240000009536743,
     "jumpH": 0.20000000298023225,

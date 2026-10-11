@@ -70,7 +70,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6868716418057165105, guid: 9b07c74034f6a4757996b0c33d109a47, type: 3}
       propertyPath: 'm_BlendShapeWeights.Array.data[0]'
-      value: 1.0267306e-11
+      value: 55
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

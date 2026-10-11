@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 57b7e6e5c3a894e0592a190c102c7753
+guid: 8cc95a41fd4114efa88cda18f58872a6
 ModelImporter:
   serializedVersion: 24300
   internalIDToNameTable: []
@@ -16,7 +16,7 @@ ModelImporter:
     resampleCurves: 1
     optimizeGameObjects: 0
     removeConstantScaleCurves: 0
-    motionNodeName: Cat_korean_shorthair/Root
+    motionNodeName: Cat_munchkin/Root
     animationImportErrors: 
     animationImportWarnings: 
     animationRetargetingWarnings: 
@@ -33,8 +33,8 @@ ModelImporter:
     clipAnimations:
     - serializedVersion: 16
       name: Flop
-      takeName: Cat_korean_shorthair|Flop
-      internalID: 8594206440222284933
+      takeName: Cat_munchkin|Flop
+      internalID: -3503752452264129110
       firstFrame: 0
       lastFrame: 54
       wrapMode: 0
@@ -62,8 +62,8 @@ ModelImporter:
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
       name: FlopIdle
-      takeName: Cat_korean_shorthair|FlopIdle
-      internalID: 2312702657354984148
+      takeName: Cat_munchkin|FlopIdle
+      internalID: 1819105675238935005
       firstFrame: 0
       lastFrame: 180
       wrapMode: 0
@@ -91,8 +91,8 @@ ModelImporter:
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
       name: FlopUp
-      takeName: Cat_korean_shorthair|FlopUp
-      internalID: 9036155740814557143
+      takeName: Cat_munchkin|FlopUp
+      internalID: -1923684169959062054
       firstFrame: 0
       lastFrame: 45
       wrapMode: 0
@@ -120,8 +120,8 @@ ModelImporter:
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
       name: LoafUp
-      takeName: Cat_korean_shorthair|LoafUp
-      internalID: -8531761156730757867
+      takeName: Cat_munchkin|LoafUp
+      internalID: 607002101759508669
       firstFrame: 0
       lastFrame: 33
       wrapMode: 0
@@ -149,8 +149,8 @@ ModelImporter:
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
       name: WakeUp
-      takeName: Cat_korean_shorthair|WakeUp
-      internalID: -3641477416758413959
+      takeName: Cat_munchkin|WakeUp
+      internalID: 7246582519347522512
       firstFrame: 0
       lastFrame: 72
       wrapMode: 0

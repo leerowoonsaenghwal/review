@@ -295,12 +295,14 @@ namespace CatIsland
                     break;
                 case Posture.Loaf:
                     if (Target == Posture.Sleep) clip = "FallAsleep";
-                    else if (Target == Posture.Stand) { clip = "StandUp"; fade = 0.5f; }
+                    else if (Target == Posture.Stand) { clip = HasClip("LoafUp") ? "LoafUp" : "StandUp"; fade = HasClip("LoafUp") ? 0.25f : 0.5f; }   // (엎드렸다 일어나기: 앞 먼저, 뒤 나중)
                     else if (Target == Posture.Sit) { fade = 0.6f; }
                     else if (Target == Posture.Flop) { clip = "Flop"; fade = 0.5f; offset = FlopLowAt; }
                     break;
                 case Posture.Sleep:
-                    next = Posture.Loaf; fade = 0.8f;
+                    // 자다 일어나기: 고개 들고 눈 뜨고 몸을 펴서 엎드렸다가 선다 (동작이 없는 옛 파일은 엎드리기로 섞기)
+                    if (Target == Posture.Stand && HasClip("WakeUp")) { clip = "WakeUp"; next = Posture.Stand; fade = 0.3f; }
+                    else { next = Posture.Loaf; fade = 0.8f; }
                     break;
                 case Posture.Flop:
                     // 일어나기: 눕기를 거꾸로 (굴러서 배를 깔고, 다리를 모아 선다) → 선 자세에서 원하는 자세로 이어서
