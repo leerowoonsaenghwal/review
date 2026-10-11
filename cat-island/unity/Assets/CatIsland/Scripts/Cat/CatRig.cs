@@ -254,7 +254,7 @@ namespace CatIsland
         bool HasState(string s) => Anim && Anim.HasState(0, Animator.StringToHash(s));
 
         bool walking;
-        const float FlopLowAt = .6f;   // (발라당 동작에서 몸이 낮아지고 구르기 시작하는 때, 초)
+        const float FlopLowAt = .2f;   // (발라당 동작에서 몸이 낮아지고 구르기 시작하는 때, 초)
 
         string BaseClip(Posture p)
         {

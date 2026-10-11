@@ -1,1 +1,1 @@
-Dig,Drink,FallAsleep,Flop,FlopIdle,FlopUp,Gallop,Idle,JumpDown,JumpDown40,JumpDown80,JumpUp,JumpUp40,JumpUp80,LickLips,LickUp,LieDown,Loaf,LoafUp,PawBat,Sit,SitDown,Sleep,StandUp,Stretch,Trot,WakeUp,Walk|v4|motion:f5d211994bdc29ccd24fba4dc1f1d84b
+Dig,Drink,FallAsleep,Flop,FlopIdle,FlopUp,Gallop,Idle,JumpDown,JumpDown40,JumpDown80,JumpUp,JumpUp40,JumpUp80,LickLips,LickUp,LieDown,Loaf,LoafUp,PawBat,Sit,SitDown,Sleep,StandUp,Stretch,Trot,WakeUp,Walk|v5|motion:c3a0c889567ccfed0ab5c1e2d0a9a3ae

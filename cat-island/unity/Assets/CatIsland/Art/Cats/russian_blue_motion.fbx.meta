@@ -36,7 +36,7 @@ ModelImporter:
       takeName: Cat_russian_blue|Flop
       internalID: -2535530668133078193
       firstFrame: 0
-      lastFrame: 54
+      lastFrame: 45
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -94,7 +94,7 @@ ModelImporter:
       takeName: Cat_russian_blue|FlopUp
       internalID: -4931581928690798519
       firstFrame: 0
-      lastFrame: 45
+      lastFrame: 32
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -123,7 +123,7 @@ ModelImporter:
       takeName: Cat_russian_blue|LoafUp
       internalID: -8023740777064554346
       firstFrame: 0
-      lastFrame: 33
+      lastFrame: 26
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -152,7 +152,7 @@ ModelImporter:
       takeName: Cat_russian_blue|WakeUp
       internalID: 8877912709402198766
       firstFrame: 0
-      lastFrame: 72
+      lastFrame: 48
       wrapMode: 0
       orientationOffsetY: 0
       level: 0

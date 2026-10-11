@@ -36,7 +36,7 @@ ModelImporter:
       takeName: Cat_scottish_fold|Flop
       internalID: 8957958121352900936
       firstFrame: 0
-      lastFrame: 54
+      lastFrame: 45
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -94,7 +94,7 @@ ModelImporter:
       takeName: Cat_scottish_fold|FlopUp
       internalID: -7433584545781985978
       firstFrame: 0
-      lastFrame: 45
+      lastFrame: 32
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -123,7 +123,7 @@ ModelImporter:
       takeName: Cat_scottish_fold|LoafUp
       internalID: -4996574093726915049
       firstFrame: 0
-      lastFrame: 33
+      lastFrame: 26
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -152,7 +152,7 @@ ModelImporter:
       takeName: Cat_scottish_fold|WakeUp
       internalID: 3896614263371817507
       firstFrame: 0
-      lastFrame: 72
+      lastFrame: 48
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
