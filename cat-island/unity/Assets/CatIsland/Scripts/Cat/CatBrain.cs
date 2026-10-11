@@ -753,6 +753,7 @@ namespace CatIsland
                 var fw = Flat(rig.BodyZone.forward); if (fw.sqrMagnitude < 1e-6f) fw = Flat(c.transform.forward);
                 fw.Normalize(); var bc = rig.BodyZone.position; float half = rig.BodyHalf.z;
                 b0 = P(bc - fw * half); b1 = P(bc + fw * half); bodyR = rig.BodyHalf.x * .85f;
+                if (c.State == CatState.BellyUp || rig.Current == Posture.Flop) bodyR = Mathf.Max(rig.BodyHalf.x, rig.BodyHalf.y) * .9f;   // (옆으로 누우면 위에서 본 몸이 몸 높이만큼 넓다)
             }
             else { var p = P(c.transform.position); head = p; headR = .12f; b0 = b1 = p; bodyR = .12f; }
         }
