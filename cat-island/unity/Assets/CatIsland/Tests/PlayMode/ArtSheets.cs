@@ -83,7 +83,7 @@ namespace CatIsland.Tests
         public IEnumerator PostureFilm()
         {
             var (cam, light) = Stage(); cam.fieldOfView = 30f;
-            foreach (var id in new[] { "korean_shorthair", "munchkin" })
+            foreach (var id in (System.Environment.GetEnvironmentVariable("CATISLAND_FILM") ?? "korean_shorthair,munchkin").Split(','))   // (CATISLAND_FILM=persian,... 로 바꿔 찍기)
             {
                 CatRig rig = null; yield return Cat(id, "", "", r => rig = r);
                 cam.transform.position = rig.transform.position + Quaternion.Euler(0f, 55f, 0f) * Vector3.forward * 2.6f + Vector3.up * 1.0f; cam.transform.LookAt(rig.transform.position + Vector3.up * .25f);
