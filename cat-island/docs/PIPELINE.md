@@ -57,6 +57,11 @@
 2. `blender_finish.py`: 몸 14,000·얼굴 약 10,500 삼각형으로 줄이고, 펼치고, 털 텍스처(2048)와 요철(1024)을 구워 FBX(Unity 축)·glb로 내보낸 뒤 다시 불러와 확인.
 3. 결과: `assets/cats/<품종>.glb / .fbx / .clips.json` (`clips.json`에 동작 목록, 반복 여부, 빠진 동작, 용품 위치).
 - 한 품종 30분~4시간(긴 털이 느림). 여러 품종은 코어 수만큼 동시에.
+- **동작만 다시 만들기** (`motion_cats.py`): 몸은 그대로 두고 일부 동작만 33품종에 다시 넣을 때. `export_cats.py`를 `ONLY=<동작들>`로 돌린 원본에서 `blender_motion.py`가 뼈대 + 얼굴(눈 깜빡임 곡선)만 남긴 `assets/cats/<품종>_motion.fbx`를 만든다. Unity(`sync_art.py` → `CatArtImport`)는 이 파일의 동작으로 본 파일의 같은 이름 동작을 바꾸고 새 동작을 더한다. 한 품종 약 16분(긴 털은 더). 다시 만들기(`rebuild_cats.py`)와 달리 겨우 통과하던 그루밍 동작을 잃을 위험이 없다.
+  ```bash
+  python3 motion_cats.py out/flopmo Flop,FlopIdle,FlopUp --jobs 5
+  ```
+- 동작 확인 시트: `motion2.html?id=<품종>&clip=Flop,FlopUp&n=8&view=34,top` (동작 코드를 바로 계산해서 그림, 한 장 5~8분).
 
 ## 6. 용품 (`items.js`, `export_items.mjs`, `export_items.py`, `blender_items.py`)
 1. 고양이와 같은 거리 함수 방식: 도형을 더하고(U), 부드럽게 더하고(SU), 깎는다(CUT). 사료 알갱이 같은 반복 요소도 코드로.

@@ -412,8 +412,10 @@ namespace CatIsland
                     Rig.Request(Posture.Stand);
                     break;
                 case CatState.BellyUp:
-                    Rig.Request(Posture.Flop);
                     flopFacing = FlopFacing();
+                    // 많이 돌아야 하면 먼저 일어나 몇 걸음 돌고 나서 눕는다 (누우면서 제자리에서 빙그르 돌지 않게)
+                    flopTurning = Quaternion.Angle(transform.rotation, flopFacing) > 70f; flopAt = flopTurning ? -1f : 0f;
+                    Rig.Request(flopTurning ? Posture.Stand : Posture.Flop);
                     audioOut?.Chirp();
                     FxPool.Instance?.Burst(Icon.Heart, Rig.BubbleAnchor.position, 4, 0.3f, 0.24f);
                     Haptics.Impact(ImpactStyle.Light, 0.6f);
@@ -1407,14 +1409,27 @@ namespace CatIsland
             return Quaternion.FromToRotation(fwd.normalized, fwd2) * q;
         }
 
+        bool flopTurning; float flopAt;
         void TickBellyUp(float dt)
         {
             Speed = 0f;
-            // 구르는 동안 배가 카메라 쪽으로 오게 몸을 튼다
-            if (StateTime < 1.4f) transform.rotation = Quaternion.RotateTowards(transform.rotation, flopFacing, 170f * dt);
+            if (flopTurning)
+            {
+                // 서서 제자리 걸음으로 돈다 (걷기 동작이 발을 옮긴다), 다 돌면 눕는다
+                if (Rig.CanMove)
+                {
+                    transform.rotation = Quaternion.RotateTowards(transform.rotation, flopFacing, 150f * dt); turnStep = .13f;
+                    if (Quaternion.Angle(transform.rotation, flopFacing) < 6f) { flopTurning = false; flopAt = StateTime; Rig.Request(Posture.Flop); }
+                }
+                if (StateTime > 4f) { flopTurning = false; flopAt = StateTime; Rig.Request(Posture.Flop); }
+                return;
+            }
+            float t = StateTime - flopAt;
+            // 남은 틀어짐(70도 아래)은 몸을 낮추고 구르는 동안 천천히
+            if (t < 1.4f) transform.rotation = Quaternion.RotateTowards(transform.rotation, flopFacing, 55f * dt);
             // 계속 쓰다듬는 동안은 누워 있다. 믿음 시간이 끝난 뒤에도 배를 계속 만지면 살짝 깨문다.
             bool petRecently = Time.time - lastPetTime < 2.5f || touchingCat;
-            if (!petRecently && StateTime > 2.5f) AfterPetting();   // (일어나서 기지개·세수 같은 여운)
+            if (!petRecently && t > 2.5f) AfterPetting();   // (일어나서 기지개·세수 같은 여운)
         }
 
         void TickNip(float dt)

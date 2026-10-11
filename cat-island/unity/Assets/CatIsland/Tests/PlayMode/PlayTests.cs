@@ -111,18 +111,18 @@ namespace CatIsland.Tests
         {
             Cat.Needs.SetForTest(1f, 1f);
             Cat.transform.rotation = Quaternion.Euler(0f, 90f, 0f); // 옆모습: 등이 잘 보이게
-            int maxFx = 0, hits = 0, frames = 0;
+            int maxFx = 0, hits = 0, frames = 0; bool sat = false;
             float affection0 = Cat.Affection.Points;
             yield return Stroke(() => BackPoint, 3.5f, () =>
             {
-                maxFx = Mathf.Max(maxFx, FxPool.Instance.ActiveCount);
+                maxFx = Mathf.Max(maxFx, FxPool.Instance.ActiveCount); sat |= Cat.Rig.Current == Posture.Sit;
                 frames++;
                 if (game.Router.LastZone != PetZone.None) hits++;
                 return false;
             });
             Assert.Greater(hits, frames / 2, "strokes should land on the cat");
             Assert.IsTrue(Cat.Pet.Purring, "purring");
-            Assert.AreEqual(Posture.Sit, Cat.Rig.Current, "sits down to enjoy it");
+            Assert.IsTrue(sat, "sits down to enjoy it (then may flop over)");
             Assert.Less(Cat.Rig.eyeOpen, 0.7f, "happy eyes closing");
             Assert.Greater(game.Audio.PurrVolume, 0f, "purr audio");
             Assert.Greater(maxFx, 0, "hearts floated up");
@@ -173,7 +173,7 @@ namespace CatIsland.Tests
 
             yield return Stroke(() => BackPoint, 14f, () => Cat.State == CatState.BellyUp);
             Assert.AreEqual(CatState.BellyUp, Cat.State, "cat flops over after enough love");
-            yield return WaitUntil(() => Cat.Rig.Current == Posture.Flop, 3f);
+            yield return WaitUntil(() => Cat.Rig.Current == Posture.Flop, 6f);   // (많이 돌아야 하면 먼저 서서 돌고 눕는다)
             Assert.AreEqual(Posture.Flop, Cat.Rig.Current, "Flop clip finished, lying on its back");
 
             int bellyHits = 0, frames = 0;

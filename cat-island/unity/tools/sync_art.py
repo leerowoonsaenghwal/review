@@ -58,6 +58,9 @@ def main() -> int:
         for ext in (".fbx", ".clips.json"):
             ok &= copy(ASSETS / "cats" / f"{cat}{ext}", ART / "Cats" / f"{cat}{ext}")
         ok &= extract_face_atlas(ASSETS / "cats" / f"{cat}.glb", ART / "Cats" / f"{cat}_face.png")
+        # 동작만 다시 만든 파일 (blender_motion.py: 발라당 눕기·누워 있기·일어나기 등). 있으면 같은 이름 동작을 바꿔 쓴다
+        mo = ASSETS / "cats" / f"{cat}_motion.fbx"
+        if mo.exists(): copy(mo, ART / "Cats" / mo.name)
         # 사진 고양이 털 색 (CatCoat): 털 마스크·색 칸, 같은 몸에 입히는 다른 털 (korean_shorthair__tuxedo 등). 없으면 건너뜀 (예전 에셋)
         res_cats = UNITY / "Assets" / "CatIsland" / "Resources" / "Art" / "Cats"
         for f in sorted((ASSETS / "cats").glob(f"{cat}_coatmask.png")) + sorted((ASSETS / "cats").glob(f"{cat}__*")) + sorted((ASSETS / "cats").glob(f"{cat}.coat.json")):

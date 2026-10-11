@@ -241,10 +241,20 @@ namespace CatIsland.EditorTools
 
             // 4. Animator
             var allClips = AssetDatabase.LoadAllAssetsAtPath(fbx).OfType<AnimationClip>().Where(c => !c.name.StartsWith("__preview")).ToList();
+            // 동작만 다시 만든 파일(<id>_motion.fbx)이 있으면 같은 이름 동작을 바꾸고 새 동작을 더한다 (33품종 몸을 다시 만들지 않고)
+            string motionFbx = $"{Art}/Cats/{id}_motion.fbx", motionSig = "";
+            if (File.Exists(motionFbx))
+            {
+                ImportMotion(motionFbx, loops);
+                var extra = AssetDatabase.LoadAllAssetsAtPath(motionFbx).OfType<AnimationClip>().Where(c => !c.name.StartsWith("__preview")).ToList();
+                allClips.RemoveAll(c => extra.Any(e => e.name == c.name)); allClips.AddRange(extra);
+                motionSig = "|motion:" + Hash128.Compute(File.ReadAllBytes(motionFbx));
+                Debug.Log($"[CatArtImport] {id}: motion file clips {string.Join(",", extra.Select(e => e.name))}");
+            }
             var skipped = new HashSet<string>((json.skippedClips ?? new SkipInfo[0]).Select(s => s.clip));
             string ctrlPath = $"{Art}/Animation/{id}.controller";
             // 동작 구성이 같으면 Animator 를 다시 만들지 않는다 (git 에 의미 없는 변경이 쌓이지 않게)
-            string signature = string.Join(",", allClips.Where(c => !skipped.Contains(c.name)).Select(c => c.name).OrderBy(n => n)) + "|v4";   // (v3: 발라당 일어나기 FlopUp)
+            string signature = string.Join(",", allClips.Where(c => !skipped.Contains(c.name)).Select(c => c.name).OrderBy(n => n)) + "|v4" + motionSig;   // (v3: 발라당 일어나기 FlopUp)
             string sigPath = $"{Art}/Animation/{id}.controller.sig";
             var existing = AssetDatabase.LoadAssetAtPath<AnimatorController>(ctrlPath);
             bool rebuild = existing == null || !File.Exists(sigPath) || File.ReadAllText(sigPath) != signature;
@@ -394,8 +404,30 @@ namespace CatIsland.EditorTools
                 st.motion = c;
                 if (c.name == "Idle") sm.defaultState = st;
                 // 발라당에서 일어나기: 눕기 동작을 거꾸로 (굴러 돌아와 엎드렸다가 선다). CatRig 은 끝에서부터 재생한다
-                if (c.name == "Flop") { var up = sm.AddState("FlopUp"); up.motion = Reversed(ctrl, c, "FlopUp", 1.15f); }
+                if (c.name == "Flop" && !allClips.Any(x => x.name == "FlopUp")) { var up = sm.AddState("FlopUp"); up.motion = Reversed(ctrl, c, "FlopUp", 1.15f); }   // (동작 파일에 일어나기가 없을 때만)
             }
+        }
+
+        /// <summary>동작만 든 파일: 본 파일과 같은 리그·같은 동작 설정 (FlopIdle 처럼 'Idle' 로 끝나면 반복).</summary>
+        static void ImportMotion(string path, HashSet<string> loops)
+        {
+            var imp = (ModelImporter)AssetImporter.GetAtPath(path);
+            imp.animationType = ModelImporterAnimationType.Generic;
+            imp.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
+            imp.importBlendShapes = true; imp.importAnimation = true;
+            imp.materialImportMode = ModelImporterMaterialImportMode.None;
+            imp.motionNodeName = FindMotionNode(path);
+            imp.clipAnimations = imp.defaultClipAnimations.Select(c =>
+            {
+                string n = c.name.Contains("|") ? c.name.Substring(c.name.LastIndexOf('|') + 1) : c.name;
+                c.name = n; c.loopTime = loops.Contains(n) || n.EndsWith("Idle"); c.loopPose = false;
+                c.lockRootRotation = true; c.lockRootHeightY = false; c.lockRootPositionXZ = false;
+                c.keepOriginalOrientation = true; c.keepOriginalPositionY = true; c.keepOriginalPositionXZ = true;
+                return c;
+            }).Where(c => !c.name.StartsWith("Face_")).ToArray();
+            imp.animationCompression = ModelImporterAnimationCompression.Optimal;
+            imp.animationRotationError = .2f; imp.animationPositionError = .2f; imp.animationScaleError = .5f;
+            imp.SaveAndReimport();
         }
 
         static List<string> SourceMaterialNames(ModelImporter imp, string fbx)

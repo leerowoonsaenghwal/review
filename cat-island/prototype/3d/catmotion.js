@@ -1265,20 +1265,82 @@ export function makeClips(rig, opts = {}) {
     const P = over(SIT, { breath: Math.sin(TAU * t / 2), blink: .3 + .5 * Math.sin(Math.PI * seg(t, .1, 1.2)) });
     return addTongue(P, lipLick(seg(t, .15, 1.15)));
   });
-  // flop: rolls onto its side and relaxes (Ragdoll); then breathing with lazy tail flicks
+  // flop (발라당), done the way a cat does it: the front end goes down into a loaf, one shoulder lets go and the
+  // chest rolls first with the hips a beat behind, the cheek rubs the floor on the way, and it comes to rest a
+  // little past its side with the belly showing - front paws curled loosely to the chest ("bunny paws"), the
+  // top hind leg cocked open, the lower one stretched back - with a small rock as it settles.
+  // FlopIdle keeps it alive (a slow wriggle, kneading the air, a lazy tail sweep, cheek rubs, slow blinks), and
+  // FlopUp is the way back: the chest rolls over first, the legs come under, a beat in a loaf, then the front
+  // end pushes up and the hind end follows.
   {
-    const FLOP = over(LOAF, { hipRoll: 1.38, hipY: -.62 * rig.hipY, spRoll: .1, hdRoll: .9, hdPitch: .05, nkPitch: .05, blink: .55, tailBase: -1.2, tailBend: .03, tailCurl: 0, tailYaw: 0, earLp: -.2, earRp: -.2 });
-    for (const f of FOOT_KEYS) {
-      const fr = f[0] === 'F', top = f[1] === 'L';
-      Object.assign(FLOP, { [f + 'fk']: 1, [f + 'k1']: fr ? .7 : top ? -.25 : -.6, [f + 'k2']: fr ? -.45 : .7, [f + 'k3']: fr ? .5 : -.35, [f + 'k4']: .3, [f + 'kz']: fr ? (top ? .1 : -.05) : (top ? .35 : -.35) });   // forelegs reach forward clear of the head, hind legs splay off the belly
-    }
+    const FLOP = over(LOAF, { hipRoll: 1.4, hipY: -.62 * rig.hipY, spRoll: .1, spYaw: 0, hdRoll: .92, hdPitch: .05, hdYaw: 0, nkRoll: 0, nkPitch: .05, blink: .5,
+      tailBase: -1.2, tailBend: .03, tailCurl: 0, tailYaw: 0, earLp: -.15, earRp: -.25 });   // (rolled onto its side the tail's 'yaw' would swing it into the floor: it sweeps with tailBase, along the ground)
+    const LEG = { FL: [.62, -.8, .95, .45, .1], FR: [.85, -.85, .9, .4, -.08], HL: [-.45, 1.0, -.55, .3, .5], HR: [-.95, .55, -.3, .2, -.3] };   // (k1 k2 k3 k4 kz: top paws curled, top hind leg open)
+    for (const f of FOOT_KEYS) { const [k1, k2, k3, k4, kz] = LEG[f]; Object.assign(FLOP, { [f + 'fk']: 1, [f + 'k1']: k1, [f + 'k2']: k2, [f + 'k3']: k3, [f + 'k4']: k4, [f + 'kz']: kz }); }
     settle(S, FLOP, { fk: FOOT_KEYS, iters: 30, dense: true });
-    add('Flop', 1.6, false, withSettle(S, t => {
-      const k = seg(t, 0, 1.4), P = transfer(P0, FLOP, k);
-      P.hipY -= .06 * h * Math.sin(Math.PI * ss(k));     // sinks before rolling over
+    const TAILSIDE = -.5;   // (mid-roll the tail swings to the upper side, clear of the floor)
+    const flopLeg = t => ss(seg(t, .76, .98));   // (legs go loose once the roll is under way)
+    const upLeg = t => ss(seg(t, .48, .66));
+    const roll = (P, kSh, kHip) => {   // shoulders lead, hips follow (chest roll = hips + spine)
+      P.hipRoll = FLOP.hipRoll * kHip; P.spRoll = .6 * kSh * (1 - kHip) + FLOP.spRoll * kHip;
       return P;
-    }, 1.6, { fk: FOOT_KEYS }, 16));
-    add('FlopIdle', 4, true, t => over(FLOP, { breath: 1.2 * Math.sin(TAU * t / 2.4), tailTip: .3 * Math.sin(TAU * t / 2 - 1), tailWave: .1, tailWph: t / 2, blink: .55 + .45 * blinkAt(t, [2.6]) }));
+    };
+    // the planted (IK) paw targets turn with the body as it rolls, so the tucked legs keep their shape instead
+    // of being stretched back down to the floor (until they hand over to the loose lying angles)
+    const rollLegs = P => {
+      for (const f of FOOT_KEYS) {
+        const front = f[0] === 'F', py = (front ? rig.chestY : rig.hipY) + P.hipY, a = P.hipRoll + (front ? P.spRoll : 0);
+        const x = P[f + 'x'], y = P[f + 'y'] - py, c = Math.cos(a), sn = Math.sin(a);
+        P[f + 'x'] = x * c - y * sn; P[f + 'y'] = py + x * sn + y * c;
+      }
+      return P;
+    };
+    add('Flop', 1.8, false, withSettle(S, t => {
+      const kDown = seg(t, 0, .6), kSh = mj(seg(t, .42, 1.05)), kHip = mj(seg(t, .6, 1.32)), kLeg = flopLeg(t);
+      const P = transfer(P0, LOAF, kDown, { FL: .03, FR: .03 }, { FL: .2, FR: .2 });
+      for (const k in FLOP) if (k !== 'hipRoll' && k !== 'spRoll' && k !== 'hipY') P[k] = lerp(P[k], FLOP[k], (k.length > 2 && FOOT_KEYS.includes(k.slice(0, 2))) ? kLeg : kHip);
+      P.hipY = lerp(P.hipY, FLOP.hipY, kHip);
+      roll(P, kSh, kHip);
+      const rock = Math.sin(TAU * seg(t, 1.28, 1.8)) * (1 - seg(t, 1.28, 1.8)) * .09;   // (rolls a little past, rocks back)
+      P.hipRoll += rock; P.spRoll -= .5 * rock; rollLegs(P);
+      P.tailBase += .4 * Math.sin(Math.PI * kHip); P.tailYaw += TAILSIDE * Math.sin(Math.PI * kHip);                                          // (tail held up off the floor while it rolls over)
+      P.hdRoll = FLOP.hdRoll * mj(seg(t, .45, 1.25)) + .14 * bump(t, 1.18, .14);           // cheek rubs the floor
+      P.nkPitch += .12 * Math.sin(Math.PI * seg(t, .2, .8));                               // head dips as the front goes down
+      P.tailBase = lerp(P.tailBase, FLOP.tailBase, kHip) - .3 * bump(t, 1.5, .18);        // the tail lands with a swish (along the floor)
+      P.blink = Math.max(blinkAt(t, [.35]), FLOP.blink * ss(seg(t, 1, 1.6)));
+      return P;
+    }, 1.8, { fkAt: t => flopLeg(t) > .5 ? FOOT_KEYS : [] }, 18));
+    const idle = t => {
+      const w = TAU * t / 6, w3 = TAU * t / 3, P = over(FLOP);
+      P.breath = 1.2 * Math.sin(TAU * t / 2);
+      P.hipRoll += .06 * Math.sin(w); P.spRoll -= .08 * Math.sin(w + .7); P.spYaw += .03 * Math.sin(w3);   // slow wriggle
+      for (const [f, ph] of [['FL', 0], ['FR', Math.PI]]) {                                             // kneading the air
+        const kn = Math.sin(w3 + ph); P[f + 'k2'] += .14 * kn; P[f + 'k3'] += .26 * kn;
+      }
+      P.HLk1 += .14 * Math.sin(w - 1); P.HLkz += .08 * Math.sin(w + .5);                                 // top hind leg stretches and opens
+      P.hdRoll += .06 * Math.sin(w) - .08 * Math.sin(w + .7) + .04 * Math.sin(w + 2);   /* (the head goes with the chest's wriggle) */ P.nkPitch += .04 * Math.sin(w3 + 1);   // cheek rubs, looks around
+      P.tailBase -= .14 + .14 * Math.sin(w3); P.tailTip = .3 * Math.sin(TAU * t / 2 - 1); P.tailWave = .08; P.tailWph = t / 2;
+      P.earLp += -.35 * bump(t, 2.1, .07); P.earRp += -.3 * bump(t, 4.6, .07);
+      P.blink = .5 + .5 * blinkAt(t, [1.5, 4.2], .5);                                                    // slow, contented blinks
+      return P;
+    };
+    add('FlopIdle', 6, true, withSettle(S, idle, 6, { fk: FOOT_KEYS }, 24));
+    add('FlopUp', 1.5, false, withSettle(S, t => {
+      const kSh = mj(seg(t, .02, .45)), kHip = mj(seg(t, .1, .6)), kLeg = upLeg(t);
+      const kF = ss(seg(t, .82, 1.18)), kH = ss(seg(t, .96, 1.42));                      // front end up first, hind end follows
+      const A = idle(0), P = { ...A };
+      for (const k in LOAF) P[k] = lerp(A[k], LOAF[k], (k.length > 2 && FOOT_KEYS.includes(k.slice(0, 2))) ? kLeg : kHip);
+      P.hipRoll = A.hipRoll * (1 - kHip); P.spRoll = A.spRoll * (1 - kHip) - .45 * Math.sin(Math.PI * kSh) * (1 - kHip);   // chest turns back over first
+      rollLegs(P); P.tailBase += .4 * Math.sin(Math.PI * kHip); P.tailYaw += TAILSIDE * Math.sin(Math.PI * kHip);
+      P.hdRoll = A.hdRoll * (1 - mj(seg(t, 0, .6))); P.nkPitch -= .14 * Math.sin(Math.PI * seg(t, 0, .7));                  // head lifts and rights itself
+      for (const k in P0) {
+        const front = /^(F[LR]|scap|nk|hd|sp)/.test(k), hind = /^(H[LR]|hip|tail)/.test(k);
+        if (front) P[k] = lerp(P[k], P0[k], kF); else if (hind) P[k] = lerp(P[k], P0[k], kH); else P[k] = lerp(P[k], P0[k], kH);
+      }
+      for (const f of ['FL', 'FR']) P[f + 'y'] += .03 * Math.sin(Math.PI * kF);
+      P.blink = Math.max(.5 * (1 - seg(t, .1, .5)), blinkAt(t, [1.3]));
+      return P;
+    }, 1.5, { fkAt: t => upLeg(t) < .5 ? FOOT_KEYS : [] }, 18));
   }
   // paw batting: lift, tap down, return (Turkish Van at the water bowl)
   let tapLow = .5, tapFwd = 1, toyClear = null, chinLift = 0;

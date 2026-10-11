@@ -313,7 +313,7 @@ namespace CatIsland
             if (reverse)
             {
                 Play("FlopUp", fade);
-                transitionLeft = ClipLength("Flop") / 1.15f - 0.1f;
+                transitionLeft = ClipLength("FlopUp") - 0.1f;   // (동작 파일의 일어나기, 없으면 가져올 때 만든 눕기 거꾸로)
             }
             else if (clip != null && HasClip(clip))
             {

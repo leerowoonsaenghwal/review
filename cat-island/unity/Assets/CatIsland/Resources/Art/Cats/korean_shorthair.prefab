@@ -68,6 +68,10 @@ PrefabInstance:
       propertyPath: m_UpdateWhenOffscreen
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 6868716418057165105, guid: f15c7589827404cc992f94ee7a896497, type: 3}
+      propertyPath: 'm_BlendShapeWeights.Array.data[0]'
+      value: 1.0267306e-11
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
