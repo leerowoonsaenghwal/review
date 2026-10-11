@@ -1429,7 +1429,7 @@ namespace CatIsland
             if (t < 1.4f) transform.rotation = Quaternion.RotateTowards(transform.rotation, flopFacing, 55f * dt);
             // 계속 쓰다듬는 동안은 누워 있다. 믿음 시간이 끝난 뒤에도 배를 계속 만지면 살짝 깨문다.
             bool petRecently = Time.time - lastPetTime < 2.5f || touchingCat;
-            if (!petRecently && t > 2.5f) AfterPetting();   // (일어나서 기지개·세수 같은 여운)
+            if (!petRecently && t > 3.3f) AfterPetting();   // (일어나서 기지개·세수 같은 여운)
         }
 
         void TickNip(float dt)

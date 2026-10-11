@@ -206,7 +206,7 @@ namespace CatIsland
             while (true)
             {
                 var c = Router ? Router.cat : null;
-                if (c) { c.Needs.SetForTest(1f, 1f); c.ForceState(CatState.SitIdle); yield return new WaitForSeconds(1.5f); c.ForceState(CatState.BellyUp); }
+                if (c) { IslandCam.zoomLevel = 1; c.Needs.SetForTest(1f, 1f); c.ForceState(CatState.SitIdle); yield return new WaitForSeconds(1.5f); c.ForceState(CatState.BellyUp); }
                 yield return new WaitForSeconds(10f);
             }
         }
