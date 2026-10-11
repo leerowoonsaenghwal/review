@@ -254,7 +254,7 @@ namespace CatIsland.EditorTools
             var skipped = new HashSet<string>((json.skippedClips ?? new SkipInfo[0]).Select(s => s.clip));
             string ctrlPath = $"{Art}/Animation/{id}.controller";
             // 동작 구성이 같으면 Animator 를 다시 만들지 않는다 (git 에 의미 없는 변경이 쌓이지 않게)
-            string signature = string.Join(",", allClips.Where(c => !skipped.Contains(c.name)).Select(c => c.name).OrderBy(n => n)) + "|v4" + motionSig;   // (v3: 발라당 일어나기 FlopUp)
+            string signature = string.Join(",", allClips.Where(c => !skipped.Contains(c.name)).Select(c => c.name).OrderBy(n => n)) + "|v5" + motionSig;   // (v3: 발라당 일어나기 FlopUp)
             string sigPath = $"{Art}/Animation/{id}.controller.sig";
             var existing = AssetDatabase.LoadAssetAtPath<AnimatorController>(ctrlPath);
             bool rebuild = existing == null || !File.Exists(sigPath) || File.ReadAllText(sigPath) != signature;
@@ -401,7 +401,7 @@ namespace CatIsland.EditorTools
             {
                 if (skipped.Contains(c.name)) continue;
                 var st = sm.AddState(c.name);
-                st.motion = c;
+                st.motion = c; st.speed = CatRig.Speed(c.name);   // (자세 바꾸기는 빠릿하게: CatRig.ClipSpeed)
                 if (c.name == "Idle") sm.defaultState = st;
                 // 발라당에서 일어나기: 눕기 동작을 거꾸로 (굴러 돌아와 엎드렸다가 선다). CatRig 은 끝에서부터 재생한다
                 if (c.name == "Flop" && !allClips.Any(x => x.name == "FlopUp")) { var up = sm.AddState("FlopUp"); up.motion = Reversed(ctrl, c, "FlopUp", 1.15f); }   // (동작 파일에 일어나기가 없을 때만)

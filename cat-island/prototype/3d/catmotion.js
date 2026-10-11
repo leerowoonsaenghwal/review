@@ -22,6 +22,8 @@ const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const lerp = (a, b, t) => a + (b - a) * t;
 const ss = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 const mj = t => { t = clamp(t, 0, 1); return t * t * t * (10 + t * (-15 + 6 * t)); };   // minimum-jerk ease
+const eo = t => { t = clamp(t, 0, 1); return 1 - (1 - t) ** 3; };                        // ease-out: quick start, soft landing (Animal Crossing timing)
+const eob = (t, o = 1.2) => { t = clamp(t, 0, 1) - 1; return 1 + (o + 1) * t ** 3 + o * t ** 2; };   // ease-out with a small overshoot and settle
 const seg = (t, a, b) => clamp((t - a) / (b - a), 0, 1);
 const frac = x => x - Math.floor(x);
 const bump = (t, c, w) => Math.exp(-(((t - c) / w) ** 2));
@@ -891,22 +893,22 @@ export function makeClips(rig, opts = {}) {
   // getting up from lying, the way a cat does: the front end pushes up first (front legs straighten, chest rises),
   // the hind end follows a beat later. From sleep it first lifts its head and opens its eyes slowly, uncurls into
   // a loaf, and then gets up.
-  const rise = (A, t, a, b) => {
-    const kF = ss(seg(t, a, a + (b - a) * .62)), kH = ss(seg(t, a + (b - a) * .32, b)), P = { ...A };
+  const rise = (A, t, a, b, ease = ss) => {
+    const kF = ease(seg(t, a, a + (b - a) * .62)), kH = ease(seg(t, a + (b - a) * .32, b)), P = { ...A };
     for (const k in P0) P[k] = lerp(A[k], P0[k], /^(F[LR]|scap|nk|hd|sp)/.test(k) ? kF : kH);
     for (const f of ['FL', 'FR']) P[f + 'y'] += .03 * Math.sin(Math.PI * kF);           // (each front paw steps forward off the floor)
     for (const f of ['HL', 'HR']) P[f + 'y'] += .02 * Math.sin(Math.PI * kH);
     P.nkPitch -= .08 * Math.sin(Math.PI * seg(t, a - .05, a + (b - a) * .5));            // head comes up as the chest rises
     return P;
   };
-  add('LoafUp', 1.1, false, withSettle(S, t => over(rise(LOAF, t, .05, 1.02), { blink: Math.max(.55 * (1 - seg(t, 0, .35)), blinkAt(t, [.85])) }), 1.1, {}, 12));
-  add('WakeUp', 2.4, false, withSettle(S, t => {
-    const kU = mj(seg(t, .35, 1.25)), P = rise(transfer(SLEEP, LOAF, kU, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), t, 1.25, 2.3);
-    P.nkPitch -= .18 * Math.sin(Math.PI * seg(t, 0, .9)) * (1 - kU);                       // lifts its head first
-    P.blink = t < .3 ? 1 : Math.max(lerp(1, .0, ss(seg(t, .3, 1.0))), blinkAt(t, [1.45], .4));   // eyes open slowly, one sleepy blink
-    P.earLp += .2 * bump(t, .5, .1); P.earRp += .2 * bump(t, .62, .1);                         // ears come up
+  add('LoafUp', .85, false, withSettle(S, t => over(rise(LOAF, t, .03, .82, eo), { blink: Math.max(.55 * (1 - seg(t, 0, .25)), blinkAt(t, [.65])) }), .85, {}, 12));
+  add('WakeUp', 1.6, false, withSettle(S, t => {
+    const kU = eo(seg(t, .22, .78)), P = rise(transfer(SLEEP, LOAF, kU, { FL: .02, FR: .02 }, { FL: .2, FR: .2 }), t, .78, 1.58, eo);
+    P.nkPitch -= .18 * Math.sin(Math.PI * seg(t, 0, .55)) * (1 - kU);                       // lifts its head first
+    P.blink = t < .12 ? 1 : Math.max(lerp(1, 0, eo(seg(t, .12, .55))), blinkAt(t, [.95], .3));   // eyes open, one sleepy blink
+    P.earLp += .2 * bump(t, .3, .07); P.earRp += .2 * bump(t, .38, .07);                       // ears come up
     return P;
-  }, 2.4, {}, 20));
+  }, 1.6, {}, 18));
   // ---------------------------------------------------------------- grooming
   // Cats groom sitting or lying, never standing, and a bout runs head to tail (cephalocaudal). Share of oral
   // grooming by region: face 31 %, hind legs 21 %, sides/back 13 %, neck/chest 11 %, anogenital 10 %,
@@ -1308,12 +1310,11 @@ export function makeClips(rig, opts = {}) {
       }
       return P;
     };
-    // Flop, slow and in stages so it reads as a contented cat lying down and not a collapse: down into a loaf with
-    // the head up and eyes open; the hind end tips over onto one hip first while the chest stays propped on its
-    // elbows; then the chest follows, the paws curl in to the chest; the head lies down last and stays turned up
-    // toward the player; one slow rub of the back on the floor, and it settles.
+    // Flop, in stages but brisk (Animal Crossing timing: quick starts, soft landings, a small overshoot): down into a
+    // loaf, the hind end tips onto one hip while the chest is still propped on its elbows, then the chest follows
+    // and the head lies down last, turned up toward the player with its eyes open; one rub of the back and it settles.
     const CH = FLOP.hipRoll + FLOP.spRoll;                                               // (chest roll at rest, in the world)
-    const kHipAt = t => ss(seg(t, .75, 1.5)) * .7 + ss(seg(t, 1.45, 2.2)) * .3, kChestAt = t => ss(seg(t, 1.3, 2.25));
+    const kHipAt = t => eo(seg(t, .3, .72)) * .7 + eob(seg(t, .62, 1.05), 1.0) * .3, kChestAt = t => eob(seg(t, .55, 1.08), 1.1);
     // (each pair of legs lets go only when its end of the body has nearly rolled over: lying-down leg angles on a
     //  half-upright body would push into the floor and lift the cat up)
     const legH = t => ss(seg(kHipAt(t), .72, .95)), legF = t => ss(seg(kChestAt(t), .72, .95));
@@ -1325,23 +1326,22 @@ export function makeClips(rig, opts = {}) {
       }
       return P;
     };
-    add('Flop', 2.8, false, withSettle(S, t => {
-      const P = transfer(P0, LOAF, seg(t, 0, .85), { FL: .03, FR: .03 }, { FL: .2, FR: .2 });
-      const kHip = kHipAt(t);                                                              // hips tip onto one side, then the rest of the way with the chest
-      const kChest = kChestAt(t);                                                          // chest stays upright on its elbows, then lies down
-      lieKeys(P, FLOP, t, legF(t), legH(t), ss(seg(t, .9, 2.2)));
-      P.hipY = lerp(P.hipY, FLOP.hipY, ss(seg(t, .75, 2.1)));
-      const rub = Math.sin(TAU * seg(t, 2.15, 2.8)) * (1 - .6 * seg(t, 2.15, 2.8)) * .1;   // one slow rub of the back on the floor
+    add('Flop', 1.5, false, withSettle(S, t => {
+      const P = transfer(P0, LOAF, eo(seg(t, 0, .38)) , { FL: .03, FR: .03 }, { FL: .2, FR: .2 });
+      const kHip = kHipAt(t), kChest = kChestAt(t);
+      lieKeys(P, FLOP, t, legF(t), legH(t), eo(seg(t, .35, 1.05)));
+      P.hipY = lerp(P.hipY, FLOP.hipY, eo(seg(t, .3, 1.0)));
+      const rub = Math.sin(TAU * seg(t, 1.05, 1.5)) * (1 - .6 * seg(t, 1.05, 1.5)) * .08;  // one rub of the back on the floor
       P.hipRoll = FLOP.hipRoll * kHip + rub; P.spRoll = CH * kChest + .6 * rub - P.hipRoll;
       P.hipX = -ROLLR * P.hipRoll;
       rollLegs(P);
-      const up = Math.sin(Math.PI * kHip);
-      P.tailBase += .4 * up; P.tailYaw += TAILSIDE * up; P.tailBase = lerp(P.tailBase, FLOP.tailBase, kHip) - .25 * bump(t, 2.35, .25);
-      P.hdRoll = FLOP.hdRoll * ss(seg(t, 1.55, 2.45)) + .08 * bump(t, 2.3, .15);           // the head lies down last (cheek on the floor for a moment)
-      P.nkPitch += .08 * Math.sin(Math.PI * seg(t, .2, .9));
-      P.blink = Math.max(blinkAt(t, [.5]), .7 * bump(t, 2.55, .2));                        // eyes stay open (a slow blink as it settles)
+      const up = Math.sin(Math.PI * clamp(kHip, 0, 1));
+      P.tailBase += .4 * up; P.tailYaw += TAILSIDE * up; P.tailBase = lerp(P.tailBase, FLOP.tailBase, clamp(kHip, 0, 1)) - .25 * bump(t, 1.15, .14);
+      P.hdRoll = FLOP.hdRoll * eob(seg(t, .7, 1.2), 1.0) + .06 * bump(t, 1.1, .08);          // the head lies down last (cheek touches the floor for a moment)
+      P.nkPitch += .08 * Math.sin(Math.PI * seg(t, .05, .4));
+      P.blink = Math.max(blinkAt(t, [.25]), .7 * bump(t, 1.3, .12));                        // eyes stay open (a slow blink as it settles)
       return P;
-    }, 2.8, { fkAt: t => [...(legF(t) > .5 ? ['FL', 'FR'] : []), ...(legH(t) > .5 ? ['HL', 'HR'] : [])] }, 26));
+    }, 1.5, { fkAt: t => [...(legF(t) > .5 ? ['FL', 'FR'] : []), ...(legH(t) > .5 ? ['HL', 'HR'] : [])] }, 24));
     const idle = t => {
       const w = TAU * t / 6, w3 = TAU * t / 3, P = over(FLOP);
       P.breath = 1.2 * Math.sin(TAU * t / 2);
@@ -1360,21 +1360,21 @@ export function makeClips(rig, opts = {}) {
     add('FlopIdle', 6, true, withSettle(S, idle, 6, { fk: FOOT_KEYS }, 24));
     // FlopUp: the chest comes up onto its elbows first, the hips roll under after it, a beat in a loaf, then the
     // front end pushes up and the hind end follows
-    const upF = t => ss(seg(t, .28, .62)), upH = t => ss(seg(t, .55, .9));
-    add('FlopUp', 1.9, false, withSettle(S, t => {
+    const upF = t => ss(seg(t, .14, .34)), upH = t => ss(seg(t, .3, .5));
+    add('FlopUp', 1.05, false, withSettle(S, t => {
       const A = idle(0), P = { ...A };
-      const kChest = ss(seg(t, .05, .7)), kHip = ss(seg(t, .3, .95));
-      lieKeys(P, LOAF, t, upF(t), upH(t), ss(seg(t, .05, .9)));
+      const kChest = eo(seg(t, .0, .38)), kHip = eo(seg(t, .12, .5));
+      lieKeys(P, LOAF, t, upF(t), upH(t), eo(seg(t, .0, .48)));
       P.hipY = lerp(A.hipY, LOAF.hipY, kHip);
       P.hipRoll = A.hipRoll * (1 - kHip); P.spRoll = (A.hipRoll + A.spRoll) * (1 - kChest) - P.hipRoll;
       P.hipX = -ROLLR * P.hipRoll;
       rollLegs(P);
       const up = Math.sin(Math.PI * kHip); P.tailBase += .4 * up; P.tailYaw += TAILSIDE * up;
-      P.hdRoll = A.hdRoll * (1 - ss(seg(t, 0, .55))); P.nkPitch -= .1 * Math.sin(Math.PI * seg(t, 0, .7));   // head comes up first
-      const Q = rise(P, t, 1.02, 1.85);
-      Q.blink = blinkAt(t, [1.5]);
+      P.hdRoll = A.hdRoll * (1 - eo(seg(t, 0, .3))); P.nkPitch -= .1 * Math.sin(Math.PI * seg(t, 0, .4));   // head comes up first
+      const Q = rise(P, t, .5, 1.02, eo);
+      Q.blink = blinkAt(t, [.85]);
       return Q;
-    }, 1.9, { fkAt: t => [...(upF(t) < .5 ? ['FL', 'FR'] : []), ...(upH(t) < .5 ? ['HL', 'HR'] : [])] }, 24));
+    }, 1.05, { fkAt: t => [...(upF(t) < .5 ? ['FL', 'FR'] : []), ...(upH(t) < .5 ? ['HL', 'HR'] : [])] }, 22));
   }
   // paw batting: lift, tap down, return (Turkish Van at the water bowl)
   let tapLow = .5, tapFwd = 1, toyClear = null, chinLift = 0;

@@ -232,7 +232,17 @@ namespace CatIsland
 
         // ------------------------------------------------------------------ 동작
 
-        public float ClipLength(string clip) => clipLen.TryGetValue(clip, out var l) ? l : 1f;
+        public float ClipLength(string clip) => (clipLen.TryGetValue(clip, out var l) ? l : 1f) / Speed(clip);
+
+        /// <summary>
+        /// 자세 바꾸기 동작의 재생 배속 (동물의 숲처럼 빠릿하게: 앉기·일어서기·눕기는 짧고 시원하게). 가져오기(CatArtImport)가
+        /// Animator 상태 속도로 넣고, 여기 길이 계산도 같은 값을 쓴다.
+        /// </summary>
+        public static readonly Dictionary<string, float> ClipSpeed = new Dictionary<string, float>
+        {
+            { "SitDown", 1.45f }, { "StandUp", 1.5f }, { "LieDown", 1.4f }, { "FallAsleep", 1.3f }, { "Stretch", 1.2f },   // (LoafUp·WakeUp·Flop 은 동작 자체를 빠릿하게 만듦)
+        };
+        public static float Speed(string clip) => ClipSpeed.TryGetValue(clip, out var v) ? v : 1f;
         public bool HasClip(string clip) => clipLen.ContainsKey(clip);
 
         void Play(string state, float fade, float offset = 0f)
@@ -290,25 +300,25 @@ namespace CatIsland
                     break;
                 case Posture.Sit:
                     if (Target == Posture.Stand) clip = "StandUp";
-                    else if (Target == Posture.Loaf || Target == Posture.Sleep) { clip = "LieDown"; next = Posture.Loaf; fade = 0.4f; }
-                    else if (Target == Posture.Flop) { clip = "Flop"; fade = 0.45f; offset = FlopLowAt; }   // (앉은 자리에서: 선 자세로 일어나지 않고 낮아진 데서부터 구른다)
+                    else if (Target == Posture.Loaf || Target == Posture.Sleep) { clip = "LieDown"; next = Posture.Loaf; fade = 0.25f; }
+                    else if (Target == Posture.Flop) { clip = "Flop"; fade = 0.3f; offset = FlopLowAt; }   // (앉은 자리에서: 선 자세로 일어나지 않고 낮아진 데서부터 구른다)
                     break;
                 case Posture.Loaf:
                     if (Target == Posture.Sleep) clip = "FallAsleep";
                     else if (Target == Posture.Stand) { clip = HasClip("LoafUp") ? "LoafUp" : "StandUp"; fade = HasClip("LoafUp") ? 0.25f : 0.5f; }   // (엎드렸다 일어나기: 앞 먼저, 뒤 나중)
-                    else if (Target == Posture.Sit) { fade = 0.6f; }
-                    else if (Target == Posture.Flop) { clip = "Flop"; fade = 0.5f; offset = FlopLowAt; }
+                    else if (Target == Posture.Sit) { fade = 0.35f; }
+                    else if (Target == Posture.Flop) { clip = "Flop"; fade = 0.3f; offset = FlopLowAt; }
                     break;
                 case Posture.Sleep:
                     // 자다 일어나기: 고개 들고 눈 뜨고 몸을 펴서 엎드렸다가 선다 (동작이 없는 옛 파일은 엎드리기로 섞기)
                     if (Target == Posture.Stand && HasClip("WakeUp")) { clip = "WakeUp"; next = Posture.Stand; fade = 0.3f; }
-                    else { next = Posture.Loaf; fade = 0.8f; }
+                    else { next = Posture.Loaf; fade = 0.45f; }
                     break;
                 case Posture.Flop:
                     // 일어나기: 눕기를 거꾸로 (굴러서 배를 깔고, 다리를 모아 선다) → 선 자세에서 원하는 자세로 이어서
                     if (HasState("FlopUp")) { reverse = true; next = Posture.Stand; fade = 0.3f; }
-                    else if (Target == Posture.Stand) { clip = "StandUp"; fade = 0.6f; }
-                    else { next = Target == Posture.Sleep ? Posture.Loaf : Target; fade = 0.6f; if (next == Posture.Loaf) clip = null; }
+                    else if (Target == Posture.Stand) { clip = "StandUp"; fade = 0.35f; }
+                    else { next = Target == Posture.Sleep ? Posture.Loaf : Target; fade = 0.35f; if (next == Posture.Loaf) clip = null; }
                     break;
             }
             pendingPosture = next;
@@ -361,8 +371,10 @@ namespace CatIsland
                 transitionLeft -= dt;
                 if (transitionLeft <= 0f)
                 {
-                    Current = pendingPosture;
+                    var was = Current; Current = pendingPosture;
                     Play(BaseClip(Current), 0.2f);
+                    // 자세가 자리 잡을 때 살짝 눌렸다 튀어 오름 (동물의 숲처럼 말랑하게): 앉기·엎드리기·발라당은 눌림, 일어서면 살짝 늘어남
+                    if (Current != was) sqV += Current == Posture.Stand ? .35f : -.55f;
                 }
             }
             if (ActionClip != null && !actionLoop)
