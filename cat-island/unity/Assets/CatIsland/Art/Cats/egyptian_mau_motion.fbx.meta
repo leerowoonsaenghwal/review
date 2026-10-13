@@ -36,7 +36,7 @@ ModelImporter:
       takeName: Cat_egyptian_mau|Flop
       internalID: -4398159854799264364
       firstFrame: 0
-      lastFrame: 54
+      lastFrame: 45
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -94,7 +94,7 @@ ModelImporter:
       takeName: Cat_egyptian_mau|FlopUp
       internalID: 1579825892564247397
       firstFrame: 0
-      lastFrame: 45
+      lastFrame: 32
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -123,7 +123,7 @@ ModelImporter:
       takeName: Cat_egyptian_mau|LoafUp
       internalID: 8490659990413031695
       firstFrame: 0
-      lastFrame: 33
+      lastFrame: 26
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -152,7 +152,7 @@ ModelImporter:
       takeName: Cat_egyptian_mau|WakeUp
       internalID: -5168632158636683555
       firstFrame: 0
-      lastFrame: 72
+      lastFrame: 48
       wrapMode: 0
       orientationOffsetY: 0
       level: 0

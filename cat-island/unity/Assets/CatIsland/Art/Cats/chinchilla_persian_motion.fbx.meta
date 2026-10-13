@@ -36,7 +36,7 @@ ModelImporter:
       takeName: Cat_chinchilla_persian|Flop
       internalID: 6830404782160769143
       firstFrame: 0
-      lastFrame: 54
+      lastFrame: 45
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -94,7 +94,7 @@ ModelImporter:
       takeName: Cat_chinchilla_persian|FlopUp
       internalID: 6627031214409371777
       firstFrame: 0
-      lastFrame: 45
+      lastFrame: 32
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -123,7 +123,7 @@ ModelImporter:
       takeName: Cat_chinchilla_persian|LoafUp
       internalID: -4664044596216742827
       firstFrame: 0
-      lastFrame: 33
+      lastFrame: 26
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -152,7 +152,7 @@ ModelImporter:
       takeName: Cat_chinchilla_persian|WakeUp
       internalID: 1634701939846231256
       firstFrame: 0
-      lastFrame: 72
+      lastFrame: 48
       wrapMode: 0
       orientationOffsetY: 0
       level: 0

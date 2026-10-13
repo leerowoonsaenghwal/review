@@ -36,7 +36,7 @@ ModelImporter:
       takeName: Cat_maine_coon|Flop
       internalID: 6152118464571991389
       firstFrame: 0
-      lastFrame: 54
+      lastFrame: 45
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -94,7 +94,7 @@ ModelImporter:
       takeName: Cat_maine_coon|FlopUp
       internalID: 2123585201658001290
       firstFrame: 0
-      lastFrame: 45
+      lastFrame: 32
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -123,7 +123,7 @@ ModelImporter:
       takeName: Cat_maine_coon|LoafUp
       internalID: 8477231174286819070
       firstFrame: 0
-      lastFrame: 33
+      lastFrame: 26
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
@@ -152,7 +152,7 @@ ModelImporter:
       takeName: Cat_maine_coon|WakeUp
       internalID: 811273329880995210
       firstFrame: 0
-      lastFrame: 72
+      lastFrame: 48
       wrapMode: 0
       orientationOffsetY: 0
       level: 0
